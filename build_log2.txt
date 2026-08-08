@@ -1,0 +1,411 @@
+﻿To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.7/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Configure project :app
+WARNING: The option setting 'android.defaults.buildfeatures.buildconfig=true' is deprecated.
+The current default is 'false'.
+It will be removed in version 9.0 of the Android Gradle plugin.
+You can resolve this warning in Android Studio via `Refactor` > `Migrate BuildConfig to Gradle Build Files`
+WARNING: We recommend using a newer Android Gradle plugin to use compileSdk = 35
+
+This Android Gradle plugin (8.5.2) was tested up to compileSdk = 34.
+
+You are strongly encouraged to update your project to use a newer
+Android Gradle plugin that has been tested with compileSdk = 35.
+
+If you are already using the latest version of the Android Gradle plugin,
+you may need to wait until a newer version with support for compileSdk = 35 is available.
+
+For more information refer to the compatibility table:
+https://d.android.com/r/tools/api-level-support
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=35
+to this project's gradle.properties.
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:generateSafeArgsDebug UP-TO-DATE
+> Task :core:preBuild UP-TO-DATE
+> Task :core:preDebugBuild UP-TO-DATE
+> Task :core:writeDebugAarMetadata UP-TO-DATE
+> Task :data:preBuild UP-TO-DATE
+> Task :data:preDebugBuild UP-TO-DATE
+> Task :data:writeDebugAarMetadata UP-TO-DATE
+> Task :designsystem:preBuild UP-TO-DATE
+> Task :designsystem:preDebugBuild UP-TO-DATE
+> Task :designsystem:writeDebugAarMetadata UP-TO-DATE
+> Task :ftp:preBuild UP-TO-DATE
+> Task :ftp:preDebugBuild UP-TO-DATE
+> Task :ftp:writeDebugAarMetadata UP-TO-DATE
+> Task :library:preBuild UP-TO-DATE
+> Task :library:preDebugBuild UP-TO-DATE
+> Task :library:writeDebugAarMetadata UP-TO-DATE
+> Task :player:preBuild UP-TO-DATE
+> Task :player:preDebugBuild UP-TO-DATE
+> Task :player:writeDebugAarMetadata UP-TO-DATE
+> Task :reader:preBuild UP-TO-DATE
+> Task :reader:preDebugBuild UP-TO-DATE
+> Task :reader:writeDebugAarMetadata UP-TO-DATE
+> Task :smb:preBuild UP-TO-DATE
+> Task :smb:preDebugBuild UP-TO-DATE
+> Task :smb:writeDebugAarMetadata UP-TO-DATE
+> Task :torrent:preBuild UP-TO-DATE
+> Task :torrent:preDebugBuild UP-TO-DATE
+> Task :torrent:writeDebugAarMetadata UP-TO-DATE
+> Task :webdav:preBuild UP-TO-DATE
+> Task :webdav:preDebugBuild UP-TO-DATE
+> Task :webdav:writeDebugAarMetadata UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :core:generateDebugResValues UP-TO-DATE
+> Task :core:generateDebugResources UP-TO-DATE
+> Task :core:packageDebugResources UP-TO-DATE
+> Task :data:generateDebugResValues UP-TO-DATE
+> Task :data:generateDebugResources UP-TO-DATE
+> Task :data:packageDebugResources UP-TO-DATE
+> Task :designsystem:generateDebugResValues UP-TO-DATE
+> Task :designsystem:generateDebugResources UP-TO-DATE
+> Task :designsystem:packageDebugResources UP-TO-DATE
+> Task :ftp:generateDebugResValues UP-TO-DATE
+> Task :ftp:generateDebugResources UP-TO-DATE
+> Task :ftp:packageDebugResources UP-TO-DATE
+> Task :library:generateDebugResValues UP-TO-DATE
+> Task :library:generateDebugResources UP-TO-DATE
+> Task :library:packageDebugResources UP-TO-DATE
+> Task :player:generateDebugResValues UP-TO-DATE
+> Task :player:generateDebugResources UP-TO-DATE
+> Task :player:packageDebugResources UP-TO-DATE
+> Task :reader:generateDebugResValues UP-TO-DATE
+> Task :reader:generateDebugResources UP-TO-DATE
+> Task :reader:packageDebugResources UP-TO-DATE
+> Task :smb:generateDebugResValues UP-TO-DATE
+> Task :smb:generateDebugResources UP-TO-DATE
+> Task :smb:packageDebugResources UP-TO-DATE
+> Task :torrent:generateDebugResValues UP-TO-DATE
+> Task :torrent:generateDebugResources UP-TO-DATE
+> Task :torrent:packageDebugResources UP-TO-DATE
+> Task :webdav:generateDebugResValues UP-TO-DATE
+> Task :webdav:generateDebugResources UP-TO-DATE
+> Task :webdav:packageDebugResources UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :core:extractDeepLinksDebug UP-TO-DATE
+> Task :core:processDebugManifest UP-TO-DATE
+> Task :data:extractDeepLinksDebug UP-TO-DATE
+> Task :data:processDebugManifest UP-TO-DATE
+> Task :designsystem:extractDeepLinksDebug UP-TO-DATE
+> Task :designsystem:processDebugManifest UP-TO-DATE
+> Task :ftp:extractDeepLinksDebug UP-TO-DATE
+> Task :ftp:processDebugManifest UP-TO-DATE
+> Task :library:extractDeepLinksDebug UP-TO-DATE
+> Task :library:processDebugManifest UP-TO-DATE
+> Task :player:extractDeepLinksDebug UP-TO-DATE
+> Task :player:processDebugManifest UP-TO-DATE
+> Task :reader:extractDeepLinksDebug UP-TO-DATE
+> Task :reader:processDebugManifest UP-TO-DATE
+> Task :smb:extractDeepLinksDebug UP-TO-DATE
+> Task :smb:processDebugManifest UP-TO-DATE
+> Task :torrent:extractDeepLinksDebug UP-TO-DATE
+> Task :torrent:processDebugManifest UP-TO-DATE
+> Task :webdav:extractDeepLinksDebug UP-TO-DATE
+> Task :webdav:processDebugManifest UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :core:compileDebugLibraryResources UP-TO-DATE
+> Task :core:parseDebugLocalResources UP-TO-DATE
+> Task :core:generateDebugRFile UP-TO-DATE
+> Task :data:compileDebugLibraryResources UP-TO-DATE
+> Task :data:parseDebugLocalResources UP-TO-DATE
+> Task :data:generateDebugRFile UP-TO-DATE
+> Task :designsystem:compileDebugLibraryResources UP-TO-DATE
+> Task :designsystem:parseDebugLocalResources UP-TO-DATE
+> Task :designsystem:generateDebugRFile UP-TO-DATE
+> Task :ftp:compileDebugLibraryResources UP-TO-DATE
+> Task :ftp:parseDebugLocalResources UP-TO-DATE
+> Task :ftp:generateDebugRFile UP-TO-DATE
+> Task :library:compileDebugLibraryResources UP-TO-DATE
+> Task :library:parseDebugLocalResources UP-TO-DATE
+> Task :library:generateDebugRFile UP-TO-DATE
+> Task :player:compileDebugLibraryResources UP-TO-DATE
+> Task :player:parseDebugLocalResources UP-TO-DATE
+> Task :player:generateDebugRFile UP-TO-DATE
+> Task :reader:compileDebugLibraryResources UP-TO-DATE
+> Task :reader:parseDebugLocalResources UP-TO-DATE
+> Task :reader:generateDebugRFile UP-TO-DATE
+> Task :smb:compileDebugLibraryResources UP-TO-DATE
+> Task :smb:parseDebugLocalResources UP-TO-DATE
+> Task :smb:generateDebugRFile UP-TO-DATE
+> Task :torrent:compileDebugLibraryResources UP-TO-DATE
+> Task :torrent:parseDebugLocalResources UP-TO-DATE
+> Task :torrent:generateDebugRFile UP-TO-DATE
+> Task :webdav:compileDebugLibraryResources UP-TO-DATE
+> Task :webdav:parseDebugLocalResources UP-TO-DATE
+> Task :webdav:generateDebugRFile UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :core:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:generateDebugBuildConfig UP-TO-DATE
+> Task :core:compileDebugKotlin UP-TO-DATE
+> Task :core:javaPreCompileDebug UP-TO-DATE
+> Task :core:compileDebugJavaWithJavac UP-TO-DATE
+> Task :core:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :data:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :data:generateDebugBuildConfig UP-TO-DATE
+> Task :data:kspDebugKotlin UP-TO-DATE
+> Task :data:compileDebugKotlin UP-TO-DATE
+> Task :data:javaPreCompileDebug UP-TO-DATE
+> Task :data:compileDebugJavaWithJavac UP-TO-DATE
+> Task :data:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :designsystem:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :designsystem:generateDebugBuildConfig UP-TO-DATE
+> Task :designsystem:compileDebugKotlin UP-TO-DATE
+> Task :designsystem:javaPreCompileDebug UP-TO-DATE
+> Task :designsystem:compileDebugJavaWithJavac UP-TO-DATE
+> Task :designsystem:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :ftp:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :ftp:generateDebugBuildConfig UP-TO-DATE
+> Task :library:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :library:generateDebugBuildConfig UP-TO-DATE
+> Task :library:compileDebugKotlin UP-TO-DATE
+> Task :library:javaPreCompileDebug UP-TO-DATE
+> Task :library:compileDebugJavaWithJavac UP-TO-DATE
+> Task :library:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :ftp:compileDebugKotlin UP-TO-DATE
+> Task :ftp:javaPreCompileDebug UP-TO-DATE
+> Task :ftp:compileDebugJavaWithJavac UP-TO-DATE
+> Task :ftp:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :player:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :player:generateDebugBuildConfig UP-TO-DATE
+> Task :player:compileDebugKotlin UP-TO-DATE
+> Task :player:javaPreCompileDebug UP-TO-DATE
+> Task :player:compileDebugJavaWithJavac UP-TO-DATE
+> Task :player:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :reader:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :reader:generateDebugBuildConfig UP-TO-DATE
+> Task :reader:javaPreCompileDebug UP-TO-DATE
+> Task :smb:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :smb:generateDebugBuildConfig UP-TO-DATE
+> Task :smb:compileDebugKotlin UP-TO-DATE
+> Task :smb:javaPreCompileDebug UP-TO-DATE
+> Task :smb:compileDebugJavaWithJavac UP-TO-DATE
+> Task :smb:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :torrent:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :torrent:generateDebugBuildConfig UP-TO-DATE
+> Task :torrent:compileDebugKotlin UP-TO-DATE
+> Task :torrent:javaPreCompileDebug UP-TO-DATE
+> Task :torrent:compileDebugJavaWithJavac UP-TO-DATE
+> Task :torrent:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :webdav:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :webdav:generateDebugBuildConfig UP-TO-DATE
+> Task :webdav:compileDebugKotlin UP-TO-DATE
+> Task :webdav:javaPreCompileDebug UP-TO-DATE
+> Task :webdav:compileDebugJavaWithJavac UP-TO-DATE
+> Task :webdav:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :core:mergeDebugShaders UP-TO-DATE
+> Task :core:compileDebugShaders NO-SOURCE
+> Task :core:generateDebugAssets UP-TO-DATE
+> Task :core:packageDebugAssets UP-TO-DATE
+> Task :data:mergeDebugShaders UP-TO-DATE
+> Task :data:compileDebugShaders NO-SOURCE
+> Task :data:generateDebugAssets UP-TO-DATE
+> Task :data:packageDebugAssets UP-TO-DATE
+> Task :designsystem:mergeDebugShaders UP-TO-DATE
+> Task :designsystem:compileDebugShaders NO-SOURCE
+> Task :designsystem:generateDebugAssets UP-TO-DATE
+> Task :designsystem:packageDebugAssets UP-TO-DATE
+> Task :ftp:mergeDebugShaders UP-TO-DATE
+> Task :ftp:compileDebugShaders NO-SOURCE
+> Task :ftp:generateDebugAssets UP-TO-DATE
+> Task :ftp:packageDebugAssets UP-TO-DATE
+> Task :library:mergeDebugShaders UP-TO-DATE
+> Task :library:compileDebugShaders NO-SOURCE
+> Task :library:generateDebugAssets UP-TO-DATE
+> Task :library:packageDebugAssets UP-TO-DATE
+> Task :player:mergeDebugShaders UP-TO-DATE
+> Task :player:compileDebugShaders NO-SOURCE
+> Task :player:generateDebugAssets UP-TO-DATE
+> Task :player:packageDebugAssets UP-TO-DATE
+> Task :reader:mergeDebugShaders UP-TO-DATE
+> Task :reader:compileDebugShaders NO-SOURCE
+> Task :reader:generateDebugAssets UP-TO-DATE
+> Task :reader:packageDebugAssets UP-TO-DATE
+> Task :smb:mergeDebugShaders UP-TO-DATE
+> Task :smb:compileDebugShaders NO-SOURCE
+> Task :smb:generateDebugAssets UP-TO-DATE
+> Task :smb:packageDebugAssets UP-TO-DATE
+> Task :torrent:mergeDebugShaders UP-TO-DATE
+> Task :torrent:compileDebugShaders NO-SOURCE
+> Task :torrent:generateDebugAssets UP-TO-DATE
+> Task :torrent:packageDebugAssets UP-TO-DATE
+> Task :webdav:mergeDebugShaders UP-TO-DATE
+> Task :webdav:compileDebugShaders NO-SOURCE
+> Task :webdav:generateDebugAssets UP-TO-DATE
+> Task :webdav:packageDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :ftp:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :smb:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :webdav:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :torrent:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :library:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :player:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :data:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :core:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :designsystem:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :core:processDebugJavaRes UP-TO-DATE
+> Task :data:processDebugJavaRes UP-TO-DATE
+> Task :designsystem:processDebugJavaRes UP-TO-DATE
+> Task :ftp:processDebugJavaRes UP-TO-DATE
+> Task :library:processDebugJavaRes UP-TO-DATE
+> Task :player:processDebugJavaRes UP-TO-DATE
+> Task :smb:processDebugJavaRes UP-TO-DATE
+> Task :torrent:processDebugJavaRes UP-TO-DATE
+> Task :webdav:processDebugJavaRes UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:mergeDebugStartupProfile UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :ftp:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :smb:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :webdav:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :torrent:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :library:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :player:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :data:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :core:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :designsystem:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:mergeDebugJniLibFolders UP-TO-DATE
+> Task :core:mergeDebugNativeLibs NO-SOURCE
+> Task :core:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :data:mergeDebugJniLibFolders UP-TO-DATE
+> Task :data:mergeDebugNativeLibs NO-SOURCE
+> Task :data:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :designsystem:mergeDebugJniLibFolders UP-TO-DATE
+> Task :designsystem:mergeDebugNativeLibs NO-SOURCE
+> Task :designsystem:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :ftp:mergeDebugJniLibFolders UP-TO-DATE
+> Task :ftp:mergeDebugNativeLibs NO-SOURCE
+> Task :ftp:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :library:mergeDebugJniLibFolders UP-TO-DATE
+> Task :library:mergeDebugNativeLibs NO-SOURCE
+> Task :library:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :player:mergeDebugJniLibFolders UP-TO-DATE
+> Task :player:mergeDebugNativeLibs NO-SOURCE
+> Task :player:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :reader:mergeDebugJniLibFolders UP-TO-DATE
+> Task :reader:mergeDebugNativeLibs NO-SOURCE
+> Task :reader:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :smb:mergeDebugJniLibFolders UP-TO-DATE
+> Task :smb:mergeDebugNativeLibs NO-SOURCE
+> Task :smb:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :torrent:mergeDebugJniLibFolders UP-TO-DATE
+> Task :torrent:mergeDebugNativeLibs NO-SOURCE
+> Task :torrent:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :webdav:mergeDebugJniLibFolders UP-TO-DATE
+> Task :webdav:mergeDebugNativeLibs NO-SOURCE
+> Task :webdav:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :app:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+
+> Task :reader:compileDebugKotlin FAILED
+.\gradlew.bat : e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/u
+i/ReaderScreen.kt:384:26 Cannot infer type for this parameter. Please specify it explicitly.
+At C:\Users\cKlappy\.gemini\antigravity\brain\1207bb9a-d7bd-44ae-a6d0-96b3bb29766f\scratch\test_and_capture.ps1:7 
+char:1
++ .\gradlew.bat :app:assembleDebug --no-daemon 2>&1 | Out-File -FilePat ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (e: file:///C:/U... it explicitly.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:384:40 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:384:42 Unresolved reference 'LocalConfiguration'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:384:86 Overload resolution ambiguity between candidates:
+fun Dp.toPx(): Float
+fun TextUnit.toPx(): Float
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:385:26 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:385:40 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:385:42 Unresolved reference 'LocalConfiguration'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:385:87 Overload resolution ambiguity between candidates:
+fun Dp.toPx(): Float
+fun TextUnit.toPx(): Float
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:391:25 Argument type mismatch: actual type is 'com.shelf.reader.reader.engine.HtmlPageRenderer', but 'kotlin.Int' 
+was expected.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:399:56 Unresolved reference 'contentHtml'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:408:21 Unresolved reference 'rememberPageTurnState'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:426:51 Unresolved reference 'NEXT'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:431:32 Unresolved reference 'getBackside'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:451:78 Unresolved reference 'PREVIOUS'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:462:78 Unresolved reference 'NEXT'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:478:33 'when' expression must be exhaustive. Add an 'else' branch.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:479:27 Unresolved reference 'NEXT'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:480:27 Unresolved reference 'PREVIOUS'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:489:9 Unresolved reference 'Canvas'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:490:27 Function invocation 'size(...)' expected.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:490:32 Function invocation 'width(...)' expected.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:491:27 Function invocation 'size(...)' expected.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:491:32 Function invocation 'height(...)' expected.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:497:17 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
+fun DrawScope.drawIntoCanvas(block: (Canvas) -> Unit): Unit
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:503:17 Unresolved reference 'PageCurlCanvas'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:518:34 Unresolved reference 'drawRect'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.k
+t:541:15 Unresolved reference 'updateDragFraction'.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':reader:compileDebugKotlin'.
+> A failure occurred while executing 
+org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 15s
+235 actionable tasks: 1 executed, 234 up-to-date

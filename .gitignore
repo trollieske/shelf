@@ -1,0 +1,45 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+
+# Android / IntelliJ
+*.iml
+.idea/
+!.idea/codeStyles/
+!.idea/inspectionProfiles/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# APK/AAB
+*.apk
+*.aab
+*.ap_
+*.aab
+app/release/
+app/debug/
+
+# ProGuard / mapping
+mapping.txt
+retention/
+
+# Logs
+*.log
+crashlytics-build.properties
+
+# Kotlin
+*.hprof
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Tests & coverage
+.coverlet/
+coverage/

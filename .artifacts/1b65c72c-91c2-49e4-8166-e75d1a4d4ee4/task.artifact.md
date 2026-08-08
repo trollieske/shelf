@@ -1,0 +1,4 @@
+- [x] Fix NullPointerException in `FtpServerStore.kt`
+- [x] Add `init` block to `SmbServerStore.kt`
+- [x] Add `init` block to `WebdavServerStore.kt`
+- [x] Verify build and deploy

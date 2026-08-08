@@ -1,0 +1,131 @@
+﻿Starting a Gradle Daemon, 1 incompatible and 11 stopped Daemons could not be reused, use --status for details
+
+> Configure project :app
+WARNING: The option setting 'android.defaults.buildfeatures.buildconfig=true' is deprecated.
+The current default is 'false'.
+It will be removed in version 9.0 of the Android Gradle plugin.
+You can resolve this warning in Android Studio via `Refactor` > `Migrate BuildConfig to Gradle Build Files`
+WARNING: We recommend using a newer Android Gradle plugin to use compileSdk = 35
+
+This Android Gradle plugin (8.5.2) was tested up to compileSdk = 34.
+
+You are strongly encouraged to update your project to use a newer
+Android Gradle plugin that has been tested with compileSdk = 35.
+
+If you are already using the latest version of the Android Gradle plugin,
+you may need to wait until a newer version with support for compileSdk = 35 is available.
+
+For more information refer to the compatibility table:
+https://d.android.com/r/tools/api-level-support
+
+To suppress this warning, add/update
+    android.suppressUnsupportedCompileSdk=35
+to this project's gradle.properties.
+
+> Task :core:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:preBuild UP-TO-DATE
+> Task :core:preDebugBuild UP-TO-DATE
+> Task :core:generateDebugBuildConfig UP-TO-DATE
+> Task :core:generateDebugResValues UP-TO-DATE
+> Task :core:generateDebugResources UP-TO-DATE
+> Task :core:packageDebugResources UP-TO-DATE
+> Task :core:parseDebugLocalResources UP-TO-DATE
+> Task :core:generateDebugRFile UP-TO-DATE
+> Task :core:compileDebugKotlin UP-TO-DATE
+> Task :core:javaPreCompileDebug UP-TO-DATE
+> Task :core:compileDebugJavaWithJavac UP-TO-DATE
+> Task :core:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :data:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :data:preBuild UP-TO-DATE
+> Task :data:preDebugBuild UP-TO-DATE
+> Task :data:generateDebugBuildConfig UP-TO-DATE
+> Task :data:generateDebugResValues UP-TO-DATE
+> Task :data:generateDebugResources UP-TO-DATE
+> Task :data:packageDebugResources UP-TO-DATE
+> Task :data:parseDebugLocalResources UP-TO-DATE
+> Task :data:generateDebugRFile UP-TO-DATE
+> Task :data:kspDebugKotlin UP-TO-DATE
+> Task :data:compileDebugKotlin UP-TO-DATE
+> Task :data:javaPreCompileDebug UP-TO-DATE
+> Task :data:compileDebugJavaWithJavac UP-TO-DATE
+> Task :data:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :designsystem:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :designsystem:preBuild UP-TO-DATE
+> Task :designsystem:preDebugBuild UP-TO-DATE
+> Task :designsystem:generateDebugBuildConfig UP-TO-DATE
+> Task :designsystem:generateDebugResValues UP-TO-DATE
+> Task :designsystem:generateDebugResources UP-TO-DATE
+> Task :designsystem:packageDebugResources UP-TO-DATE
+> Task :designsystem:parseDebugLocalResources UP-TO-DATE
+> Task :designsystem:generateDebugRFile UP-TO-DATE
+> Task :designsystem:compileDebugKotlin UP-TO-DATE
+> Task :designsystem:javaPreCompileDebug UP-TO-DATE
+> Task :designsystem:compileDebugJavaWithJavac UP-TO-DATE
+> Task :designsystem:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :library:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :library:preBuild UP-TO-DATE
+> Task :library:preDebugBuild UP-TO-DATE
+> Task :library:generateDebugBuildConfig UP-TO-DATE
+> Task :library:generateDebugResValues UP-TO-DATE
+> Task :library:generateDebugResources UP-TO-DATE
+> Task :library:packageDebugResources UP-TO-DATE
+> Task :library:parseDebugLocalResources UP-TO-DATE
+> Task :library:generateDebugRFile UP-TO-DATE
+> Task :library:compileDebugKotlin UP-TO-DATE
+> Task :library:javaPreCompileDebug UP-TO-DATE
+> Task :library:compileDebugJavaWithJavac UP-TO-DATE
+> Task :library:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :torrent:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :torrent:preBuild UP-TO-DATE
+> Task :torrent:preDebugBuild UP-TO-DATE
+> Task :torrent:generateDebugBuildConfig UP-TO-DATE
+> Task :torrent:generateDebugResValues UP-TO-DATE
+> Task :torrent:generateDebugResources UP-TO-DATE
+> Task :torrent:packageDebugResources UP-TO-DATE
+> Task :torrent:parseDebugLocalResources UP-TO-DATE
+> Task :torrent:generateDebugRFile UP-TO-DATE
+
+> Task :torrent:compileDebugKotlin
+.\gradlew.bat : e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/torrent/src/main/java/com/shelf/reader/torrent
+/engine/TorrentEngine.kt:246:68 Cannot access 'constructor(p0: Long, p1: Boolean): sha1_hash': it is protected in 
+'org/libtorrent4j/swig/sha1_hash'.
+At line:1 char:1
++ .\gradlew.bat :torrent:compileDebugKotlin 2>&1 | Out-File "build_erro ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (e: file:///C:/U...wig/sha1_hash'.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/torrent/src/main/java/com/shelf/reader/torrent/engine/TorrentE
+ngine.kt:265:64 Cannot access 'constructor(p0: Long, p1: Boolean): sha1_hash': it is protected in 
+'org/libtorrent4j/swig/sha1_hash'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/torrent/src/main/java/com/shelf/reader/torrent/engine/TorrentE
+ngine.kt:277:64 Cannot access 'constructor(p0: Long, p1: Boolean): sha1_hash': it is protected in 
+'org/libtorrent4j/swig/sha1_hash'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/torrent/src/main/java/com/shelf/reader/torrent/engine/TorrentE
+ngine.kt:286:77 Cannot access 'constructor(p0: Long, p1: Boolean): sha1_hash': it is protected in 
+'org/libtorrent4j/swig/sha1_hash'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/torrent/src/main/java/com/shelf/reader/torrent/engine/TorrentE
+ngine.kt:335:61 Cannot access 'constructor(p0: Long, p1: Boolean): sha1_hash': it is protected in 
+'org/libtorrent4j/swig/sha1_hash'.
+e: file:///C:/Users/cKlappy/Documents/trae_projects/Book/torrent/src/main/java/com/shelf/reader/torrent/engine/TorrentE
+ngine.kt:353:70 Cannot access 'constructor(p0: Long, p1: Boolean): sha1_hash': it is protected in 
+'org/libtorrent4j/swig/sha1_hash'.
+
+> Task :torrent:compileDebugKotlin FAILED
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':torrent:compileDebugKotlin'.
+> A failure occurred while executing 
+org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+48 actionable tasks: 1 executed, 47 up-to-date
+BUILD FAILED in 17s

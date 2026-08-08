@@ -1,0 +1,164 @@
+package com.shelf.reader.smb.client
+
+import android.net.Uri
+import jcifs.CIFSContext
+import jcifs.config.PropertyConfiguration
+import jcifs.context.BaseContext
+import jcifs.smb.NtlmPasswordAuthenticator
+import jcifs.smb.SmbFile
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import java.util.Properties
+
+enum class SmbEntryType { FILE, FOLDER, UNKNOWN }
+
+data class SmbEntry(
+    val name: String,
+    val path: String,
+    val type: SmbEntryType,
+    val sizeBytes: Long,
+    val modifiedEpochSec: Long
+)
+
+class SmbClientEngine {
+
+    private var baseContext: CIFSContext? = null
+    private var rootUrl: String? = null
+    private var connected = false
+
+    val isConnected: Boolean
+        get() = connected
+
+    suspend fun connect(
+        host: String,
+        port: Int = 445,
+        shareName: String,
+        domain: String? = null,
+        username: String,
+        password: String,
+        smbVersion: String = "AUTO",
+        enableEncryption: Boolean = false
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val props = Properties().apply {
+                setProperty("jcifs.smb.client.minVersion", when (smbVersion) {
+                    "SMB1" -> "SMB1"
+                    "SMB2" -> "SMB202"
+                    "SMB3" -> "SMB300"
+                    else -> "SMB202"
+                })
+                setProperty("jcifs.smb.client.maxVersion", when (smbVersion) {
+                    "SMB1" -> "SMB1"
+                    "SMB2" -> "SMB210"
+                    "SMB3" -> "SMB311"
+                    else -> "SMB311"
+                })
+                setProperty("jcifs.smb.client.dfs.disabled", "false")
+                setProperty("jcifs.smb.client.responseTimeout", "30000")
+                setProperty("jcifs.smb.client.soTimeout", "30000")
+                setProperty("jcifs.smb.client.connTimeout", "15000")
+                if (enableEncryption) {
+                    setProperty("jcifs.smb.client.encryption", "required")
+                }
+            }
+            val cfg = PropertyConfiguration(props)
+            val auth = NtlmPasswordAuthenticator(domain ?: "", username, password)
+            baseContext = BaseContext(cfg).withCredentials(auth)
+
+            val hostPart = if (port != 445) "$host:$port" else host
+            rootUrl = "smb://$hostPart/$shareName/"
+            val testFile = SmbFile(rootUrl, baseContext)
+            testFile.exists()
+            connected = true
+            true
+        } catch (e: Exception) {
+            try { disconnect() } catch (_: Exception) {}
+            false
+        }
+    }
+
+    suspend fun disconnect() = withContext(Dispatchers.IO) {
+        connected = false
+        rootUrl = null
+        baseContext = null
+    }
+
+    private fun buildUrl(path: String): String {
+        val base = rootUrl?.trimEnd('/') ?: return ""
+        val cleanPath = if (path.startsWith("/")) path else "/$path"
+        return "$base$cleanPath"
+    }
+
+    private fun normalizeSmbPath(absUrl: String): String {
+        val root = rootUrl ?: return absUrl
+        val relative = absUrl.removePrefix(root)
+        return if (relative.isEmpty()) "/" else "/" + relative.trimEnd('/')
+    }
+
+    suspend fun listDirectory(path: String): List<SmbEntry> = withContext(Dispatchers.IO) {
+        val ctx = baseContext ?: return@withContext emptyList()
+        try {
+            val url = buildUrl(path)
+            val dir = SmbFile(url + if (!url.endsWith("/")) "/" else "", ctx)
+            val children = dir.listFiles() ?: return@withContext emptyList()
+            val entries = children.mapNotNull { smb ->
+                val name = smb.name?.trimEnd('/') ?: return@mapNotNull null
+                if (name.isBlank() || name == "." || name == "..") return@mapNotNull null
+                val type = when {
+                    smb.isDirectory -> SmbEntryType.FOLDER
+                    smb.isFile -> SmbEntryType.FILE
+                    else -> SmbEntryType.UNKNOWN
+                }
+                SmbEntry(
+                    name = name,
+                    path = normalizeSmbPath(smb.url.toString()),
+                    type = type,
+                    sizeBytes = runCatching { smb.length() }.getOrDefault(0L),
+                    modifiedEpochSec = runCatching { smb.lastModified() / 1000L }.getOrDefault(0L)
+                )
+            }
+            entries.sortedWith(compareBy<SmbEntry> { it.type != SmbEntryType.FOLDER }.thenBy { it.name.lowercase() })
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun downloadFile(remotePath: String, localFile: File, onProgress: (Long, Long) -> Unit = { _, _ -> }): Long = withContext(Dispatchers.IO) {
+        val ctx = baseContext ?: return@withContext -1L
+        try {
+            localFile.parentFile?.mkdirs()
+            val url = buildUrl(remotePath)
+            val smb = SmbFile(url, ctx)
+            val total = smb.length()
+            var downloaded = 0L
+            smb.inputStream.use { input ->
+                FileOutputStream(localFile).use { out ->
+                    val buf = ByteArray(8192 * 8)
+                    var read: Int
+                    while (input.read(buf).also { read = it } != -1) {
+                        out.write(buf, 0, read)
+                        downloaded += read
+                        onProgress(downloaded, total)
+                    }
+                }
+            }
+            downloaded
+        } catch (_: Exception) {
+            -1L
+        }
+    }
+
+    fun getFileUri(remotePath: String): Uri? {
+        val ctx = baseContext ?: return null
+        val url = buildUrl(remotePath)
+        return runCatching { Uri.parse(url) }.getOrNull()
+    }
+
+    fun matchesFormat(name: String): Boolean {
+        val ext = name.substringAfterLast('.', "").lowercase()
+        return ext in setOf("epub", "pdf", "mobi", "azw", "azw3", "fb2", "cbz", "cbr", "txt", "html", "rtf", "md",
+            "m4b", "m4a", "mp3", "aac", "flac", "ogg", "opus", "wav", "zip")
+    }
+}

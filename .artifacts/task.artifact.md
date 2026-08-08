@@ -1,0 +1,6 @@
+- [x] Fix `invalid weight 0.0` in `BookComponents.kt`
+- [x] Verify build
+- [x] Create walkthrough
+- [x] Fix ANR in `LibraryViewModel.kt` (Move side-effects out of state flow)
+- [x] Verify build for `:library`
+- [x] Create walkthrough for ANR fix

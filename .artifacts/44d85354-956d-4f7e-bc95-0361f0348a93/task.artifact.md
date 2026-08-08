@@ -1,0 +1,4 @@
+- [x] Fix `materializeToTemp` and `EpubRealParser` in `BookFormatParsers.kt`
+- [x] Optimize retry logic in `BookLoaderEngine.kt`
+- [x] Update dummy file generation in `TorrentEngine.kt`
+- [x] Verify changes
