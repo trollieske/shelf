@@ -26,6 +26,10 @@ private const val TAG = "HtmlPageRenderer"
 /**
  * Off-screen [WebView] renderer for professional ebook typography.
  *
+ * Density-aware: converts physical-pixel layout dimensions to WebView CSS pixels,
+ * so that rendered bitmaps always have the correct 1:1 typographic alignment
+ * regardless of device display density.
+ *
  * Uses CSS column layout with dynamic text justification, automated hyphenation,
  * publication-grade paragraph indentations, smart quotes, and image bounds checking.
  */
@@ -35,6 +39,20 @@ class HtmlPageRenderer(
     val pageWidth: Int,
     val pageHeight: Int,
 ) {
+
+    private val density: Float = context.resources.displayMetrics.density.coerceAtLeast(1f)
+
+    val cssPageWidth: Int  = (pageWidth  / density).toInt().coerceAtLeast(1)
+    val cssPageHeight: Int = (pageHeight / density).toInt().coerceAtLeast(1)
+
+    private val cssPadTop: Float    = 56f / density
+    private val cssPadLeft: Float   = 44f / density
+    private val cssPadBottom: Float = 48f / density
+    private val cssPadRight: Float  = 44f / density
+    private val cssColGap: Float    = 88f / density
+    private val cssColWidth: Float  = cssPageWidth - cssPadLeft - cssPadRight
+    private val cssImgPadV: Float   = 110f / density
+    private val cssQuoteBorder: Float = 3f / density
 
     private var webView: WebView? = null
     private var _totalPages: Int = 0
@@ -49,6 +67,7 @@ class HtmlPageRenderer(
         val wv = getOrCreateWebView(theme)
         val sanitized = sanitizeHtmlContent(htmlContent)
 
+        val cssPW = cssPageWidth
         val count = withTimeoutOrNull(5_000L) {
             suspendCancellableCoroutine { cont ->
                 wv.webViewClient = object : WebViewClient() {
@@ -59,7 +78,6 @@ class HtmlPageRenderer(
                                var wrapper = document.getElementById('content-wrapper') || document.body;
                                wrapper.style.transform = 'none';
                                
-                               // Calculate total width using Range bounding boxes (handles overflow: hidden)
                                var range = document.createRange();
                                range.selectNodeContents(wrapper);
                                var rects = range.getClientRects();
@@ -69,7 +87,7 @@ class HtmlPageRenderer(
                                }
                                
                                var sw = Math.max(wrapper.scrollWidth, document.body.scrollWidth, maxRight);
-                               var pageW = $pageWidth;
+                               var pageW = $cssPW;
                                var cols = Math.max(1, Math.ceil((sw - 10) / pageW));
                                return cols;
                              })()
@@ -82,7 +100,7 @@ class HtmlPageRenderer(
                                 ?.coerceAtLeast(1)
                                 ?: 1
                             _totalPages = pages
-                            Log.d(TAG, "onPageFinished: totalPages=$pages, raw result=$result")
+                            Log.d(TAG, "onPageFinished: totalPages=$pages cssW=$cssPW physW=$pageWidth raw=$result")
                             if (cont.isActive) cont.resume(pages)
                         }
                     }
@@ -112,14 +130,13 @@ class HtmlPageRenderer(
 
         withTimeoutOrNull(5_000L) {
             suspendCancellableCoroutine { cont ->
-                val offsetX = pageIndex * pageWidth
+                val cssOffsetX = pageIndex * cssPageWidth
 
-                // Use CSS transform translateX on content-wrapper to shift the target page column
                 wv.evaluateJavascript(
                     """
                     (function(){
                       var el = document.getElementById('content-wrapper') || document.body;
-                      el.style.transform = 'translateX(-${offsetX}px)';
+                      el.style.transform = 'translateX(-${cssOffsetX}px)';
                     })();
                     """.trimIndent()
                 ) {
@@ -140,14 +157,12 @@ class HtmlPageRenderer(
     fun createBacksideBitmap(frontBitmap: Bitmap, paperColor: Int): Bitmap {
         val result = Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
         val canvas = AndroidCanvas(result)
-        // 1. Solid opaque paper stock color
         canvas.drawColor(paperColor)
-        // 2. Faint 10% ink bleed-through from front of page (realistic paper physics)
         val mirrorMatrix = Matrix().apply {
             preScale(-1f, 1f, pageWidth / 2f, pageHeight / 2f)
         }
         val paint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG or AndroidPaint.FILTER_BITMAP_FLAG).apply {
-            alpha = 26 // 10 % opacity faint bleed-through
+            alpha = 26
         }
         canvas.drawBitmap(frontBitmap, mirrorMatrix, paint)
         return result
@@ -174,12 +189,14 @@ class HtmlPageRenderer(
                 allowFileAccessFromFileURLs = true
                 @Suppress("DEPRECATION")
                 allowUniversalAccessFromFileURLs = true
-                useWideViewPort = false
+                useWideViewPort = true
                 loadWithOverviewMode = false
                 cacheMode = WebSettings.LOAD_NO_CACHE
                 setSupportZoom(false)
+                displayZoomControls = false
                 layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
             }
+            wv.setInitialScale(100)
             try {
                 val paperColorInt = android.graphics.Color.parseColor(theme.bodyBg)
                 wv.setBackgroundColor(paperColorInt)
@@ -210,9 +227,6 @@ class HtmlPageRenderer(
         wv.translationX = -20000f
     }
 
-    /**
-     * Publication-grade HTML text sanitizer and formatting normalizer.
-     */
     private fun sanitizeHtmlContent(raw: String): String {
         return raw
             .replace("&nbsp;", "\u00A0")
@@ -228,25 +242,36 @@ class HtmlPageRenderer(
             .replace(Regex("(<br\\s*/?>\\s*){3,}"), "<br/><br/>")
     }
 
-    private fun buildHtml(content: String, fontSizeSp: Int, theme: ReaderThemeColors): String = """
+    private fun buildHtml(content: String, fontSizeSp: Int, theme: ReaderThemeColors): String {
+        val cw = cssPageWidth
+        val ch = cssPageHeight
+        val pT = cssPadTop
+        val pL = cssPadLeft
+        val pB = cssPadBottom
+        val pR = cssPadRight
+        val cGap = cssColGap
+        val cWid = cssColWidth
+        val iPV = cssImgPadV
+        val qB = cssQuoteBorder
+        return """
         <!DOCTYPE html>
         <html>
         <head>
-        <meta name="viewport" content="width=$pageWidth, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <style>
           *, *::before, *::after { box-sizing: border-box; }
           html {
             margin: 0; padding: 0;
-            width: ${pageWidth}px;
-            height: ${pageHeight}px;
+            width: ${cw}px;
+            height: ${ch}px;
             overflow: hidden;
             background: ${theme.htmlBg};
           }
           body {
             margin: 0;
             padding: 0;
-            width: ${pageWidth}px;
-            height: ${pageHeight}px;
+            width: ${cw}px;
+            height: ${ch}px;
             overflow: visible;
             background: ${theme.bodyBg};
             color: ${theme.textColor};
@@ -257,10 +282,10 @@ class HtmlPageRenderer(
           }
           #content-wrapper {
             box-sizing: border-box;
-            height: ${pageHeight}px;
-            padding: 56px 44px 48px 44px;
-            column-width: ${pageWidth - 88}px;
-            column-gap: 88px;
+            height: ${ch}px;
+            padding: ${pT}px ${pR}px ${pB}px ${pL}px;
+            column-width: ${cWid}px;
+            column-gap: ${cGap}px;
             column-fill: auto;
             word-wrap: break-word;
             overflow-wrap: break-word;
@@ -296,7 +321,7 @@ class HtmlPageRenderer(
           }
           img, svg, figure {
             max-width: 100% !important;
-            max-height: calc(${pageHeight}px - 110px) !important;
+            max-height: calc(${ch}px - ${iPV}px) !important;
             width: auto !important;
             height: auto !important;
             object-fit: contain !important;
@@ -306,10 +331,10 @@ class HtmlPageRenderer(
           }
           svg {
             width: 100% !important;
-            max-height: calc(${pageHeight}px - 110px) !important;
+            max-height: calc(${ch}px - ${iPV}px) !important;
           }
           blockquote {
-            border-left: 3px solid ${theme.headingColor};
+            border-left: ${qB}px solid ${theme.headingColor};
             padding-left: 1.1em;
             margin: 1.2em 0;
             opacity: 0.82;
@@ -339,4 +364,5 @@ class HtmlPageRenderer(
         </body>
         </html>
     """.trimIndent()
+    }
 }

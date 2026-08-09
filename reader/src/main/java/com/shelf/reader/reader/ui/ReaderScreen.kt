@@ -45,6 +45,7 @@ import com.shelf.reader.reader.engine.ReaderBookState
 import com.shelf.reader.reader.pageturn.*
 import com.shelf.reader.reader.viewmodel.ReaderViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 @Composable
 fun ReaderScreen(
@@ -551,11 +552,10 @@ private fun PageCurlReader(
                             val dy = change.position.y - startY
                             val dist = kotlin.math.hypot(dx, dy)
 
-                            if (!isDragging && dist > 12f) {
-                                // Ignore drag in central control area (between 38% and 62%)
-                                if (startX in (w * 0.38f)..(w * 0.62f)) {
-                                    break
-                                }
+                            val startInCenterZone = startX in (w * 0.35f)..(w * 0.65f)
+                            val minDragDist = if (startInCenterZone) 56f else 12f
+
+                            if (!isDragging && dist > minDragDist) {
                                 if (!canTurnWithinChapter && !canTurnChapter) {
                                     break
                                 }
@@ -564,14 +564,22 @@ private fun PageCurlReader(
                                 turnDirection = dir
                                 // Snapshot bitmaps at the START of the drag so they
                                 // can't become null or change mid-animation
+                                val paperCol = themeColors.paperColorInt
+                                val curBmp = displayedBitmap ?: cache.getSync(activeCurrentPage.coerceIn(0, maxPage))
+                                if (curBmp == null) {
+                                    isTurning = false
+                                    break
+                                }
                                 if (dir == TurnDirection.FORWARD) {
-                                    frozenCurlLeaf  = displayedBitmap
-                                    frozenUnderPage = nextBitmap ?: cache.getSync(activeCurrentPage + 1)
-                                    frozenBackside  = backsideBmp
+                                    frozenCurlLeaf  = curBmp
+                                    val nextIdx = (activeCurrentPage + 1).coerceAtMost(maxPage)
+                                    frozenUnderPage = nextBitmap ?: cache.getSync(nextIdx)
+                                    frozenBackside  = backsideBmp ?: renderer.createBacksideBitmap(curBmp, paperCol)
                                 } else {
-                                    frozenCurlLeaf  = prevBitmap ?: cache.getSync(activeCurrentPage - 1) ?: displayedBitmap
-                                    frozenUnderPage = displayedBitmap
-                                    frozenBackside  = prevBacksideBmp
+                                    frozenCurlLeaf  = curBmp
+                                    val prevIdx = (activeCurrentPage - 1).coerceAtLeast(0)
+                                    frozenUnderPage = prevBitmap ?: cache.getSync(prevIdx)
+                                    frozenBackside  = prevBacksideBmp ?: renderer.createBacksideBitmap(curBmp, paperCol)
                                 }
                             }
 
@@ -579,9 +587,9 @@ private fun PageCurlReader(
                                 change.consume()
                                 currentX = change.position.x
                                 val frac = if (dir == TurnDirection.FORWARD) {
-                                    ((startX - currentX) / (w * 0.70f)).coerceIn(0f, 1f)
+                                    ((startX - currentX) / (w * 0.45f)).coerceIn(0f, 1f)
                                 } else {
-                                    ((currentX - startX) / (w * 0.70f)).coerceIn(0f, 1f)
+                                    ((currentX - startX) / (w * 0.45f)).coerceIn(0f, 1f)
                                 }
                                 dragFraction = frac
                             }
@@ -616,7 +624,7 @@ private fun PageCurlReader(
                                 } else {
                                     if (activeCurrentPage > 0) {
                                         val prevIdx = activeCurrentPage - 1
-                                        val destBmp = frozenCurlLeaf ?: cache.getSync(prevIdx) ?: renderer.renderPage(prevIdx)
+                                        val destBmp = frozenUnderPage ?: cache.getSync(prevIdx) ?: renderer.renderPage(prevIdx)
                                         displayedBitmap = destBmp
                                         currentPage = prevIdx
                                     } else if (chapIdx > 0) {
@@ -648,14 +656,14 @@ private fun PageCurlReader(
                                         isAnimRunning = true
                                         turnDirection = TurnDirection.BACKWARD
                                         val targetPage = activeCurrentPage - 1
-                                        val leaf = prevBitmap ?: cache.getSync(targetPage) ?: renderer.renderPage(targetPage)
-                                        val under = displayedBitmap ?: cache.getSync(activeCurrentPage) ?: renderer.renderPage(activeCurrentPage)
+                                        val leaf = displayedBitmap ?: cache.getSync(activeCurrentPage) ?: renderer.renderPage(activeCurrentPage)
+                                        val under = prevBitmap ?: cache.getSync(targetPage) ?: renderer.renderPage(targetPage)
                                         frozenCurlLeaf  = leaf
                                         frozenUnderPage = under
                                         frozenBackside  = renderer.createBacksideBitmap(leaf, paperColor)
                                         isTurning = true
                                         animateCurlFraction(onUpdate = { dragFraction = it }, start = 0f, end = 1f)
-                                        displayedBitmap = leaf
+                                        displayedBitmap = under
                                         currentPage = targetPage
                                         isTurning = false
                                         dragFraction = 0f
@@ -707,7 +715,7 @@ private fun PageCurlReader(
         val backBmp = if (isTurning) frozenBackside else null
 
         Canvas(Modifier.fillMaxSize()) {
-            if (isTurning && curlLeafBmp != null && dragFraction > 0f) {
+            if (isTurning && curlLeafBmp != null && dragFraction >= 0.001f) {
                 drawPageCurlEffect(
                     currentBitmap  = curlLeafBmp,
                     nextBitmap     = underPageBmp,
