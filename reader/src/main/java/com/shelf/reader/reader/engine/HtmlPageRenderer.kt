@@ -8,6 +8,7 @@ import android.graphics.Canvas as AndroidCanvas
 import android.graphics.Matrix
 import android.graphics.Paint as AndroidPaint
 import android.util.Log
+import android.view.Choreographer
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebSettings
@@ -16,8 +17,11 @@ import android.webkit.WebViewClient
 import com.shelf.reader.reader.pageturn.ReaderThemeColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
 import kotlin.math.ceil
 
@@ -58,101 +62,137 @@ class HtmlPageRenderer(
     private var _totalPages: Int = 0
     val totalPages: Int get() = _totalPages
 
+    private val activeGeneration = AtomicLong(0L)
+    private val renderMutex = Mutex()
+
     suspend fun prepare(
         htmlContent: String,
         fontSizeSp: Int,
         theme: ReaderThemeColors,
+        bookLanguage: String = "en",
     ): Int = withContext(Dispatchers.Main) {
+        renderMutex.withLock {
+            val gen = activeGeneration.incrementAndGet()
+            _totalPages = 0
 
-        val wv = getOrCreateWebView(theme)
-        val sanitized = sanitizeHtmlContent(htmlContent)
+            val wv = getOrCreateWebView(theme)
+            val sanitized = sanitizeHtmlContent(htmlContent)
 
-        val count = withTimeoutOrNull(8_000L) {
-            suspendCancellableCoroutine { cont ->
-                wv.webViewClient = object : WebViewClient() {
-                    override fun onPageFinished(view: WebView, url: String) {
-                        view.evaluateJavascript(
-                            """
-                             (function(){
-                               var wrapper = document.getElementById('content-wrapper') || document.body;
-                               wrapper.style.transform = 'none';
-                               var force = wrapper.offsetHeight;
-                               var sw = wrapper.scrollWidth;
-                               try {
-                                 var range = document.createRange();
-                                 range.selectNodeContents(wrapper);
-                                 var rects = range.getClientRects();
-                                 var mr = 0;
-                                 for (var i = 0; i < rects.length; i++) {
-                                   if (rects[i].right > mr) mr = rects[i].right;
-                                 }
-                                 if (mr > sw) sw = mr;
-                               } catch(e) {}
-                               var stride = window.innerWidth;
-                               if (!sw || sw <= stride + 10) return 1;
-                               var cols = Math.max(1, Math.ceil((sw - 10) / stride));
-                               return cols;
-                             })()
-                            """.trimIndent()
-                        ) { result ->
-                            val pages = result
-                                ?.trim()
-                                ?.toDoubleOrNull()
-                                ?.let { ceil(it).toInt() }
-                                ?.coerceAtLeast(1)
-                                ?: 1
-                            _totalPages = pages
-                            Log.d(TAG, "onPageFinished: totalPages=$pages raw=$result")
-                            if (cont.isActive) cont.resume(pages)
+            val count = withTimeoutOrNull(8_000L) {
+                suspendCancellableCoroutine { cont ->
+                    wv.webViewClient = object : WebViewClient() {
+                        override fun onPageFinished(view: WebView, url: String) {
+                            if (gen != activeGeneration.get()) {
+                                Log.w(TAG, "prepare: Stale generation $gen vs active ${activeGeneration.get()}, ignoring callback")
+                                if (cont.isActive) cont.resume(1)
+                                return
+                            }
+
+                            view.evaluateJavascript(
+                                """
+                                 (function(){
+                                   var wrapper = document.getElementById('content-wrapper') || document.body;
+                                   wrapper.style.transform = 'none';
+                                   var force = wrapper.offsetHeight;
+                                   var sw = wrapper.scrollWidth;
+                                   try {
+                                     var range = document.createRange();
+                                     range.selectNodeContents(wrapper);
+                                     var rects = range.getClientRects();
+                                     var mr = 0;
+                                     for (var i = 0; i < rects.length; i++) {
+                                       if (rects[i].right > mr) mr = rects[i].right;
+                                     }
+                                     if (mr > sw) sw = mr;
+                                   } catch(e) {}
+                                   var stride = window.innerWidth;
+                                   if (!sw || sw <= stride + 10) return 1;
+                                   var cols = Math.max(1, Math.ceil((sw - 10) / stride));
+                                   return cols;
+                                 })()
+                                """.trimIndent()
+                            ) { result ->
+                                if (gen != activeGeneration.get()) {
+                                    if (cont.isActive) cont.resume(1)
+                                    return@evaluateJavascript
+                                }
+
+                                val pages = result
+                                    ?.trim()
+                                    ?.toDoubleOrNull()
+                                    ?.let { ceil(it).toInt() }
+                                    ?.coerceAtLeast(1)
+                                    ?: 1
+                                _totalPages = pages
+                                Log.d(TAG, "onPageFinished (gen=$gen): totalPages=$pages raw=$result")
+                                if (cont.isActive) cont.resume(pages)
+                            }
                         }
                     }
+                    val html = buildHtml(sanitized, fontSizeSp, theme, bookLanguage)
+                    val uniqueUrl = "https://shelf.app/reader/${System.currentTimeMillis()}/"
+                    wv.loadDataWithBaseURL(
+                        uniqueUrl,
+                        html,
+                        "text/html",
+                        "UTF-8",
+                        null,
+                    )
+                    cont.invokeOnCancellation { }
                 }
-                val html = buildHtml(sanitized, fontSizeSp, theme)
-                val uniqueUrl = "https://shelf.app/reader/${System.currentTimeMillis()}/"
-                wv.loadDataWithBaseURL(
-                    uniqueUrl,
-                    html,
-                    "text/html",
-                    "UTF-8",
-                    null,
-                )
-                cont.invokeOnCancellation { }
+            } ?: run {
+                Log.w(TAG, "prepare timed out (gen=$gen), falling back to 1 page")
+                _totalPages = 1
+                1
             }
-        } ?: run {
-            Log.w(TAG, "prepare timed out, falling back to 1 page")
-            _totalPages = 1
-            1
-        }
 
-        count
+            count
+        }
     }
 
     suspend fun renderPage(pageIndex: Int): Bitmap = withContext(Dispatchers.Main) {
-        val wv = webView ?: error("HtmlPageRenderer not prepared")
+        renderMutex.withLock {
+            val gen = activeGeneration.get()
+            val wv = webView ?: error("HtmlPageRenderer not prepared")
 
-        withTimeoutOrNull(5_000L) {
-            suspendCancellableCoroutine { cont ->
-                wv.evaluateJavascript(
-                    """
-                    (function(){
-                      var el = document.getElementById('content-wrapper') || document.body;
-                      var stride = window.innerWidth;
-                      el.style.transform = 'translateX(-' + (${pageIndex} * stride) + 'px)';
-                    })();
-                    """.trimIndent()
-                ) {
-                    try {
-                        val bmp = Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
-                        val canvas = AndroidCanvas(bmp)
-                        wv.draw(canvas)
-                        if (cont.isActive) cont.resume(bmp)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error drawing webview page $pageIndex", e)
-                        if (cont.isActive) cont.resume(Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888))
+            withTimeoutOrNull(5_000L) {
+                suspendCancellableCoroutine { cont ->
+                    wv.evaluateJavascript(
+                        """
+                        (function(){
+                          var el = document.getElementById('content-wrapper') || document.body;
+                          var stride = window.innerWidth;
+                          var targetX = -( ${pageIndex} * stride );
+                          el.style.transform = 'translateX(' + targetX + 'px)';
+                          var curX = el.getBoundingClientRect().left;
+                          return { stride: stride, curX: curX, targetX: targetX };
+                        })();
+                        """.trimIndent()
+                    ) { jsonResult ->
+                        if (gen != activeGeneration.get()) {
+                            Log.w(TAG, "renderPage: Stale render request gen=$gen vs ${activeGeneration.get()}")
+                            if (cont.isActive) cont.resume(Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888))
+                            return@evaluateJavascript
+                        }
+
+                        // Synchronize with Choreographer: wait 2 frames for WebView repaint before capturing bitmap
+                        Choreographer.getInstance().postFrameCallback {
+                            Choreographer.getInstance().postFrameCallback {
+                                try {
+                                    val bmp = Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
+                                    val canvas = AndroidCanvas(bmp)
+                                    wv.draw(canvas)
+                                    if (cont.isActive) cont.resume(bmp)
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Error drawing webview page $pageIndex", e)
+                                    if (cont.isActive) cont.resume(Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888))
+                                }
+                            }
+                        }
                     }
                 }
-            }
-        } ?: Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
+            } ?: Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
+        }
     }
 
     fun createBacksideBitmap(frontBitmap: Bitmap, paperColor: Int): Bitmap {
@@ -170,6 +210,7 @@ class HtmlPageRenderer(
     }
 
     fun release() {
+        activeGeneration.incrementAndGet()
         val wv = webView ?: return
         (wv.parent as? ViewGroup)?.removeView(wv)
         wv.destroy()
@@ -192,6 +233,7 @@ class HtmlPageRenderer(
                 allowUniversalAccessFromFileURLs = true
                 useWideViewPort = false
                 loadWithOverviewMode = false
+                textZoom = 100
                 cacheMode = WebSettings.LOAD_NO_CACHE
                 setSupportZoom(false)
                 displayZoomControls = false
@@ -243,16 +285,22 @@ class HtmlPageRenderer(
             .replace(Regex("(<br\\s*/?>\\s*){3,}"), "<br/><br/>")
     }
 
-    private fun buildHtml(content: String, fontSizeSp: Int, theme: ReaderThemeColors): String {
+    private fun buildHtml(
+        content: String,
+        fontSizeSp: Int,
+        theme: ReaderThemeColors,
+        bookLanguage: String = "en",
+    ): String {
         val pT = cssPadTop
         val pL = cssPadLeft
         val pB = cssPadBottom
         val pR = cssPadRight
         val iPV = cssImgPadV
         val qB = cssQuoteBorder
+        val lang = bookLanguage.trim().ifEmpty { "en" }
         return """
         <!DOCTYPE html>
-        <html>
+        <html lang="$lang">
         <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <style>
@@ -364,3 +412,4 @@ class HtmlPageRenderer(
     """.trimIndent()
     }
 }
+
