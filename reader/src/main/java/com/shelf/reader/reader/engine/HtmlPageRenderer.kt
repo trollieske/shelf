@@ -79,21 +79,31 @@ class HtmlPageRenderer(
                                wrapper.style.transform = 'none';
                                // Force layout reflow to ensure all CSS columns are actually rendered
                                var force = wrapper.offsetHeight;
-                               var range = document.createRange();
-                               range.selectNodeContents(wrapper);
-                               var rects = range.getClientRects();
-                               var maxRight = 0;
-                               for (var i = 0; i < rects.length; i++) {
-                                 if (rects[i].right > maxRight) maxRight = rects[i].right;
+                               // With html/body at 1-page width (viewport), wrapper.scrollWidth is the TOTAL width of ALL columns. This is always the canonical measurement.
+                               var sw = wrapper.scrollWidth;
+                               // Fallback 1: getBoundingClientRect().width
+                               if (!sw || sw <= 0) {
+                                 var r = wrapper.getBoundingClientRect();
+                                 sw = Math.max(sw, Math.ceil(r.width) || 0);
                                }
-                               var wrapperSw = wrapper.scrollWidth;
-                               // Account for padding when measuring content wrapper (scrollWidth already includes padding-left, excludes padding-right of last column)
-                               var sw = Math.max(wrapperSw, wrapper.offsetWidth, document.body.scrollWidth || 0, maxRight + 1);
+                               // Fallback 2: union of range client rects
+                               try {
+                                 var range = document.createRange();
+                                 range.selectNodeContents(wrapper);
+                                 var rects = range.getClientRects();
+                                 var mr = 0; var ml = 999999;
+                                 for (var i = 0; i < rects.length; i++) {
+                                   if (rects[i].right > mr) mr = rects[i].right;
+                                   if (rects[i].left  < ml) ml = rects[i].left;
+                                 }
+                                 var ru = Math.max(0, (mr > ml) ? Math.ceil(mr - ml) : 0);
+                                 if (ru > sw) sw = ru;
+                               } catch(e) {}
                                var pageW = $cssPW;
-                               // Use Math.round to absorb minor padding/margin rounding errors; never drop a full column
-                               var raw = sw / pageW;
-                               var cols = Math.max(1, (raw <= 1) ? 1 : Math.ceil(raw));
-                               return cols;
+                               if (!sw || sw <= pageW) return 1;
+                               // Always ceil so we never lose content (absorbs 1 px rounding gaps)
+                               var cols = Math.ceil(sw / pageW);
+                               return Math.max(1, cols);
                              })()
                             """.trimIndent()
                         ) { result ->
@@ -267,18 +277,16 @@ class HtmlPageRenderer(
           html {
             margin: 0; padding: 0;
             height: ${ch}px;
-            width: max-content;
-            overflow-x: visible;
-            overflow-y: hidden;
+            width: ${cw}px;
+            overflow: hidden;
             background: ${theme.htmlBg};
           }
           body {
             margin: 0;
             padding: 0;
             height: ${ch}px;
-            width: max-content;
-            overflow-x: visible;
-            overflow-y: hidden;
+            width: ${cw}px;
+            overflow: hidden;
             background: ${theme.bodyBg};
             color: ${theme.textColor};
             font-family: serif;
@@ -289,7 +297,7 @@ class HtmlPageRenderer(
             box-sizing: border-box;
             display: block;
             height: ${ch}px;
-            width: ${cw}px;
+            width: max-content;
             max-width: none;
             padding: ${pT}px ${pR}px ${pB}px ${pL}px;
             column-width: ${cWid}px;
@@ -304,8 +312,7 @@ class HtmlPageRenderer(
             -webkit-hyphens: auto;
             text-align: justify;
             text-justify: inter-word;
-            overflow-x: visible;
-            overflow-y: hidden;
+            overflow: visible;
           }
           h1, h2, h3, h4 {
             color: ${theme.headingColor};
