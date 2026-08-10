@@ -48,7 +48,7 @@ class CoverRepository(
     private val coversDir: File by lazy { File(ctx.filesDir, "covers").apply { mkdirs() } }
 
     private val prefs by lazy {
-        com.shelf.reader.data.prefs.UserPreferencesRepository.getInstance(ctx.applicationContext)
+        com.shelf.reader.data.prefs.UserPreferencesRepository(ctx.applicationContext)
     }
 
     // In-memory cover bitmap LRU cache (~12 MB of decoded bitmaps). Avoids re-decoding WEBP
@@ -119,10 +119,7 @@ class CoverRepository(
         } catch (_: Throwable) { null }
 
         val onlineCover: Bitmap? = if (embedded == null) {
-            val enabled = kotlinx.coroutines.runCatching {
-                kotlinx.coroutines.runBlocking { prefs.onlineCoverLookup.first() }
-            }.getOrDefault(false)
-            if (enabled) fetchOnlineCover(book.title, book.author, book.isbn) else null
+            runCatching { fetchOnlineCover(book.title, book.author, book.isbn) }.getOrNull()
         } else null
 
         val bitmap = embedded ?: onlineCover ?: renderTypographicCover(

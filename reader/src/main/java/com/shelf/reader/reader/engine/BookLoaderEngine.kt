@@ -390,18 +390,14 @@ class BookLoaderEngine(
         totalBytes: Long
     ): Boolean {
         if (totalBytes in 1 until 200) return true
-        val head = drmScanHead.ifEmpty { fullBytes }
+        val head = if (drmScanHead.isNotEmpty()) drmScanHead else fullBytes
         if (head.isEmpty()) return true
 
-        // 1. Palm database header: name at 0-31, attributes 32-33, version 34-35,
-        //    creation date 36-39, mod date 40-43, backup 44-47, modNumber 48-51,
-        //    appInfoId 52-55, sortInfoId 56-59, type 60-63 ("BOOK"), creator 64-67 ("MOBI")
-        //    -> combined magic is "BOOKMOBI" at byte offset 60
         val hasBookMobiMagic = (60 + 7 < head.size) &&
-            head[60].toInt().toChar() == 'B' && head[61].toInt().toChar() == 'O' &&
-            head[62].toInt().toChar() == 'O' && head[63].toInt().toChar() == 'K' &&
-            head[64].toInt().toChar() == 'M' && head[65].toInt().toChar() == 'O' &&
-            head[66].toInt().toChar() == 'B' && head[67].toInt().toChar() == 'I'
+            (head[60].toInt() and 0xFF) == 'B'.code && (head[61].toInt() and 0xFF) == 'O'.code &&
+            (head[62].toInt() and 0xFF) == 'O'.code && (head[63].toInt() and 0xFF) == 'K'.code &&
+            (head[64].toInt() and 0xFF) == 'M'.code && (head[65].toInt() and 0xFF) == 'O'.code &&
+            (head[66].toInt() and 0xFF) == 'B'.code && (head[67].toInt() and 0xFF) == 'I'.code
         if (!hasBookMobiMagic) {
             return true
         }
@@ -416,10 +412,10 @@ class BookLoaderEngine(
                 if (hasExt && mobiHeaderLen > 0) {
                     val exthStart = mobiStart + mobiHeaderLen
                     if (exthStart + 12 < head.size) {
-                        val exthMagicOk = head[exthStart].toInt().toChar() == 'E' &&
-                            head[exthStart + 1].toInt().toChar() == 'X' &&
-                            head[exthStart + 2].toInt().toChar() == 'T' &&
-                            head[exthStart + 3].toInt().toChar() == 'H'
+                        val exthMagicOk = (head[exthStart].toInt() and 0xFF) == 'E'.code &&
+                            (head[exthStart + 1].toInt() and 0xFF) == 'X'.code &&
+                            (head[exthStart + 2].toInt() and 0xFF) == 'T'.code &&
+                            (head[exthStart + 3].toInt() and 0xFF) == 'H'.code
                         if (exthMagicOk) {
                             val recCount = readIntBE(head, exthStart + 4)
                             var recPos = exthStart + 12

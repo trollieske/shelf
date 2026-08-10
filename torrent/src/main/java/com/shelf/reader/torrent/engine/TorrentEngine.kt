@@ -312,10 +312,7 @@ class TorrentEngine(
                     val isPriv = runCatching { ti.isPrivate() }.getOrNull() ?: false
                     Log.i(TAG, "Adding .torrent file: name='${ti.name()}', hash=$hash, size=${ti.totalSize()}, isPrivate=$isPriv")
 
-                    // Pass SEQUENTIAL + FIRST_LAST_PIECE flags, then applyPrivateFlags happen
-                    // will be applied from AddTorrentAlert, but also pre-configure tracker filter for known private now
-                    val seqFlags = TorrentFlags.SEQUENTIAL_DOWNLOAD or_(TorrentFlags.SEQUENTIAL_DOWNLOAD)
-                    try { sm.download(ti, saveDir, seqFlags) } catch (_: Throwable) { sm.download(ti, saveDir) }
+                    try { sm.download(ti, saveDir) } catch (_: Throwable) {}
                     hashToId[hash] = dl.id
                     db.torrentDownloadDao().update(dl.copy(infoHash = hash, status = DownloadStatusEntity.RUNNING, isPaused = false))
 
@@ -762,15 +759,10 @@ class TorrentEngine(
      * PUBLIC TORRENTS: keep DHT/LSD enabled for decentralized peer discovery.
      */
     private fun applyPrivateTorrentFlags(handle: TorrentHandle, isPrivate: Boolean) {
-        try {
-            val allPex = org.libtorrent4j.swig.torrent_flags.upload_mode // random non-zero value for try
-        } catch (_: Throwable) {}
-        try {
-            // In libtorrent4j each flag is a static final swig torrent_flags_t value.
-            // Access via reflection for safety across libtorrent versions.
-            val flagsClass = org.libtorrent4j.swig.torrent_flags::class.java
-            fun swigFlag(name: String): org.libtorrent4j.swig.torrent_flags_t? = runCatching {
-                flagsClass.getField(name).get(null) as? org.libtorrent4j.swig.torrent_flags_t
+        runCatching {
+            val flagsClass = Class.forName("org.libtorrent4j.swig.torrent_flags")
+            fun swigFlag(name: String): Any? = runCatching {
+                flagsClass.getField(name).get(null)
             }.getOrNull()
 
             val disableDht = swigFlag("disable_dht")
@@ -778,15 +770,12 @@ class TorrentEngine(
             val disablePex = swigFlag("disable_pex")
 
             if (isPrivate) {
-                disableDht?.let { handle.setFlags(it) }
-                disableLsd?.let { handle.setFlags(it) }
-                disablePex?.let { handle.setFlags(it) }
-                // For private torrents: also disable any added public fallback trackers
-                // by replacing the tracker list with only the trackers already in announce list.
+                disableDht?.let { setSwigFlag(handle, it) }
+                disableLsd?.let { setSwigFlag(handle, it) }
+                disablePex?.let { setSwigFlag(handle, it) }
                 runCatching {
                     val currentTrackers = handle.trackers()
                     if (currentTrackers != null) {
-                        // Remove entries that look like our fallback open trackers
                         val fallbacks = setOf(
                             "tracker.opentrackr.org", "open.stealth.si",
                             "tracker.torrent.eu.org", "explodie.org",
@@ -802,36 +791,39 @@ class TorrentEngine(
                 }
                 Log.i(TAG, "[PRIVATE_FLAGS] Disabled DHT/LSD/PEX + stripped public fallbacks for private torrent")
             } else {
-                disableDht?.let { handle.unsetFlags(it) }
-                disableLsd?.let { handle.unsetFlags(it) }
-                disablePex?.let { handle.unsetFlags(it) }
+                disableDht?.let { unsetSwigFlag(handle, it) }
+                disableLsd?.let { unsetSwigFlag(handle, it) }
+                disablePex?.let { unsetSwigFlag(handle, it) }
             }
-        } catch (_: Throwable) {}
+        }
     }
 
-    /**
-     * Ensures SEQUENTIAL download + first/last piece priority is enabled on every torrent
-     * handle so reading can start before the entire file is downloaded.
-     *
-     * Previously, sm.download(ti, saveDir) for TORRENT_FILE source was called WITHOUT any
-     * flags, so sequential was disabled. Now apply them from the alert handler as well.
-     */
     private fun applySequentialPriorityFlags(handle: TorrentHandle) {
-        try {
-            val flagsClass = org.libtorrent4j.swig.torrent_flags::class.java
-            fun swigFlag(name: String): org.libtorrent4j.swig.torrent_flags_t? = runCatching {
-                flagsClass.getField(name).get(null) as? org.libtorrent4j.swig.torrent_flags_t
+        runCatching {
+            val flagsClass = Class.forName("org.libtorrent4j.swig.torrent_flags")
+            fun swigFlag(name: String): Any? = runCatching {
+                flagsClass.getField(name).get(null)
             }.getOrNull()
 
             val seq = swigFlag("sequential_download")
             val flp = swigFlag("first_last_piece_priority")
-            seq?.let { handle.setFlags(it) }
-            flp?.let { handle.setFlags(it) }
-            runCatching {
-                handle.setFirstLastPiecePriority(true)
-                handle.setSequentialDownload(true)
-            }
-        } catch (_: Throwable) {}
+            seq?.let { setSwigFlag(handle, it) }
+            flp?.let { setSwigFlag(handle, it) }
+        }
+    }
+
+    private fun setSwigFlag(handle: TorrentHandle, flag: Any) {
+        runCatching {
+            val method = handle.javaClass.methods.firstOrNull { it.name == "setFlags" && it.parameterTypes.size == 1 }
+            method?.invoke(handle, flag)
+        }
+    }
+
+    private fun unsetSwigFlag(handle: TorrentHandle, flag: Any) {
+        runCatching {
+            val method = handle.javaClass.methods.firstOrNull { it.name == "unsetFlags" && it.parameterTypes.size == 1 }
+            method?.invoke(handle, flag)
+        }
     }
 }
 

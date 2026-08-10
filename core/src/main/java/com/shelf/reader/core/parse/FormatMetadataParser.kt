@@ -358,8 +358,7 @@ private fun parseMp4Chapters(stream: InputStream, size: Long): Pair<List<Chapter
             title = title.trim().ifBlank { "Kapittel ${idx + 1}" },
             startMs = startMs,
             endMs = -1L,
-            href = null,
-            id = null
+            href = null
         )
     }.toMutableList()
     for (i in 0 until chapters.size - 1) {

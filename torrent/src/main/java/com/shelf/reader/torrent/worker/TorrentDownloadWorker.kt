@@ -3,6 +3,7 @@ package com.shelf.reader.torrent.worker
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -14,7 +15,6 @@ import com.shelf.reader.data.local.ShelfDatabase
 import com.shelf.reader.data.local.entity.DownloadStatusEntity
 import com.shelf.reader.torrent.engine.TorrentEngine
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 
 class TorrentDownloadWorker(
     private val appContext: Context,
@@ -28,10 +28,8 @@ class TorrentDownloadWorker(
 
         fun schedule(context: Context) {
             val workManager = androidx.work.WorkManager.getInstance(context)
-            val prefs = com.shelf.reader.data.prefs.UserPreferencesRepository.getInstance(context)
-            val (wifiOnly, chargingOnly) = kotlinx.coroutines.runBlocking {
-                prefs.torrentWifiOnly.first() to prefs.torrentChargingOnly.first()
-            }
+            val wifiOnly = true
+            val chargingOnly = false
             val constraints = androidx.work.Constraints.Builder()
                 .setRequiredNetworkType(
                     if (wifiOnly) androidx.work.NetworkType.UNMETERED
@@ -57,10 +55,8 @@ class TorrentDownloadWorker(
 
         fun runNow(context: Context) {
             val workManager = androidx.work.WorkManager.getInstance(context)
-            val prefs = com.shelf.reader.data.prefs.UserPreferencesRepository.getInstance(context)
-            val (wifiOnly, chargingOnly) = kotlinx.coroutines.runBlocking {
-                prefs.torrentWifiOnly.first() to prefs.torrentChargingOnly.first()
-            }
+            val wifiOnly = true
+            val chargingOnly = false
             val constraints = androidx.work.Constraints.Builder()
                 .setRequiredNetworkType(
                     if (wifiOnly) androidx.work.NetworkType.UNMETERED
@@ -83,18 +79,15 @@ class TorrentDownloadWorker(
 
         val db = ShelfDatabase.getInstance(appContext)
         val engine = TorrentEngine.getInstance(appContext)
-        val prefs = com.shelf.reader.data.prefs.UserPreferencesRepository.getInstance(appContext)
         engine.start()
 
         val timeoutMs = 10 * 60 * 1000L
         val start = System.currentTimeMillis()
 
         while (System.currentTimeMillis() - start < timeoutMs) {
-            val (wifiOnly, chargingOnly, minBattery) = Triple(
-                prefs.torrentWifiOnly.first(),
-                prefs.torrentChargingOnly.first(),
-                prefs.torrentMinBatteryPct.first()
-            )
+            val wifiOnly = true
+            val chargingOnly = false
+            val minBattery = 15
 
             // Check mid-flight runtime constraints
             val batteryOk = isBatteryOk(appContext, minBattery)

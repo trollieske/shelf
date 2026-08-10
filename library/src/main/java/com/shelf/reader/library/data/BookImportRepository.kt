@@ -315,12 +315,13 @@ class BookImportRepository(
             totalDurationMs += t.durationMs
 
             val embed = t.embeddedChapters
-            if (embed.size >= 2 && embed.all { it.startMs >= 0L && it.endMs > it.startMs }) {
+            if (embed.size >= 2 && embed.all { (it.endMs ?: 0L) > it.startMs }) {
                 // This single audio file has proper embedded chapters; emit one chapter per
                 // embedded entry, with absolute start/end offsets based on trackStartMs.
                 for (c in embed) {
                     val absStart = trackStartMs + c.startMs
-                    val absEnd = (trackStartMs + c.endMs).coerceAtMost(totalDurationMs)
+                    val endVal = c.endMs ?: (t.durationMs.takeIf { it > 0 } ?: 0L)
+                    val absEnd = (trackStartMs + endVal).coerceAtMost(totalDurationMs)
                     val chObj = JSONObject().apply {
                         put("index", chapterIdx)
                         put("title", c.title.takeIf { it.isNotBlank() } ?: "Kapittel ${chapterIdx + 1}")
