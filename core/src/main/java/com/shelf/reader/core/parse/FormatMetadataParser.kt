@@ -147,6 +147,29 @@ class AudioMetadataParser : FormatMetadataParser {
         sourceStreamProvider: (suspend () -> InputStream)?
     ): BookMetadata? {
         var mmr: android.media.MediaMetadataRetriever? = null
+        var embeddedChapters: List<ChapterInfo> = emptyList()
+        var streamDurMs: Long? = null
+
+        // 1. Try embedded MP4/M4B chapter extraction (uses binary container atoms, works offline
+        //    and doesn't require ExoPlayer initialization or playback licensing).
+        val lower = filename.lowercase()
+        if (lower.endsWith(".m4b") || lower.endsWith(".m4a") || lower.endsWith(".mp4")) {
+            try {
+                val stream = when {
+                    sourceStreamProvider != null -> sourceStreamProvider()
+                    uri != null -> ctx.contentResolver.openInputStream(uri)
+                    else -> null
+                }
+                if (stream != null) {
+                    stream.use { s ->
+                        val ch = parseMp4Chapters(s, sizeBytes)
+                        embeddedChapters = ch.first
+                        streamDurMs = ch.second
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
         try {
             mmr = android.media.MediaMetadataRetriever()
             if (uri != null) {
@@ -162,20 +185,192 @@ class AudioMetadataParser : FormatMetadataParser {
                 ?: mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
             val title = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_TITLE)
             val durStr = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
-            val durationMs = durStr?.toLongOrNull()
+            val durationMs = durStr?.toLongOrNull() ?: streamDurMs
 
             val fallback = fallbackMetadata(filename)
             return fallback.copy(
                 title = album?.takeIf { it.isNotBlank() } ?: title?.takeIf { it.isNotBlank() } ?: fallback.title,
                 author = artist?.takeIf { it.isNotBlank() } ?: fallback.author,
-                durationMs = durationMs
+                durationMs = durationMs,
+                chapters = embeddedChapters
             )
         } catch (_: Exception) {
-            return fallbackMetadata(filename)
+            return fallbackMetadata(filename).copy(durationMs = streamDurMs, chapters = embeddedChapters)
         } finally {
             try { mmr?.release() } catch (_: Exception) {}
         }
     }
+}
+
+/**
+ * Lightweight binary MP4/M4B/M4A chapter parser.
+ * Reads the 'chpl' (chapters) QuickTime atom inside 'moov' → 'udta' → 'meta' → 'ilst' hierarchy.
+ * Never accesses MediaDrm or decodes audio - purely structural parsing of ISOBMFF container atoms.
+ *
+ * Returns Pair(chapters, totalDurationMillis?).
+ *   chapters: zero or more entries, each with start/end millisecond offsets and title.
+ *   durationMs: either the last chapter's end, or the 'mvhd' movie timescale duration, if available.
+ */
+private fun parseMp4Chapters(stream: InputStream, size: Long): Pair<List<ChapterInfo>, Long?> {
+    // Read first MB (covers moov header for all typical m4b files).
+    val headerLimit = (if (size <= 0L) (2L * 1024L * 1024L) else size.coerceAtMost(8L * 1024L * 1024L)).toInt()
+    val buffer = ByteArray(headerLimit)
+    var read = 0
+    while (read < headerLimit) {
+        val n = stream.read(buffer, read, headerLimit - read)
+        if (n < 0) break
+        read += n
+    }
+    val file = buffer.copyOf(read)
+    var totalDurMs: Long? = null
+    val embeddedChapters = mutableListOf<Pair<Long, String>>()
+
+    fun u32(b: ByteArray, off: Int): Long {
+        if (off + 4 > b.size) return -1
+        return ((b[off].toLong() and 0xFFL) shl 24) or
+            ((b[off + 1].toLong() and 0xFFL) shl 16) or
+            ((b[off + 2].toLong() and 0xFFL) shl 8) or
+            (b[off + 3].toLong() and 0xFFL)
+    }
+    fun asciiTag(b: ByteArray, off: Int): String {
+        if (off + 4 > b.size) return ""
+        return buildString { append(b[off].toInt().toChar()); append(b[off+1].toInt().toChar()); append(b[off+2].toInt().toChar()); append(b[off+3].toInt().toChar()) }
+    }
+    fun u16(b: ByteArray, off: Int): Int {
+        if (off + 2 > b.size) return 0
+        return ((b[off].toInt() and 0xFF) shl 8) or (b[off + 1].toInt() and 0xFF)
+    }
+
+    // --- 1. Parse mvhd inside moov for total duration --------------------------
+    var pos = 0
+    var moovStart = -1
+    while (pos + 8 <= file.size && moovStart == -1) {
+        val atomSize = u32(file, pos)
+        val tag = asciiTag(file, pos + 4)
+        if (tag == "moov") { moovStart = pos; break }
+        if (atomSize < 8 || atomSize > file.size) break
+        pos += atomSize.toInt()
+    }
+    if (moovStart >= 0) {
+        var inside = moovStart + 8
+        while (inside + 8 <= file.size && inside < moovStart + u32(file, moovStart)) {
+            val aSize = u32(file, inside)
+            val aTag = asciiTag(file, inside + 4)
+            if (aTag == "mvhd" && aSize > 28) {
+                val ver = file[inside + 8].toInt() and 0xFF
+                val timeScale: Long
+                val duration: Long
+                if (ver == 1) {
+                    timeScale = u32(file, inside + 28)
+                    duration = if (inside + 36 < file.size) {
+                        ((file[inside + 28 + 4 + 4].toLong() and 0xFFL) shl 56) or
+                        ((file[inside + 28 + 4 + 5].toLong() and 0xFFL) shl 48) or
+                        ((file[inside + 28 + 4 + 6].toLong() and 0xFFL) shl 40) or
+                        ((file[inside + 28 + 4 + 7].toLong() and 0xFFL) shl 32) or
+                        ((file[inside + 28 + 4 + 8].toLong() and 0xFFL) shl 24) or
+                        ((file[inside + 28 + 4 + 9].toLong() and 0xFFL) shl 16) or
+                        ((file[inside + 28 + 4 + 10].toLong() and 0xFFL) shl 8) or
+                        (file[inside + 28 + 4 + 11].toLong() and 0xFFL)
+                    } else 0L
+                } else {
+                    timeScale = u32(file, inside + 12)
+                    duration = u32(file, inside + 16)
+                }
+                if (timeScale > 0 && duration > 0) {
+                    totalDurMs = (duration * 1000L) / timeScale
+                }
+                break
+            }
+            if (aSize < 8L) break
+            inside += aSize.toInt()
+        }
+
+        // --- 2. Locate chpl inside moov → udta → meta/ilst ----------------------
+        // Recursively walk atoms inside moov for the chpl (QuickTime Chapter List) marker.
+        fun walk(parentStart: Int, parentEnd: Int, depth: Int) {
+            if (depth > 8) return
+            var p = parentStart
+            while (p + 8 <= file.size && p < parentEnd) {
+                val s = u32(file, p)
+                val t = asciiTag(file, p + 4)
+                if (s < 8L || s > file.size || p + s > file.size) break
+                if (t == "chpl") {
+                    // Chapter list atom (QuickTime / nero / ffmpeg chapter atom).
+                    // Layout (simplified):
+                    //   header (atom_size + tag)  -> 8 bytes
+                    //   version + flags           -> 4 bytes (version at +8)
+                    //   4 bytes reserved          -> +12
+                    //   chapter_count             -> 1 byte at +16 for version 0, or 4 bytes u32 depending on muxer
+                    //
+                    // Some ffmpeg muxers use: version(1) + flags(3) + entry_count(uint32)
+                    // Apple iTunes chapter format:
+                    //   byte     version = 0
+                    //   3 bytes  flags = 0
+                    //   4 bytes  reserved
+                    //   1 byte   chapter_count
+                    //   then N chapters:
+                    //     8 bytes start time (uint64, milliseconds since start)
+                    //     1 byte  chapter_title length
+                    //     N bytes chapter_title (UTF-8)
+                    try {
+                        val ver = file[p + 8].toInt() and 0xFF
+                        var cur = p + 16
+                        var count = 0
+                        // Try 4 byte count first (ffmpeg/nero)
+                        val as4 = u32(file, p + 12).toInt()
+                        count = if (as4 in 1..2000) as4 else (file[p + 16].toInt() and 0xFF).also { cur = p + 17 }
+                        if (count > 4000) count = 0
+                        var index = 0
+                        while (index < count && cur + 8 <= p + s) {
+                            val hi = u32(file, cur).toLong()
+                            val lo = u32(file, cur + 4).toLong() and 0xFFFFFFFFL
+                            val startMs = (hi shl 32) or lo
+                            cur += 8
+                            if (cur + 1 > file.size) break
+                            val tLen = file[cur].toInt() and 0xFF
+                            cur += 1
+                            val title = if (cur + tLen <= file.size) {
+                                String(file, cur, tLen, Charsets.UTF_8)
+                            } else "Kapittel ${index + 1}"
+                            cur += tLen
+                            embeddedChapters.add(Pair(startMs, title))
+                            index++
+                            if (embeddedChapters.size >= 6000) break
+                        }
+                    } catch (_: Throwable) {}
+                    return
+                }
+                if (t in setOf("moov", "udta", "meta", "ilst", "\u00A9nam", "----")) {
+                    // descendable containers
+                    val dataSkip = if (t == "meta") 4 else 0 // meta has 4-byte version/flags before children
+                    walk(p + 8 + dataSkip, (p + s.toInt()), depth + 1)
+                }
+                p += s.toInt()
+            }
+        }
+        walk(moovStart, moovStart + u32(file, moovStart).toInt(), 0)
+    }
+
+    // --- 3. Build ChapterInfo with proper [start, end) ranges
+    val chapters = embeddedChapters.mapIndexed { idx, (startMs, title) ->
+        ChapterInfo(
+            index = idx,
+            title = title.trim().ifBlank { "Kapittel ${idx + 1}" },
+            startMs = startMs,
+            endMs = -1L,
+            href = null,
+            id = null
+        )
+    }.toMutableList()
+    for (i in 0 until chapters.size - 1) {
+        chapters[i] = chapters[i].copy(endMs = chapters[i + 1].startMs)
+    }
+    if (chapters.isNotEmpty()) {
+        val end = totalDurMs?.takeIf { it > chapters.last().startMs }
+            ?: (chapters.last().startMs + 60L * 60L * 1000L)
+        chapters[chapters.lastIndex] = chapters.last().copy(endMs = end)
+    }
+    return Pair(chapters, totalDurMs ?: chapters.lastOrNull()?.endMs?.takeIf { it > 0 })
 }
 
 fun getParserFor(format: BookFormat): FormatMetadataParser = when (format) {

@@ -68,7 +68,7 @@ class HtmlPageRenderer(
         val sanitized = sanitizeHtmlContent(htmlContent)
 
         val cssPW = cssPageWidth
-        val count = withTimeoutOrNull(5_000L) {
+        val count = withTimeoutOrNull(8_000L) {
             suspendCancellableCoroutine { cont ->
                 wv.webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView, url: String) {
@@ -77,7 +77,8 @@ class HtmlPageRenderer(
                              (function(){
                                var wrapper = document.getElementById('content-wrapper') || document.body;
                                wrapper.style.transform = 'none';
-                               
+                               // Force layout reflow to ensure all CSS columns are actually rendered
+                               var force = wrapper.offsetHeight;
                                var range = document.createRange();
                                range.selectNodeContents(wrapper);
                                var rects = range.getClientRects();
@@ -85,10 +86,13 @@ class HtmlPageRenderer(
                                for (var i = 0; i < rects.length; i++) {
                                  if (rects[i].right > maxRight) maxRight = rects[i].right;
                                }
-                               
-                               var sw = Math.max(wrapper.scrollWidth, document.body.scrollWidth, maxRight);
+                               var wrapperSw = wrapper.scrollWidth;
+                               // Account for padding when measuring content wrapper (scrollWidth already includes padding-left, excludes padding-right of last column)
+                               var sw = Math.max(wrapperSw, wrapper.offsetWidth, document.body.scrollWidth || 0, maxRight + 1);
                                var pageW = $cssPW;
-                               var cols = Math.max(1, Math.ceil((sw - 10) / pageW));
+                               // Use Math.round to absorb minor padding/margin rounding errors; never drop a full column
+                               var raw = sw / pageW;
+                               var cols = Math.max(1, (raw <= 1) ? 1 : Math.ceil(raw));
                                return cols;
                              })()
                             """.trimIndent()
@@ -262,37 +266,46 @@ class HtmlPageRenderer(
           *, *::before, *::after { box-sizing: border-box; }
           html {
             margin: 0; padding: 0;
-            width: ${cw}px;
             height: ${ch}px;
-            overflow: hidden;
+            width: max-content;
+            overflow-x: visible;
+            overflow-y: hidden;
             background: ${theme.htmlBg};
           }
           body {
             margin: 0;
             padding: 0;
-            width: ${cw}px;
             height: ${ch}px;
-            overflow: visible;
+            width: max-content;
+            overflow-x: visible;
+            overflow-y: hidden;
             background: ${theme.bodyBg};
             color: ${theme.textColor};
             font-family: serif;
             font-size: ${fontSizeSp}px;
             line-height: 1.68;
-            transform-origin: 0 0;
           }
           #content-wrapper {
             box-sizing: border-box;
+            display: block;
             height: ${ch}px;
+            width: max-content;
+            max-width: none;
             padding: ${pT}px ${pR}px ${pB}px ${pL}px;
             column-width: ${cWid}px;
             column-gap: ${cGap}px;
             column-fill: auto;
+            column-rule: 0 none transparent;
+            orphans: 2;
+            widows: 2;
             word-wrap: break-word;
             overflow-wrap: break-word;
             hyphens: auto;
             -webkit-hyphens: auto;
             text-align: justify;
             text-justify: inter-word;
+            overflow-x: visible;
+            overflow-y: hidden;
           }
           h1, h2, h3, h4 {
             color: ${theme.headingColor};

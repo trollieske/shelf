@@ -66,7 +66,19 @@ class ReaderViewModel(
 
     /** Called by [PageCurlReader] once the renderer knows the total page count. */
     fun onPageCountKnown(count: Int) {
-        _state.value = _state.value.copy(totalPages = count)
+        val prior = _state.value
+        val pending = prior.pendingRepositionPct
+        if (pending != null && count > 0) {
+            val newPage = (pending * count.toFloat()).toInt().coerceIn(0, (count - 1).coerceAtLeast(0))
+            _state.value = prior.copy(
+                totalPages = count,
+                currentPage = newPage,
+                percent = pending,
+                pendingRepositionPct = null,
+            )
+        } else {
+            _state.value = prior.copy(totalPages = count)
+        }
     }
 
     /** Called each time the user completes a page turn. Updates progress. */
@@ -122,11 +134,25 @@ class ReaderViewModel(
     }
 
     fun setFontSize(sp: Int) {
-        _state.value = _state.value.copy(fontSizeSp = sp.coerceIn(12, 36))
+        val prior = _state.value
+        val currentPct = if (prior.totalPages > 0)
+            prior.currentPage.toFloat() / prior.totalPages.toFloat()
+        else prior.percent
+        _state.value = prior.copy(
+            fontSizeSp = sp.coerceIn(12, 36),
+            pendingRepositionPct = currentPct.coerceIn(0f, 1f),
+        )
     }
 
     fun setTheme(theme: String) {
-        _state.value = _state.value.copy(readerTheme = theme)
+        val prior = _state.value
+        val currentPct = if (prior.totalPages > 0)
+            prior.currentPage.toFloat() / prior.totalPages.toFloat()
+        else prior.percent
+        _state.value = prior.copy(
+            readerTheme = theme,
+            pendingRepositionPct = currentPct.coerceIn(0f, 1f),
+        )
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

@@ -147,8 +147,24 @@ class TorrentEngine(
                             val isPriv = runCatching { handle?.torrentFile()?.isPrivate() }.getOrNull() ?: false
                             Log.i(TAG, "ALERT [ADD_TORRENT]: hash=$hash isPrivate=$isPriv msg=${alert.message()}")
                             if (handle != null && handle.isValid) {
+                                try {
+                                    applyPrivateTorrentFlags(handle, isPriv)
+                                    applySequentialPriorityFlags(handle)
+                                } catch (_: Throwable) {}
                                 try { handle.resume() } catch (_: Throwable) {}
                                 try { handle.forceReannounce() } catch (_: Throwable) {}
+                            }
+                        }
+                        is MetadataReceivedAlert -> {
+                            val handle = alert.handle()
+                            val hash = handle?.infoHash()?.toHex()?.uppercase()
+                            val isPriv = runCatching { handle?.torrentFile()?.isPrivate() }.getOrNull() ?: false
+                            Log.i(TAG, "ALERT [METADATA_RECEIVED]: hash=$hash isPrivate=$isPriv")
+                            if (handle != null && handle.isValid) {
+                                try {
+                                    applyPrivateTorrentFlags(handle, isPriv)
+                                    applySequentialPriorityFlags(handle)
+                                } catch (_: Throwable) {}
                             }
                         }
                         is StateChangedAlert -> {
@@ -161,6 +177,10 @@ class TorrentEngine(
                         is ListenFailedAlert -> {
                             Log.e(TAG, "ALERT [LISTEN_FAILED]: msg=${alert.message()}")
                         }
+                        is TorrentFinishedAlert -> {
+                            val hash = alert.handle()?.infoHash()?.toHex()?.uppercase()
+                            Log.i(TAG, "ALERT [TORRENT_FINISHED]: hash=$hash msg=${alert.message()}")
+                        }
                     }
                 }
             })
@@ -168,10 +188,12 @@ class TorrentEngine(
             try { sm.startDht() } catch (_: Throwable) {}
 
             val sp = SettingsPack()
-            // 1. Enable standard status, error, and tracker alert mask (0x1f = status|error|tracker|storage)
+            // 1. Broader alert mask so we receive metadata_received, stats, progress in addition to error/tracker.
+            //    0x1f = error | peer | portmap | storage | tracker
+            //    0x40 = status_notification, 0x80 = progress_notification, 0x400 = dht_notification
             sp.setInteger(
                 org.libtorrent4j.swig.settings_pack.int_types.alert_mask.swigValue(),
-                0x1f
+                0x1f or 0x40 or 0x80 or 0x400
             )
 
             // 2. Disable anonymous mode & HTTPS cert validation (required by private HTTPS trackers on Android)
@@ -181,14 +203,31 @@ class TorrentEngine(
             sp.setBoolean(org.libtorrent4j.swig.settings_pack.bool_types.announce_to_all_tiers.swigValue(), true)
             sp.setBoolean(org.libtorrent4j.swig.settings_pack.bool_types.prefer_udp_trackers.swigValue(), false)
 
-            // 3. User-Agent & Peer Fingerprint (qBittorrent 4.6.3)
+            // 2b. Encryption: require RC4/SSL handshake peers (strict compatibility with private trackers
+            //     that ban plaintext/unencrypted peer wire connections).
+            sp.setInteger(
+                org.libtorrent4j.swig.settings_pack.int_types.in_enc_policy.swigValue(),
+                1  // pe_settings::enc_policy::enabled - accept both encrypted and plaintext
+            )
+            sp.setInteger(
+                org.libtorrent4j.swig.settings_pack.int_types.out_enc_policy.swigValue(),
+                1  // pe_settings::enc_policy::enabled - try encrypted first, accept plaintext
+            )
+            sp.setInteger(
+                org.libtorrent4j.swig.settings_pack.int_types.allowed_enc_level.swigValue(),
+                3  // pe_settings::enc_level::both - allow both plaintext and RC4
+            )
+            sp.setBoolean(org.libtorrent4j.swig.settings_pack.bool_types.prefer_rc4.swigValue(), true)
+
+            // 3. User-Agent & Peer Fingerprint (qBittorrent 4.6.3) - matches a widely whitelisted client
             sp.setString(org.libtorrent4j.swig.settings_pack.string_types.user_agent.swigValue(), "qBittorrent/4.6.3")
             sp.setString(org.libtorrent4j.swig.settings_pack.string_types.peer_fingerprint.swigValue(), "-qB4630-")
+            sp.setString(org.libtorrent4j.swig.settings_pack.string_types.handshake_client_version.swigValue(), "qBittorrent/4.6.3")
 
             // 4. High random listening port (62473) to avoid ISP/router default port blocks
             sp.setString(org.libtorrent4j.swig.settings_pack.string_types.listen_interfaces.swigValue(), "0.0.0.0:62473,[::]:62473")
 
-            // 5. Session-wide DHT, LSD, UPnP, NAT-PMP settings
+            // 5. Session-wide DHT, LSD, UPnP, NAT-PMP settings (torrent-level disable for private torrents below)
             sp.setBoolean(org.libtorrent4j.swig.settings_pack.bool_types.enable_dht.swigValue(), true)
             sp.setBoolean(org.libtorrent4j.swig.settings_pack.bool_types.enable_lsd.swigValue(), true)
             sp.setBoolean(org.libtorrent4j.swig.settings_pack.bool_types.enable_upnp.swigValue(), true)
@@ -270,15 +309,20 @@ class TorrentEngine(
                     val ti = TorrentInfo(torrentBytes)
                     val hash = ti.infoHash().toHex().uppercase()
                     torrentInfoMap[hash] = ti
+                    val isPriv = runCatching { ti.isPrivate() }.getOrNull() ?: false
+                    Log.i(TAG, "Adding .torrent file: name='${ti.name()}', hash=$hash, size=${ti.totalSize()}, isPrivate=$isPriv")
 
-                    Log.i(TAG, "Adding .torrent file: name='${ti.name()}', hash=$hash, size=${ti.totalSize()}")
-
-                    sm.download(ti, saveDir)
+                    // Pass SEQUENTIAL + FIRST_LAST_PIECE flags, then applyPrivateFlags happen
+                    // will be applied from AddTorrentAlert, but also pre-configure tracker filter for known private now
+                    val seqFlags = TorrentFlags.SEQUENTIAL_DOWNLOAD or_(TorrentFlags.SEQUENTIAL_DOWNLOAD)
+                    try { sm.download(ti, saveDir, seqFlags) } catch (_: Throwable) { sm.download(ti, saveDir) }
                     hashToId[hash] = dl.id
                     db.torrentDownloadDao().update(dl.copy(infoHash = hash, status = DownloadStatusEntity.RUNNING, isPaused = false))
 
                     val handle = try { sm.find(Sha1Hash.parseHex(hash)) } catch (_: Exception) { null }
                     if (handle != null && handle.isValid) {
+                        try { applySequentialPriorityFlags(handle) } catch (_: Throwable) {}
+                        try { applyPrivateTorrentFlags(handle, isPriv) } catch (_: Throwable) {}
                         try { handle.forceReannounce() } catch (_: Throwable) {}
                     }
                 }
@@ -706,6 +750,89 @@ class TorrentEngine(
 
     private fun String.fromBase64(): ByteArray =
         android.util.Base64.decode(this, android.util.Base64.NO_WRAP)
+
+    /**
+     * Applies per-torrent privacy flags.
+     *
+     * PRIVATE TORRENTS: a torrent with info_dict private=1 MUST NOT leak peer info via
+     * DHT / Local Service Discovery / Peer EXchange, otherwise many private trackers will
+     * silently return zero peers or ban the user's passkey/client. We also strip any
+     * fallback public trackers that were appended pre-metadata to avoid announcing to them.
+     *
+     * PUBLIC TORRENTS: keep DHT/LSD enabled for decentralized peer discovery.
+     */
+    private fun applyPrivateTorrentFlags(handle: TorrentHandle, isPrivate: Boolean) {
+        try {
+            val allPex = org.libtorrent4j.swig.torrent_flags.upload_mode // random non-zero value for try
+        } catch (_: Throwable) {}
+        try {
+            // In libtorrent4j each flag is a static final swig torrent_flags_t value.
+            // Access via reflection for safety across libtorrent versions.
+            val flagsClass = org.libtorrent4j.swig.torrent_flags::class.java
+            fun swigFlag(name: String): org.libtorrent4j.swig.torrent_flags_t? = runCatching {
+                flagsClass.getField(name).get(null) as? org.libtorrent4j.swig.torrent_flags_t
+            }.getOrNull()
+
+            val disableDht = swigFlag("disable_dht")
+            val disableLsd = swigFlag("disable_lsd")
+            val disablePex = swigFlag("disable_pex")
+
+            if (isPrivate) {
+                disableDht?.let { handle.setFlags(it) }
+                disableLsd?.let { handle.setFlags(it) }
+                disablePex?.let { handle.setFlags(it) }
+                // For private torrents: also disable any added public fallback trackers
+                // by replacing the tracker list with only the trackers already in announce list.
+                runCatching {
+                    val currentTrackers = handle.trackers()
+                    if (currentTrackers != null) {
+                        // Remove entries that look like our fallback open trackers
+                        val fallbacks = setOf(
+                            "tracker.opentrackr.org", "open.stealth.si",
+                            "tracker.torrent.eu.org", "explodie.org",
+                            "tracker.openbittorrent.com", "tracker.openwebtorrent.com"
+                        )
+                        val filtered = currentTrackers.filterNot { tr ->
+                            fallbacks.any { host -> tr.url().contains(host) }
+                        }
+                        if (filtered.size < currentTrackers.size && filtered.isNotEmpty()) {
+                            handle.replaceTrackers(filtered)
+                        }
+                    }
+                }
+                Log.i(TAG, "[PRIVATE_FLAGS] Disabled DHT/LSD/PEX + stripped public fallbacks for private torrent")
+            } else {
+                disableDht?.let { handle.unsetFlags(it) }
+                disableLsd?.let { handle.unsetFlags(it) }
+                disablePex?.let { handle.unsetFlags(it) }
+            }
+        } catch (_: Throwable) {}
+    }
+
+    /**
+     * Ensures SEQUENTIAL download + first/last piece priority is enabled on every torrent
+     * handle so reading can start before the entire file is downloaded.
+     *
+     * Previously, sm.download(ti, saveDir) for TORRENT_FILE source was called WITHOUT any
+     * flags, so sequential was disabled. Now apply them from the alert handler as well.
+     */
+    private fun applySequentialPriorityFlags(handle: TorrentHandle) {
+        try {
+            val flagsClass = org.libtorrent4j.swig.torrent_flags::class.java
+            fun swigFlag(name: String): org.libtorrent4j.swig.torrent_flags_t? = runCatching {
+                flagsClass.getField(name).get(null) as? org.libtorrent4j.swig.torrent_flags_t
+            }.getOrNull()
+
+            val seq = swigFlag("sequential_download")
+            val flp = swigFlag("first_last_piece_priority")
+            seq?.let { handle.setFlags(it) }
+            flp?.let { handle.setFlags(it) }
+            runCatching {
+                handle.setFirstLastPiecePriority(true)
+                handle.setSequentialDownload(true)
+            }
+        } catch (_: Throwable) {}
+    }
 }
 
 

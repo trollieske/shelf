@@ -270,6 +270,7 @@ class BookImportRepository(
                 ?: AudiobookNormalizer.normalizeTitle(name)
 
             val localPath = if (uri.scheme == "file") uri.path else null
+            val embeddedChapters = meta?.chapters.orEmpty()
 
             parsedTracks.add(
                 ParsedTrack(
@@ -278,8 +279,9 @@ class BookImportRepository(
                     sizeBytes = size,
                     durationMs = trackDurationMs,
                     title = trackTitle,
-                    trackNumber = meta?.chapters?.size ?: (parsedTracks.size + 1),
-                    localPath = localPath
+                    trackNumber = parsedTracks.size + 1,
+                    localPath = localPath,
+                    embeddedChapters = embeddedChapters
                 )
             )
         }
@@ -306,34 +308,59 @@ class BookImportRepository(
         val chaptersArray = JSONArray()
 
         var trackIdx = 0
+        var chapterIdx = 0
         for (t in sortedTracks) {
             totalSizeBytes += t.sizeBytes
-            val startMs = totalDurationMs
+            val trackStartMs = totalDurationMs
             totalDurationMs += t.durationMs
 
-            var chapterTitle = t.title
-            if (chapterTitle.equals(titleCandidate, ignoreCase = true) || chapterTitle.isBlank()) {
-                val fileClean = AudiobookNormalizer.normalizeTitle(t.displayName)
-                chapterTitle = if (fileClean.isNotBlank() && !fileClean.equals(titleCandidate, ignoreCase = true)) {
-                    fileClean
-                } else {
-                    "Kapittel ${trackIdx + 1}"
+            val embed = t.embeddedChapters
+            if (embed.size >= 2 && embed.all { it.startMs >= 0L && it.endMs > it.startMs }) {
+                // This single audio file has proper embedded chapters; emit one chapter per
+                // embedded entry, with absolute start/end offsets based on trackStartMs.
+                for (c in embed) {
+                    val absStart = trackStartMs + c.startMs
+                    val absEnd = (trackStartMs + c.endMs).coerceAtMost(totalDurationMs)
+                    val chObj = JSONObject().apply {
+                        put("index", chapterIdx)
+                        put("title", c.title.takeIf { it.isNotBlank() } ?: "Kapittel ${chapterIdx + 1}")
+                        put("startMs", absStart)
+                        put("endMs", absEnd)
+                        put("mediaUri", t.uri.toString())
+                        put("filePath", t.localPath)
+                        put("durationMs", (absEnd - absStart).coerceAtLeast(1L))
+                    }
+                    chaptersArray.put(chObj)
+                    chapterIdx++
                 }
-            }
+            } else {
+                // File-level chapter (either no embedded chapters, or the info is malformed)
+                var chapterTitle = t.title
+                if (chapterTitle.equals(titleCandidate, ignoreCase = true) || chapterTitle.isBlank()) {
+                    val fileClean = AudiobookNormalizer.normalizeTitle(t.displayName)
+                    chapterTitle = if (fileClean.isNotBlank() && !fileClean.equals(titleCandidate, ignoreCase = true)) {
+                        fileClean
+                    } else {
+                        "Kapittel ${chapterIdx + 1}"
+                    }
+                }
 
-            val chObj = JSONObject().apply {
-                put("index", trackIdx)
-                put("title", chapterTitle)
-                put("startMs", startMs)
-                put("endMs", totalDurationMs)
-                put("mediaUri", t.uri.toString())
-                put("filePath", t.localPath)
-                put("durationMs", t.durationMs)
+                val chObj = JSONObject().apply {
+                    put("index", chapterIdx)
+                    put("title", chapterTitle)
+                    put("startMs", trackStartMs)
+                    put("endMs", totalDurationMs)
+                    put("mediaUri", t.uri.toString())
+                    put("filePath", t.localPath)
+                    put("durationMs", t.durationMs)
+                }
+                chaptersArray.put(chObj)
+                chapterIdx++
             }
-            chaptersArray.put(chObj)
             trackIdx++
         }
 
+        val actualChapterCount = chaptersArray.length()
         val primaryUri = sortedTracks.first().uri
         val primaryPath = sortedTracks.first().localPath
 
@@ -343,12 +370,12 @@ class BookImportRepository(
             val updated = targetBook.copy(
                 fileSizeBytes = targetBook.fileSizeBytes + totalSizeBytes,
                 durationMs = (targetBook.durationMs ?: 0L) + totalDurationMs,
-                chapterCount = (targetBook.chapterCount ?: 0) + sortedTracks.size,
+                chapterCount = (targetBook.chapterCount ?: 0) + actualChapterCount,
                 chaptersJson = chaptersArray.toString(),
                 lastModifiedAt = System.currentTimeMillis()
             )
             db.bookDao().update(updated)
-            Log.i(TAG, "[UPDATE_AUDIOBOOK] Merged ${sortedTracks.size} tracks into existing audiobook id=$bookId title='${updated.title}'")
+            Log.i(TAG, "[UPDATE_AUDIOBOOK] Merged ${sortedTracks.size} tracks into existing audiobook id=$bookId title='${updated.title}' ($actualChapterCount chapters)")
         } else {
             val newBook = BookEntity(
                 title = titleCandidate,
@@ -365,13 +392,13 @@ class BookImportRepository(
                 remotePath = remotePath,
                 coverPath = null,
                 durationMs = totalDurationMs,
-                chapterCount = sortedTracks.size,
+                chapterCount = actualChapterCount,
                 chaptersJson = chaptersArray.toString()
             )
             bookId = db.bookDao().insert(newBook)
             insertProgressFor(bookId)
             targetBook = newBook.copy(id = bookId)
-            Log.i(TAG, "[CREATE_AUDIOBOOK] id=$bookId title='$titleCandidate' author='$authorCandidate' tracks=${sortedTracks.size}")
+            Log.i(TAG, "[CREATE_AUDIOBOOK] id=$bookId title='$titleCandidate' author='$authorCandidate' tracks=${sortedTracks.size} chapters=$actualChapterCount")
         }
 
         for ((idx, t) in sortedTracks.withIndex()) {
@@ -862,6 +889,7 @@ class BookImportRepository(
         val durationMs: Long,
         val title: String,
         val trackNumber: Int,
-        val localPath: String?
+        val localPath: String?,
+        val embeddedChapters: List<com.shelf.reader.core.domain.model.ChapterInfo> = emptyList()
     )
 }

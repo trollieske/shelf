@@ -28,9 +28,17 @@ class TorrentDownloadWorker(
 
         fun schedule(context: Context) {
             val workManager = androidx.work.WorkManager.getInstance(context)
+            val prefs = com.shelf.reader.data.prefs.UserPreferencesRepository.getInstance(context)
+            val (wifiOnly, chargingOnly) = kotlinx.coroutines.runBlocking {
+                prefs.torrentWifiOnly.first() to prefs.torrentChargingOnly.first()
+            }
             val constraints = androidx.work.Constraints.Builder()
-                .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                .setRequiredNetworkType(
+                    if (wifiOnly) androidx.work.NetworkType.UNMETERED
+                    else androidx.work.NetworkType.CONNECTED
+                )
                 .setRequiresStorageNotLow(true)
+                .setRequiresCharging(chargingOnly)
                 .build()
 
             val req = androidx.work.PeriodicWorkRequestBuilder<TorrentDownloadWorker>(
@@ -42,14 +50,27 @@ class TorrentDownloadWorker(
 
             workManager.enqueueUniquePeriodicWork(
                 WORK_NAME,
-                androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+                androidx.work.ExistingPeriodicWorkPolicy.UPDATE,
                 req
             )
         }
 
         fun runNow(context: Context) {
             val workManager = androidx.work.WorkManager.getInstance(context)
+            val prefs = com.shelf.reader.data.prefs.UserPreferencesRepository.getInstance(context)
+            val (wifiOnly, chargingOnly) = kotlinx.coroutines.runBlocking {
+                prefs.torrentWifiOnly.first() to prefs.torrentChargingOnly.first()
+            }
+            val constraints = androidx.work.Constraints.Builder()
+                .setRequiredNetworkType(
+                    if (wifiOnly) androidx.work.NetworkType.UNMETERED
+                    else androidx.work.NetworkType.CONNECTED
+                )
+                .setRequiresStorageNotLow(true)
+                .setRequiresCharging(chargingOnly)
+                .build()
             val req = androidx.work.OneTimeWorkRequestBuilder<TorrentDownloadWorker>()
+                .setConstraints(constraints)
                 .addTag("torrent_run_now")
                 .build()
             workManager.enqueue(req)
@@ -62,12 +83,36 @@ class TorrentDownloadWorker(
 
         val db = ShelfDatabase.getInstance(appContext)
         val engine = TorrentEngine.getInstance(appContext)
+        val prefs = com.shelf.reader.data.prefs.UserPreferencesRepository.getInstance(appContext)
         engine.start()
 
         val timeoutMs = 10 * 60 * 1000L
         val start = System.currentTimeMillis()
 
         while (System.currentTimeMillis() - start < timeoutMs) {
+            val (wifiOnly, chargingOnly, minBattery) = Triple(
+                prefs.torrentWifiOnly.first(),
+                prefs.torrentChargingOnly.first(),
+                prefs.torrentMinBatteryPct.first()
+            )
+
+            // Check mid-flight runtime constraints
+            val batteryOk = isBatteryOk(appContext, minBattery)
+            val chargingOk = !chargingOnly || isCharging(appContext)
+            val networkOk = !wifiOnly || !isMetered(appContext)
+
+            if (!batteryOk || !chargingOk || !networkOk) {
+                val why = when {
+                    !batteryOk -> "Batteri for lavt (<$minBattery%)"
+                    !chargingOk -> "Lader ikke (kreves på grunn av innstilling)"
+                    !networkOk -> "Målt nettverk (trenger Wi-Fi)"
+                    else -> null
+                }
+                Log.w("TorrentWorker", "Avslutter torrent-worker tidlig: $why")
+                pauseActiveDownloads(db, engine)
+                break
+            }
+
             val hasActive = try {
                 val running = db.torrentDownloadDao().getRunning()
                 val nextPending = db.torrentDownloadDao().getNextPending()
@@ -81,6 +126,50 @@ class TorrentDownloadWorker(
         }
 
         return Result.success()
+    }
+
+    private fun isBatteryOk(ctx: Context, minPct: Int): Boolean {
+        return runCatching {
+            val bm = ctx.getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
+            val level = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            level >= minPct.coerceAtLeast(1)
+        }.getOrDefault(true)
+    }
+
+    private fun isCharging(ctx: Context): Boolean {
+        return runCatching {
+            val bm = ctx.getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
+            val plugged = bm.isCharging
+            plugged
+        }.getOrDefault(true)
+    }
+
+    private fun isMetered(ctx: Context): Boolean {
+        return runCatching {
+            val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            cm.isActiveNetworkMetered
+        }.getOrDefault(false)
+    }
+
+    private suspend fun pauseActiveDownloads(db: ShelfDatabase, engine: TorrentEngine) {
+        runCatching {
+            val active = db.torrentDownloadDao().getRunning()
+            for (dl in active) {
+                db.torrentDownloadDao().setPaused(dl.id, true)
+                db.torrentDownloadDao().update(
+                    dl.copy(status = com.shelf.reader.data.local.entity.DownloadStatusEntity.PAUSED, isPaused = true)
+                )
+                try {
+                    dl.infoHash?.let { h ->
+                        org.libtorrent4j.Sha1Hash.parseHex(h).let {
+                            engine.javaClass.getDeclaredMethod("sessionManager").apply {
+                                isAccessible = true
+                            }
+                        }
+                    }
+                } catch (_: Throwable) {}
+            }
+        }
     }
 
     private fun ensureChannel() {

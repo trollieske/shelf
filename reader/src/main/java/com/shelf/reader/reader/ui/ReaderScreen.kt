@@ -449,9 +449,22 @@ private fun PageCurlReader(
         displayedBitmap = null
         val count = renderer.prepare(contentHtml, ui.fontSizeSp, readerThemeColors(ui.readerTheme))
         onTotalPages(count)
-        if (currentPage >= count) {
-            currentPage = (count - 1).coerceAtLeast(0)
+        // Preserve the user's RELATIVE reading position (percent through the chapter)
+        // instead of clamping the old page number. Same behavior as iBooks:
+        // 40/100 (40%) with new pagination 200 pages → jump to page 80 (still 40%), not page 40.
+        val pct = ui.percent.coerceIn(0f, 1f)
+        val targetFromPct = if (count > 0) (pct * count.toFloat()).toInt()
+            .coerceIn(0, (count - 1).coerceAtLeast(0))
+        else 0
+        // Prefer the pending reposition percent (always accurate) when available,
+        // otherwise fall back to the state percent which may be stale.
+        val pendingPct = ui.pendingRepositionPct
+        val target = if (pendingPct != null && count > 0) {
+            (pendingPct * count.toFloat()).toInt().coerceIn(0, (count - 1).coerceAtLeast(0))
+        } else {
+            targetFromPct
         }
+        currentPage = target
     }
 
     LaunchedEffect(currentPage) {

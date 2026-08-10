@@ -47,6 +47,31 @@ class CoverRepository(
 
     private val coversDir: File by lazy { File(ctx.filesDir, "covers").apply { mkdirs() } }
 
+    private val prefs by lazy {
+        com.shelf.reader.data.prefs.UserPreferencesRepository.getInstance(ctx.applicationContext)
+    }
+
+    // In-memory cover bitmap LRU cache (~12 MB of decoded bitmaps). Avoids re-decoding WEBP
+    // from disk on every RecyclerView bind and cuts jank drastically on large libraries.
+    private val bitmapMemCache = object : android.util.LruCache<String, Bitmap>(12 * 1024 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+        override fun entryRemoved(
+            evicted: Boolean, key: String, oldValue: Bitmap, newValue: Bitmap?
+        ) {
+            if (evicted && !oldValue.isRecycled) runCatching { oldValue.recycle() }
+        }
+    }
+
+    fun cachedBitmapFor(book: BookEntity): Bitmap? {
+        val key = book.coverPath ?: generatedFile(book.id).absolutePath
+        return bitmapMemCache[key]?.takeUnless { it.isRecycled } ?: run {
+            val f = book.coverPath?.let { File(it) }?.takeIf { it.exists() }
+                ?: generatedFile(book.id).takeIf { it.exists() }
+            f?.let { decodeSampled(it, 600, 900, noRecycle = false) }
+                ?.also { b -> bitmapMemCache.put(key, b) }
+        }
+    }
+
     suspend fun coverFileFor(book: BookEntity): File = withContext(dispatchers.io) {
         book.coverPath?.let { File(it) }?.takeIf { it.exists() }
             ?: generatedFile(book.id).takeIf { it.exists() }
@@ -94,7 +119,10 @@ class CoverRepository(
         } catch (_: Throwable) { null }
 
         val onlineCover: Bitmap? = if (embedded == null) {
-            fetchOnlineCover(book.title, book.author, book.isbn)
+            val enabled = kotlinx.coroutines.runCatching {
+                kotlinx.coroutines.runBlocking { prefs.onlineCoverLookup.first() }
+            }.getOrDefault(false)
+            if (enabled) fetchOnlineCover(book.title, book.author, book.isbn) else null
         } else null
 
         val bitmap = embedded ?: onlineCover ?: renderTypographicCover(
@@ -367,12 +395,62 @@ class CoverRepository(
             return runCatching {
                 val conn = (java.net.URL(urlString).openConnection() as java.net.HttpURLConnection).apply {
                     connectTimeout = 5000
-                    readTimeout = 5000
+                    readTimeout = 8000
                     instanceFollowRedirects = true
+                    setRequestProperty("User-Agent", "ShelfEbookReader/1.0")
                 }
                 if (conn.responseCode == 200) {
-                    conn.inputStream.use { android.graphics.BitmapFactory.decodeStream(it) }
+                    conn.inputStream.use { stream ->
+                        val bytes = stream.readBytes()
+                        decodeSampled(bytes.inputStream(), 800, 1200, noRecycle = true)
+                    }
                 } else null
+            }.getOrNull()
+        }
+
+        private fun decodeSampled(
+            f: File, maxW: Int, maxH: Int, noRecycle: Boolean
+        ): Bitmap? = runCatching {
+            f.inputStream().buffered().use { decodeSampled(it, maxW, maxH, noRecycle) }
+        }.getOrNull()
+
+        private fun decodeSampled(
+            input: java.io.InputStream,
+            maxW: Int, maxH: Int, noRecycle: Boolean
+        ): Bitmap? {
+            return runCatching {
+                val buf: ByteArray = input.readBytes()
+                val bounds = android.graphics.BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                }
+                android.graphics.BitmapFactory.decodeByteArray(buf, 0, buf.size, bounds)
+                var sample = 1
+                val w = bounds.outWidth.coerceAtLeast(1)
+                val h = bounds.outHeight.coerceAtLeast(1)
+                while ((w / sample) > maxW || (h / sample) > maxH) {
+                    sample *= 2
+                }
+                val opts = android.graphics.BitmapFactory.Options().apply {
+                    inSampleSize = sample
+                    inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+                    inDensity = 160
+                }
+                val tmp = android.graphics.BitmapFactory.decodeByteArray(buf, 0, buf.size, opts)
+                    ?: return null
+                val sw = tmp.width
+                val sh = tmp.height
+                val scale = minOf(maxW.toFloat() / sw, maxH.toFloat() / sh, 1f)
+                if (scale >= 0.98f) tmp
+                else {
+                    val out = Bitmap.createScaledBitmap(
+                        tmp, (sw * scale).roundToInt().coerceAtLeast(1),
+                        (sh * scale).roundToInt().coerceAtLeast(1), true
+                    )
+                    if (!noRecycle && out !== tmp) {
+                        runCatching { tmp.recycle() }
+                    }
+                    out
+                }
             }.getOrNull()
         }
     }

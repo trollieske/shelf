@@ -46,7 +46,11 @@ data class ReaderBookState(
     val currentPage: Int = 0,
     /** Total page count after off-screen rendering (filled by HtmlPageRenderer). */
     val totalPages: Int = 0,
-    val error: String? = null
+    val error: String? = null,
+    /** When non-null: the next time onPageCountKnown arrives, re-seek currentPage to this percent.
+     *  Set by setFontSize() / setTheme() to preserve the user's reading position when
+     *  pagination changes (same relative position in the text, like iBooks does). */
+    val pendingRepositionPct: Float? = null,
 )
 
 class BookLoaderEngine(
@@ -139,19 +143,48 @@ class BookLoaderEngine(
             )
         }
 
-        // Fallback for non-structured or failed parsing
-        val bytes: ByteArray = try {
-            openStreamSafely(filePath, fileUri)?.use { s -> s.readBytes().takeIf { it.isNotEmpty() } }
-                ?: return@withContext ReaderBookState(
-                    bookId = bookId,
-                    bookTitle = book.title,
-                    author = book.author,
-                    format = book.format,
-                    type = book.type,
-                    percent = percent,
-                    error = if (fileUri == null && filePath == null) "Fant ikke filen."
-                            else "Ingen tilgang til boken. Prøv å importere mappen på nytt."
+        // Fallback for non-structured or failed parsing: stream in chunks with hard cap to prevent
+        // OOM from multi-GB audiobook/PDF files accidentally hitting this fallback.
+        data class FallbackPacket(val drmScan: ByteArray, val fullText: ByteArray, val sizeBytes: Long)
+
+        val packet: FallbackPacket = try {
+            openStreamSafely(filePath, fileUri)?.use { s ->
+                val capForDrmScan = 256 * 1024   // 256 KB suffices for MOBI EXTH + bookmobi magic
+                val capForFullText = 320 * 1024 * 1024 // 320 MB hard cap for raw text decode (OOM-safe)
+                val drmBuf = ByteArray(capForDrmScan)
+                var drmLen = 0
+                // Read drm-scan head
+                while (drmLen < capForDrmScan) {
+                    val n = s.read(drmBuf, drmLen, capForDrmScan - drmLen)
+                    if (n < 0) break
+                    drmLen += n
+                }
+                // Remaining → text buffer, bounded
+                val textBuf = java.io.ByteArrayOutputStream(drmLen.coerceAtLeast(8192))
+                textBuf.write(drmBuf, 0, drmLen)
+                val copyBuf = ByteArray(64 * 1024)
+                var total = drmLen.toLong()
+                while (total < capForFullText) {
+                    val n = s.read(copyBuf)
+                    if (n < 0) break
+                    textBuf.write(copyBuf, 0, n)
+                    total += n
+                }
+                FallbackPacket(
+                    drmScan = if (drmLen == drmBuf.size) drmBuf else drmBuf.copyOf(drmLen),
+                    fullText = textBuf.toByteArray(),
+                    sizeBytes = total
                 )
+            } ?: return@withContext ReaderBookState(
+                bookId = bookId,
+                bookTitle = book.title,
+                author = book.author,
+                format = book.format,
+                type = book.type,
+                percent = percent,
+                error = if (fileUri == null && filePath == null) "Fant ikke filen."
+                        else "Ingen tilgang til boken. Prøv å importere mappen på nytt."
+            )
         } catch (t: Throwable) {
             return@withContext ReaderBookState(
                 bookId = bookId,
@@ -163,9 +196,27 @@ class BookLoaderEngine(
                 error = "Feil ved lesing av fil: ${t.message ?: "Ukjent feil"}"
             )
         }
+        val bytesForDrm: ByteArray = packet.drmScan
+        val bytes: ByteArray = packet.fullText
+        val totalBytes = packet.sizeBytes.toInt().coerceAtLeast(bytes.size)
 
-        // For structured formats that failed, show clear error rather than trying raw text decode
-        if (book.format in listOf(FormatEntity.EPUB, FormatEntity.FB2, FormatEntity.MOBI, FormatEntity.CBZ, FormatEntity.CBR, FormatEntity.ZIP, FormatEntity.PDF)) {
+        // Structured format failure handling:
+        //  - EPUB/FB2/CBZ/CBR/ZIP/PDF : show structured-parse error (they have actual parsers)
+        //  - MOBI/AZW/AZW3          : first try to detect real DRM; if not clearly DRM-encrypted,
+        //                              fall through to raw-text decoder so DRM-free PalmDOC books work.
+        val definitelyDamagedOrDrm = when {
+            book.format in listOf(FormatEntity.EPUB, FormatEntity.FB2, FormatEntity.CBZ,
+                FormatEntity.CBR, FormatEntity.ZIP, FormatEntity.PDF) -> true
+            book.format == FormatEntity.MOBI || book.format == FormatEntity.AZW
+                || book.format == FormatEntity.AZW3 -> mobiHasDrmOrUnreadable(bytesForDrm, bytes, totalBytes.toLong())
+            else -> false
+        }
+        if (definitelyDamagedOrDrm) {
+            val drmHint = if (book.format == FormatEntity.MOBI || book.format == FormatEntity.AZW
+                || book.format == FormatEntity.AZW3)
+                "Filen ser ut til å være beskyttet av Amazon/Kindle DRM (kryptert). Det er ikke tillatt å omgå DRM. Prøv en DRM-fri kopi, EPub-versjonen, eller importer bok fra en ekstern kilde som tilbyr åpne formater."
+            else
+                "Filen kan være skadet, tom, eller ha et støttet format som ikke kunne tolkes."
             return@withContext ReaderBookState(
                 bookId = bookId,
                 bookTitle = book.title,
@@ -173,7 +224,7 @@ class BookLoaderEngine(
                 format = book.format,
                 type = book.type,
                 percent = percent,
-                error = "Klarte ikke å parse ${book.format.name}-filen. Filen kan være skadet, tom eller kryptert (DRM)."
+                error = "Klarte ikke å åpne ${book.format.name}-filen. $drmHint"
             )
         }
 
@@ -200,7 +251,7 @@ class BookLoaderEngine(
                 error = "Klarte ikke å lese filinnholdet som tekst."
             )
         }
-        val chapters = buildChapters(book.format, rawContent, bytes.size)
+        val chapters = buildChapters(book.format, rawContent, totalBytes)
 
         return@withContext ReaderBookState(
             bookId = bookId,
@@ -307,6 +358,7 @@ class BookLoaderEngine(
 
     private fun isSupportedEbook(format: FormatEntity): Boolean = when (format) {
         FormatEntity.EPUB, FormatEntity.PDF, FormatEntity.FB2, FormatEntity.MOBI,
+        FormatEntity.AZW, FormatEntity.AZW3,
         FormatEntity.CBZ, FormatEntity.CBR, FormatEntity.TXT, FormatEntity.MD,
         FormatEntity.HTML, FormatEntity.RTF, FormatEntity.DOCX -> true
         else -> false
@@ -318,4 +370,111 @@ class BookLoaderEngine(
             .replace(">", "&gt;")
             .replace("\"", "&quot;")
             .replace("'", "&#39;")
+
+    /**
+     * Cheap heuristic to detect genuinely DRM-encrypted or unreadable MOBI-family files.
+     *
+     * Returns true only when the file looks encrypted/corrupted to the point that our
+     * raw-text fallback will be useless garbage. Returns false when the file contains
+     * meaningful readable plaintext spans (DRM-free MOBI7/PalmDOC always have plenty of
+     * readable text in record payloads even without decompression).
+     *
+     * Detects:
+     *  - PalmDOC BOOKMOBI magic missing (probably not a MOBI at all -> show drm error)
+     *  - EXTH record type 208 (DRM ServerId) / 206 (DRM count) present -> encrypted
+     *  - < 3 readable text runs of >= 60 chars in first 256KB -> definitely encrypted or empty
+     */
+    private fun mobiHasDrmOrUnreadable(
+        drmScanHead: ByteArray,
+        fullBytes: ByteArray,
+        totalBytes: Long
+    ): Boolean {
+        if (totalBytes in 1 until 200) return true
+        val head = drmScanHead.ifEmpty { fullBytes }
+        if (head.isEmpty()) return true
+
+        // 1. Palm database header: name at 0-31, attributes 32-33, version 34-35,
+        //    creation date 36-39, mod date 40-43, backup 44-47, modNumber 48-51,
+        //    appInfoId 52-55, sortInfoId 56-59, type 60-63 ("BOOK"), creator 64-67 ("MOBI")
+        //    -> combined magic is "BOOKMOBI" at byte offset 60
+        val hasBookMobiMagic = (60 + 7 < head.size) &&
+            head[60].toInt().toChar() == 'B' && head[61].toInt().toChar() == 'O' &&
+            head[62].toInt().toChar() == 'O' && head[63].toInt().toChar() == 'K' &&
+            head[64].toInt().toChar() == 'M' && head[65].toInt().toChar() == 'O' &&
+            head[66].toInt().toChar() == 'B' && head[67].toInt().toChar() == 'I'
+        if (!hasBookMobiMagic) {
+            return true
+        }
+
+        // 2. Try to locate the EXTH header and check for DRM record types (206, 207, 208, 209, 210)
+        try {
+            val mobiStart = 78
+            if (mobiStart + 92 <= head.size) {
+                val mobiHeaderLen = readIntBE(head, mobiStart + 4)
+                val exthFlags2 = readIntBE(head, mobiStart + 0x80)
+                val hasExt = (exthFlags2 and 0x40) != 0
+                if (hasExt && mobiHeaderLen > 0) {
+                    val exthStart = mobiStart + mobiHeaderLen
+                    if (exthStart + 12 < head.size) {
+                        val exthMagicOk = head[exthStart].toInt().toChar() == 'E' &&
+                            head[exthStart + 1].toInt().toChar() == 'X' &&
+                            head[exthStart + 2].toInt().toChar() == 'T' &&
+                            head[exthStart + 3].toInt().toChar() == 'H'
+                        if (exthMagicOk) {
+                            val recCount = readIntBE(head, exthStart + 4)
+                            var recPos = exthStart + 12
+                            for (r in 0 until recCount.coerceAtMost(400)) {
+                                if (recPos + 8 > head.size) break
+                                val recType = readIntBE(head, recPos)
+                                val recLen = readIntBE(head, recPos + 4).coerceAtLeast(8)
+                                if (recType in 200..220 && recType !in listOf(201, 203, 204, 205)) {
+                                    if (recType == 206 || recType == 207 || recType == 208 ||
+                                        recType == 209 || recType == 210) {
+                                        return true
+                                    }
+                                }
+                                recPos += recLen
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_: Throwable) { /* ignore, fall through to text-scan heuristic */ }
+
+        // 3. Scan first 256KB for 3+ readable text runs of >= 60 chars
+        val textBuf: ByteArray = if (fullBytes.size >= head.size) fullBytes else head
+        val scanLen = textBuf.size.coerceAtMost(256 * 1024)
+        var runCount = 0
+        var currentRun = 0
+        var i = 0
+        while (i < scanLen) {
+            val b = textBuf[i]
+            val printable = (b in 32..126) || (b >= 0xA0.toByte() && b < 0.toByte()) ||
+                b == 0x0A.toByte() || b == 0x0D.toByte() || b == 0x09.toByte() ||
+                b.toInt() == 0xC2 || b.toInt() == 0xC3 || b.toInt() == 0xC5 ||  // UTF-8 start bytes for common Western
+                b.toInt() == 0xC4 || b.toInt() == 0xC6 || b.toInt() == 0xC9 ||
+                b.toInt() == 0xCB || b.toInt() == 0xCC || b.toInt() == 0xCD ||
+                b.toInt() == 0x82 || b.toInt() == 0x98 || b.toInt() == 0xA6
+            if (printable) {
+                currentRun++
+                if (currentRun >= 60) {
+                    runCount++
+                    currentRun = 0
+                    if (runCount >= 3) return false
+                }
+            } else {
+                currentRun = 0
+            }
+            i++
+        }
+        return runCount < 3
+    }
+
+    private fun readIntBE(bytes: ByteArray, off: Int): Int {
+        if (off + 4 > bytes.size) return 0
+        return ((bytes[off].toInt() and 0xFF) shl 24) or
+            ((bytes[off + 1].toInt() and 0xFF) shl 16) or
+            ((bytes[off + 2].toInt() and 0xFF) shl 8) or
+            (bytes[off + 3].toInt() and 0xFF)
+    }
 }
