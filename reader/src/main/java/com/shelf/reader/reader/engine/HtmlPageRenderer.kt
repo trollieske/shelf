@@ -77,33 +77,24 @@ class HtmlPageRenderer(
                              (function(){
                                var wrapper = document.getElementById('content-wrapper') || document.body;
                                wrapper.style.transform = 'none';
-                               // Force layout reflow to ensure all CSS columns are actually rendered
                                var force = wrapper.offsetHeight;
-                               // With html/body at 1-page width (viewport), wrapper.scrollWidth is the TOTAL width of ALL columns. This is always the canonical measurement.
                                var sw = wrapper.scrollWidth;
-                               // Fallback 1: getBoundingClientRect().width
-                               if (!sw || sw <= 0) {
-                                 var r = wrapper.getBoundingClientRect();
-                                 sw = Math.max(sw, Math.ceil(r.width) || 0);
-                               }
-                               // Fallback 2: union of range client rects
                                try {
                                  var range = document.createRange();
                                  range.selectNodeContents(wrapper);
                                  var rects = range.getClientRects();
-                                 var mr = 0; var ml = 999999;
+                                 var mr = 0;
                                  for (var i = 0; i < rects.length; i++) {
                                    if (rects[i].right > mr) mr = rects[i].right;
-                                   if (rects[i].left  < ml) ml = rects[i].left;
                                  }
-                                 var ru = Math.max(0, (mr > ml) ? Math.ceil(mr - ml) : 0);
-                                 if (ru > sw) sw = ru;
+                                 if (mr > sw) sw = mr;
                                } catch(e) {}
                                var pageW = $cssPW;
-                               if (!sw || sw <= pageW) return 1;
-                               // Always ceil so we never lose content (absorbs 1 px rounding gaps)
-                               var cols = Math.ceil(sw / pageW);
-                               return Math.max(1, cols);
+                               var padL = $cssPadLeft;
+                               var effectiveW = Math.max(0, sw - padL + 5);
+                               if (effectiveW <= pageW) return 1;
+                               var cols = Math.max(1, Math.ceil(effectiveW / pageW));
+                               return cols;
                              })()
                             """.trimIndent()
                         ) { result ->
@@ -263,7 +254,6 @@ class HtmlPageRenderer(
         val pL = cssPadLeft
         val pB = cssPadBottom
         val pR = cssPadRight
-        val cGap = cssColGap
         val cWid = cssColWidth
         val iPV = cssImgPadV
         val qB = cssQuoteBorder
@@ -296,12 +286,14 @@ class HtmlPageRenderer(
           #content-wrapper {
             box-sizing: border-box;
             display: block;
-            height: ${ch}px;
+            height: ${ch - pT - pB}px;
+            margin-top: ${pT}px;
+            margin-left: ${pL}px;
+            padding: 0;
             width: max-content;
             max-width: none;
-            padding: ${pT}px ${pR}px ${pB}px ${pL}px;
             column-width: ${cWid}px;
-            column-gap: ${cGap}px;
+            column-gap: ${pL + pR}px;
             column-fill: auto;
             column-rule: 0 none transparent;
             orphans: 2;
