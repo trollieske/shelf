@@ -67,7 +67,6 @@ class HtmlPageRenderer(
         val wv = getOrCreateWebView(theme)
         val sanitized = sanitizeHtmlContent(htmlContent)
 
-        val cssPW = cssPageWidth
         val count = withTimeoutOrNull(8_000L) {
             suspendCancellableCoroutine { cont ->
                 wv.webViewClient = object : WebViewClient() {
@@ -89,11 +88,9 @@ class HtmlPageRenderer(
                                  }
                                  if (mr > sw) sw = mr;
                                } catch(e) {}
-                               var pageW = $cssPW;
-                               var padL = $cssPadLeft;
-                               var effectiveW = Math.max(0, sw - padL + 5);
-                               if (effectiveW <= pageW) return 1;
-                               var cols = Math.max(1, Math.ceil(effectiveW / pageW));
+                               var stride = window.innerWidth;
+                               if (!sw || sw <= stride + 10) return 1;
+                               var cols = Math.max(1, Math.ceil((sw - 10) / stride));
                                return cols;
                              })()
                             """.trimIndent()
@@ -105,7 +102,7 @@ class HtmlPageRenderer(
                                 ?.coerceAtLeast(1)
                                 ?: 1
                             _totalPages = pages
-                            Log.d(TAG, "onPageFinished: totalPages=$pages cssW=$cssPW physW=$pageWidth raw=$result")
+                            Log.d(TAG, "onPageFinished: totalPages=$pages raw=$result")
                             if (cont.isActive) cont.resume(pages)
                         }
                     }
@@ -135,13 +132,12 @@ class HtmlPageRenderer(
 
         withTimeoutOrNull(5_000L) {
             suspendCancellableCoroutine { cont ->
-                val cssOffsetX = pageIndex * cssPageWidth
-
                 wv.evaluateJavascript(
                     """
                     (function(){
                       var el = document.getElementById('content-wrapper') || document.body;
-                      el.style.transform = 'translateX(-${cssOffsetX}px)';
+                      var stride = window.innerWidth;
+                      el.style.transform = 'translateX(-' + (${pageIndex} * stride) + 'px)';
                     })();
                     """.trimIndent()
                 ) {
@@ -194,7 +190,7 @@ class HtmlPageRenderer(
                 allowFileAccessFromFileURLs = true
                 @Suppress("DEPRECATION")
                 allowUniversalAccessFromFileURLs = true
-                useWideViewPort = true
+                useWideViewPort = false
                 loadWithOverviewMode = false
                 cacheMode = WebSettings.LOAD_NO_CACHE
                 setSupportZoom(false)
@@ -248,13 +244,10 @@ class HtmlPageRenderer(
     }
 
     private fun buildHtml(content: String, fontSizeSp: Int, theme: ReaderThemeColors): String {
-        val cw = cssPageWidth
-        val ch = cssPageHeight
         val pT = cssPadTop
         val pL = cssPadLeft
         val pB = cssPadBottom
         val pR = cssPadRight
-        val cWid = cssColWidth
         val iPV = cssImgPadV
         val qB = cssQuoteBorder
         return """
@@ -264,18 +257,10 @@ class HtmlPageRenderer(
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <style>
           *, *::before, *::after { box-sizing: border-box; }
-          html {
+          html, body {
             margin: 0; padding: 0;
-            height: ${ch}px;
-            width: ${cw}px;
-            overflow: hidden;
-            background: ${theme.htmlBg};
-          }
-          body {
-            margin: 0;
-            padding: 0;
-            height: ${ch}px;
-            width: ${cw}px;
+            height: 100vh;
+            width: 100vw;
             overflow: hidden;
             background: ${theme.bodyBg};
             color: ${theme.textColor};
@@ -286,13 +271,14 @@ class HtmlPageRenderer(
           #content-wrapper {
             box-sizing: border-box;
             display: block;
-            height: ${ch - pT - pB}px;
+            height: calc(100vh - ${pT + pB}px);
             margin-top: ${pT}px;
-            margin-left: ${pL}px;
-            padding: 0;
+            margin-left: 0;
+            padding-left: ${pL}px;
+            padding-right: ${pR}px;
             width: max-content;
             max-width: none;
-            column-width: ${cWid}px;
+            column-width: calc(100vw - ${pL + pR}px);
             column-gap: ${pL + pR}px;
             column-fill: auto;
             column-rule: 0 none transparent;
@@ -332,8 +318,8 @@ class HtmlPageRenderer(
             text-indent: 0;
           }
           img, svg, figure {
-            max-width: 100% !important;
-            max-height: calc(${ch}px - ${iPV}px) !important;
+            max-width: calc(100vw - ${pL + pR}px) !important;
+            max-height: calc(100vh - ${pT + pB + iPV}px) !important;
             width: auto !important;
             height: auto !important;
             object-fit: contain !important;
@@ -343,7 +329,7 @@ class HtmlPageRenderer(
           }
           svg {
             width: 100% !important;
-            max-height: calc(${ch}px - ${iPV}px) !important;
+            max-height: calc(100vh - ${pT + pB + iPV}px) !important;
           }
           blockquote {
             border-left: ${qB}px solid ${theme.headingColor};
