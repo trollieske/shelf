@@ -289,7 +289,7 @@ class HtmlPageRenderer(
             box-sizing: border-box;
             display: block;
             height: ${ch}px;
-            width: max-content;
+            width: ${cw}px;
             max-width: none;
             padding: ${pT}px ${pR}px ${pB}px ${pL}px;
             column-width: ${cWid}px;
