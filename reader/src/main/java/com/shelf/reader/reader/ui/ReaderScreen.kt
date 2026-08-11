@@ -7,7 +7,7 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,7 +30,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -253,31 +252,40 @@ private fun RealBookSlideReader(
                             )
                         })
                     }
+
+                    // ── Interaction Layer (Inside Pager Page) ───────────────────────
+                    // Standard clickable allows swiping to propagate up to HorizontalPager.
+                    Row(Modifier.fillMaxSize()) {
+                        Box(Modifier.fillMaxHeight().weight(1f).clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            if (pagerState.currentPage > 0) scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
+                            else onPreviousChapter()
+                        })
+                        Box(Modifier.fillMaxHeight().weight(3f).clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            onToggleControls()
+                        })
+                        Box(Modifier.fillMaxHeight().weight(1f).clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            if (pagerState.currentPage < ui.totalPages - 1) scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                            else onNextChapter()
+                        })
+                    }
                 }
             }
 
-            // ── Single High-Speed Gesture Layer ─────────────────────────────────
-            Box(Modifier.fillMaxSize().pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = { offset ->
-                        val x = offset.x
-                        val w = swPx.toFloat()
-                        val edgeZone = w * 0.20f
-                        
-                        when {
-                            x < edgeZone -> {
-                                if (pagerState.currentPage > 0) scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) }
-                                else onPreviousChapter()
-                            }
-                            x > w - edgeZone -> {
-                                if (pagerState.currentPage < ui.totalPages - 1) scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
-                                else onNextChapter()
-                            }
-                            else -> onToggleControls()
-                        }
-                    }
-                )
-            })
+            if (showControls) {
+                val metrics by renderer.lastMetrics.collectAsStateWithLifecycle()
+                Surface(modifier = Modifier.align(Alignment.Center).padding(top = 120.dp), color = Color.Black.copy(0.7f), shape = RoundedCornerShape(8.dp)) {
+                    Text("Rendering: $metrics", color = Color.White, modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.labelSmall)
+                }
+            }
         }
     } else {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }

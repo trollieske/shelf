@@ -1,5 +1,6 @@
-# Tasks - Phase 8.4: Restoring Native Gestures & Paging Speed
+# Tasks - Phase 8.5: Fixing Paging Logic & Gesture Conflicts
 
-- `[/]` Update `HtmlPageRenderer.kt` (faster layout measurement).
-- `[ ]` Overhaul `ReaderScreen.kt` (remove blocking layer, fix tap detection).
-- `[ ]` Deploy and verify swipe/tap on OnePlus phone.
+- `[/]` Overhaul CSS and measurement timing in `HtmlPageRenderer.kt`.
+- `[ ]` Move tap handling inside `HorizontalPager` to restore swiping in `ReaderScreen.kt`.
+- `[ ]` Add detailed layout logging for debugging.
+- `[ ]` Deploy to OnePlus and verify on "Lord of the Rings".

@@ -35,9 +35,6 @@ private const val TAG = "HtmlPageRenderer"
 
 /**
  * Off-screen [WebView] renderer for professional ebook typography.
- *
- * Anti-Squash Logic: Syncs physical pixel width with CSS column layout to ensure
- * characters are never compressed. Uses a premium "Apple-inspired" font stack.
  */
 @SuppressLint("SetJavaScriptEnabled")
 class HtmlPageRenderer(
@@ -46,10 +43,7 @@ class HtmlPageRenderer(
     val pageHeight: Int,
 ) {
     private val density: Float = context.resources.displayMetrics.density.coerceAtLeast(1f)
-    
-    // Convert physical width to CSS width (forced to integer to prevent "crushed" text)
     private val cssPageWidth: Int = (pageWidth / density).toInt()
-    
     private val cssQuoteBorder: Float = 3f / density
 
     private var webView: WebView? = null
@@ -75,8 +69,8 @@ class HtmlPageRenderer(
                 if (gen == activeGen) {
                     val cont = pendingPrepareCont
                     pendingPrepareCont = null
-                    _lastMetrics.value = "sw=$sw, stride=$stride"
-                    Log.i(TAG, "Layout calculated: $totalPages pages (sw=$sw, stride=$stride)")
+                    _lastMetrics.value = "sw=$sw, stride=$stride, pages=$totalPages"
+                    Log.i(TAG, "Layout calculated (Gen $gen): $totalPages pages [sw=$sw, stride=$stride]")
                     _totalPages = totalPages
                     if (cont?.isActive == true) cont.resume(totalPages)
                 }
@@ -111,7 +105,7 @@ class HtmlPageRenderer(
         theme: ReaderThemeColors,
         lang: String = "en",
     ): Int = withContext(Dispatchers.Main) {
-        val result = withTimeoutOrNull(3000L) {
+        val result = withTimeoutOrNull(5000L) {
             renderMutex.withLock {
                 val gen = activeGeneration.incrementAndGet()
                 _totalPages = 0
@@ -127,15 +121,27 @@ class HtmlPageRenderer(
                             }
                             view.evaluateJavascript(
                                 """
-                                 setTimeout(function() {
-                                     var wrapper = document.getElementById('content-wrapper') || document.body;
-                                     var sw = wrapper.scrollWidth;
-                                     var stride = window.innerWidth;
-                                     // If we see only 1 page but have lots of text, the browser might be lazy.
-                                     // We use a small epsilon to ensure we catch the overflow.
-                                     var cols = Math.max(1, Math.ceil((sw - 1) / (stride || 1)));
-                                     AndroidPageReady.onLayoutCalculated($gen, cols, sw, stride);
-                                 }, 150);
+                                 (function() {
+                                     function measure() {
+                                         var wrapper = document.getElementById('content-wrapper');
+                                         var sw = wrapper.scrollWidth;
+                                         var stride = window.innerWidth;
+                                         // Ceil ensures we don't cut off the last word of a chapter
+                                         var cols = Math.max(1, Math.ceil((sw - 1) / (stride || 1)));
+                                         return {cols: cols, sw: sw, stride: stride};
+                                     }
+                                     
+                                     // Robust retry logic for complex EPUB structures
+                                     var m = measure();
+                                     if (m.cols <= 1 && document.body.innerText.length > 500) {
+                                         setTimeout(function() {
+                                             var m2 = measure();
+                                             AndroidPageReady.onLayoutCalculated($gen, m2.cols, m2.sw, m2.stride);
+                                         }, 300);
+                                     } else {
+                                         AndroidPageReady.onLayoutCalculated($gen, m.cols, m.sw, m.stride);
+                                     }
+                                 })();
                                 """.trimIndent(), null
                             )
                         }
@@ -165,8 +171,9 @@ class HtmlPageRenderer(
                           var el = document.getElementById('content-wrapper') || document.body;
                           var stride = window.innerWidth;
                           el.style.transform = 'translateX(' + (-( ${pageIndex} * stride )) + 'px)';
+                          // Force browser reflow to ensure sharp text
                           var f = el.offsetHeight;
-                          setTimeout(function() { AndroidPageReady.onPageOffsetApplied($gen, $pageIndex); }, 40);
+                          setTimeout(function() { AndroidPageReady.onPageOffsetApplied($gen, $pageIndex); }, 50);
                         })();
                         """.trimIndent(), null
                     )
@@ -190,7 +197,7 @@ class HtmlPageRenderer(
         val wv = WebView(context).also { wv ->
             wv.settings.apply {
                 javaScriptEnabled = true; domStorageEnabled = true; allowFileAccess = true; allowContentAccess = true
-                useWideViewPort = false; loadWithOverviewMode = false; textZoom = 100; cacheMode = WebSettings.LOAD_NO_CACHE
+                useWideViewPort = true; loadWithOverviewMode = false; textZoom = 100; cacheMode = WebSettings.LOAD_NO_CACHE
                 setSupportZoom(false); displayZoomControls = false; layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
             }
             wv.setBackgroundColor(Color.parseColor(theme.bodyBg))
@@ -221,17 +228,15 @@ class HtmlPageRenderer(
         .replace(Regex("<p>\\s*</p>"), "").replace(Regex("(<br\\s*/?>\\s*){3,}"), "<br/><br/>")
 
     private fun buildHtml(content: String, fontSizeSp: Int, theme: ReaderThemeColors, lang: String): String {
-        val qB = cssQuoteBorder
-        val cW = cssPageWidth
         return """
         <!DOCTYPE html>
         <html lang="${lang.ifEmpty { "en" }}">
         <head>
-        <meta name="viewport" content="width=${cW.toInt()}, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
         <style>
           *, *::before, *::after { box-sizing: border-box; }
           html, body { 
-            margin: 0; padding: 0; height: 100vh; width: ${cW}px; 
+            margin: 0; padding: 0; height: 100vh; width: 100vw; 
             overflow: hidden; background: ${theme.bodyBg}; 
             -webkit-text-size-adjust: none;
           }
@@ -240,17 +245,16 @@ class HtmlPageRenderer(
             font-family: "Crimson Pro", "EB Garamond", "Palatino", "Georgia", serif; 
             font-size: ${fontSizeSp}px; 
             line-height: 1.6; 
-            text-rendering: geometricPrecision;
+            text-rendering: optimizeLegibility;
             -webkit-font-smoothing: antialiased;
           }
           #content-wrapper {
-            position: relative; 
             display: block; 
-            height: 100vh; 
+            height: 100vh !important; 
+            width: 100% !important;
             margin: 0;
             padding: 0;
-            width: auto !important; 
-            column-width: ${cW}px !important; 
+            column-width: 100vw !important; 
             column-gap: 0 !important; 
             column-fill: auto;
             word-wrap: break-word; 
@@ -259,7 +263,6 @@ class HtmlPageRenderer(
             -webkit-hyphens: auto; 
             text-align: justify;
             overflow: visible; 
-            max-width: none !important; 
             will-change: transform;
             orphans: 1;
             widows: 1;
@@ -270,7 +273,7 @@ class HtmlPageRenderer(
           h3 { font-size: 1.15em !important; }
           p { margin: 0 0 0.6em !important; text-align: justify !important; text-indent: 1.5em !important; line-height: 1.6 !important; }
           img, svg { max-width: 100% !important; height: auto !important; display: block !important; margin: 0.8em auto !important; }
-          blockquote { border-left: ${qB}px solid ${theme.headingColor}; padding-left: 1.2em; margin: 1.5em 0; font-style: italic; opacity: 0.9; }
+          blockquote { border-left: ${cssQuoteBorder}px solid ${theme.headingColor}; padding-left: 1.2em; margin: 1.5em 0; font-style: italic; opacity: 0.9; }
         </style>
         </head>
         <body><div id="content-wrapper">$content</div></body>
