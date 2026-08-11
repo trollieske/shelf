@@ -5,6 +5,11 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+repositories {
+    google()
+    mavenCentral()
+}
+
 android {
     namespace = "com.shelf.reader.reader"
     compileSdk = 35
@@ -39,6 +44,9 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.8.0")
 
     implementation("androidx.core:core-ktx:1.13.1")
+    implementation("io.github.oleksandrbalan:pagecurl:1.5.1")
+    implementation("io.github.oleksandrbalan:pagecurl:1.5.1")
+    implementation("io.github.oleksandrbalan:pagecurl:1.5.1")
 
     testImplementation("junit:junit:4.13.2")
 }

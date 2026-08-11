@@ -119,6 +119,7 @@ dependencies {
     implementation("androidx.security:security-crypto-ktx:1.1.0")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation("com.google.guava:guava:33.2.1-android")
+    implementation("io.github.oleksandrbalan:pagecurl:1.5.1")
 
     implementation("io.coil-kt:coil-compose:2.6.0")
     implementation("io.coil-kt:coil-svg:2.6.0")

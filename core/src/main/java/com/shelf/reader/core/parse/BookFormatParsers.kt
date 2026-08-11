@@ -334,6 +334,8 @@ class EpubRealParser {
             Log.d(TAG, "No spine order found in OPF, falling back to simple search")
             return fallbackXhtmlOnly(zip)
         }
+        
+        Log.d(TAG, "OPF Spine has ${spineOrder.size} items")
 
         // 3. Parse NCX (TOC)
         val navPoints = mutableListOf<NavPoint>()
@@ -347,6 +349,7 @@ class EpubRealParser {
                 if (ncxEntry != null) {
                     val ncxContent = zip.getInputStream(ncxEntry).bufferedReader().use { it.readText() }
                     navPoints.addAll(parseNcx(ncxContent))
+                    Log.d(TAG, "Parsed ${navPoints.size} navPoints from NCX at $resolvedNcx")
                 }
             }
         } catch (t: Throwable) {
@@ -389,9 +392,9 @@ class EpubRealParser {
 
             val byteLength = cleanedHtml.toByteArray().size
             val ncxMatch = navPoints.firstOrNull { np ->
-                val npSrc = np.srcHref.substringBefore('#').substringAfterLast('/')
-                val mHref = manifestItem?.href?.substringBefore('#')?.substringAfterLast('/')
-                npSrc.isNotEmpty() && mHref != null && npSrc.equals(mHref, ignoreCase = true)
+                val npSrc = np.srcHref.substringBefore('#').replace('\\', '/').trimStart('/').lowercase()
+                val mHref = manifestItem?.href?.substringBefore('#')?.replace('\\', '/')?.trimStart('/')?.lowercase()
+                npSrc.isNotEmpty() && mHref != null && (npSrc == mHref || npSrc.endsWith("/$mHref") || mHref.endsWith("/$npSrc"))
             }
             val inHtmlTitle = extractTitleFromHtml(cleanedHtml)
             val chapterTitle = ncxMatch?.title

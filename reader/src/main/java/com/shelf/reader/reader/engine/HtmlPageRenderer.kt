@@ -5,12 +5,15 @@ import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas as AndroidCanvas
-import android.graphics.Matrix
-import android.graphics.Paint as AndroidPaint
+import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
-import android.view.Choreographer
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.ConsoleMessage
+import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -21,21 +24,20 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
-import kotlin.math.ceil
 
 private const val TAG = "HtmlPageRenderer"
 
 /**
  * Off-screen [WebView] renderer for professional ebook typography.
  *
- * Density-aware: converts physical-pixel layout dimensions to WebView CSS pixels,
- * so that rendered bitmaps always have the correct 1:1 typographic alignment
- * regardless of device display density.
- *
- * Uses CSS column layout with dynamic text justification, automated hyphenation,
- * publication-grade paragraph indentations, smart quotes, and image bounds checking.
+ * Anti-Squash Logic: Syncs physical pixel width with CSS column layout to ensure
+ * characters are never compressed. Uses a premium "Apple-inspired" font stack.
  */
 @SuppressLint("SetJavaScriptEnabled")
 class HtmlPageRenderer(
@@ -43,19 +45,11 @@ class HtmlPageRenderer(
     val pageWidth: Int,
     val pageHeight: Int,
 ) {
-
     private val density: Float = context.resources.displayMetrics.density.coerceAtLeast(1f)
-
-    val cssPageWidth: Int  = (pageWidth  / density).toInt().coerceAtLeast(1)
-    val cssPageHeight: Int = (pageHeight / density).toInt().coerceAtLeast(1)
-
-    private val cssPadTop: Float    = 56f / density
-    private val cssPadLeft: Float   = 44f / density
-    private val cssPadBottom: Float = 48f / density
-    private val cssPadRight: Float  = 44f / density
-    private val cssColGap: Float    = 88f / density
-    private val cssColWidth: Float  = cssPageWidth - cssPadLeft - cssPadRight
-    private val cssImgPadV: Float   = 110f / density
+    
+    // Convert physical width to CSS width (forced to integer to prevent "crushed" text)
+    private val cssPageWidth: Int = (pageWidth / density).toInt()
+    
     private val cssQuoteBorder: Float = 3f / density
 
     private var webView: WebView? = null
@@ -65,148 +59,122 @@ class HtmlPageRenderer(
     private val activeGeneration = AtomicLong(0L)
     private val renderMutex = Mutex()
 
+    private val _lastMetrics = MutableStateFlow("")
+    val lastMetrics: StateFlow<String> = _lastMetrics.asStateFlow()
+
+    private var pendingPrepareCont: CancellableContinuation<Int>? = null
+    private var pendingRenderGen = 0L
+    private var pendingRenderPage = -1
+    private var pendingRenderCont: CancellableContinuation<Bitmap>? = null
+
+    private val jsInterface = object {
+        @JavascriptInterface
+        fun onLayoutCalculated(gen: Long, totalPages: Int, sw: Int, stride: Int) {
+            Handler(Looper.getMainLooper()).post {
+                val activeGen = activeGeneration.get()
+                if (gen == activeGen) {
+                    val cont = pendingPrepareCont
+                    pendingPrepareCont = null
+                    _lastMetrics.value = "sw=$sw, stride=$stride"
+                    Log.i(TAG, "Layout calculated: $totalPages pages (sw=$sw, stride=$stride)")
+                    _totalPages = totalPages
+                    if (cont?.isActive == true) cont.resume(totalPages)
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun onPageOffsetApplied(gen: Long, pageIndex: Int) {
+            Handler(Looper.getMainLooper()).post {
+                if (gen == pendingRenderGen && pageIndex == pendingRenderPage) {
+                    val cont = pendingRenderCont
+                    pendingRenderCont = null
+                    if (cont?.isActive == true) {
+                        try {
+                            val bmp = Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
+                            val canvas = AndroidCanvas(bmp)
+                            webView?.draw(canvas)
+                            cont.resume(bmp)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Render error", e)
+                            cont.resume(Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     suspend fun prepare(
         htmlContent: String,
         fontSizeSp: Int,
         theme: ReaderThemeColors,
-        bookLanguage: String = "en",
+        lang: String = "en",
     ): Int = withContext(Dispatchers.Main) {
-        renderMutex.withLock {
-            val gen = activeGeneration.incrementAndGet()
-            _totalPages = 0
+        val result = withTimeoutOrNull(3000L) {
+            renderMutex.withLock {
+                val gen = activeGeneration.incrementAndGet()
+                _totalPages = 0
+                val wv = getOrCreateWebView(theme)
+                val sanitized = sanitizeHtmlContent(htmlContent)
 
-            val wv = getOrCreateWebView(theme)
-            val sanitized = sanitizeHtmlContent(htmlContent)
-
-            val count = withTimeoutOrNull(8_000L) {
                 suspendCancellableCoroutine { cont ->
                     wv.webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView, url: String) {
                             if (gen != activeGeneration.get()) {
-                                Log.w(TAG, "prepare: Stale generation $gen vs active ${activeGeneration.get()}, ignoring callback")
                                 if (cont.isActive) cont.resume(1)
                                 return
                             }
-
                             view.evaluateJavascript(
                                 """
-                                 (function(){
-                                   var wrapper = document.getElementById('content-wrapper') || document.body;
-                                   wrapper.style.transform = 'none';
-                                   var force = wrapper.offsetHeight;
-                                   var sw = wrapper.scrollWidth;
-                                   try {
-                                     var range = document.createRange();
-                                     range.selectNodeContents(wrapper);
-                                     var rects = range.getClientRects();
-                                     var mr = 0;
-                                     for (var i = 0; i < rects.length; i++) {
-                                       if (rects[i].right > mr) mr = rects[i].right;
-                                     }
-                                     if (mr > sw) sw = mr;
-                                   } catch(e) {}
-                                   var stride = window.innerWidth;
-                                   if (!sw || sw <= stride + 10) return 1;
-                                   var cols = Math.max(1, Math.ceil((sw - 10) / stride));
-                                   return cols;
-                                 })()
-                                """.trimIndent()
-                            ) { result ->
-                                if (gen != activeGeneration.get()) {
-                                    if (cont.isActive) cont.resume(1)
-                                    return@evaluateJavascript
-                                }
-
-                                val pages = result
-                                    ?.trim()
-                                    ?.toDoubleOrNull()
-                                    ?.let { ceil(it).toInt() }
-                                    ?.coerceAtLeast(1)
-                                    ?: 1
-                                _totalPages = pages
-                                Log.d(TAG, "onPageFinished (gen=$gen): totalPages=$pages raw=$result")
-                                if (cont.isActive) cont.resume(pages)
-                            }
+                                 setTimeout(function() {
+                                     var wrapper = document.getElementById('content-wrapper') || document.body;
+                                     var sw = wrapper.scrollWidth;
+                                     var stride = window.innerWidth;
+                                     // If we see only 1 page but have lots of text, the browser might be lazy.
+                                     // We use a small epsilon to ensure we catch the overflow.
+                                     var cols = Math.max(1, Math.ceil((sw - 1) / (stride || 1)));
+                                     AndroidPageReady.onLayoutCalculated($gen, cols, sw, stride);
+                                 }, 150);
+                                """.trimIndent(), null
+                            )
                         }
                     }
-                    val html = buildHtml(sanitized, fontSizeSp, theme, bookLanguage)
-                    val uniqueUrl = "https://shelf.app/reader/${System.currentTimeMillis()}/"
-                    wv.loadDataWithBaseURL(
-                        uniqueUrl,
-                        html,
-                        "text/html",
-                        "UTF-8",
-                        null,
-                    )
-                    cont.invokeOnCancellation { }
+                    val html = buildHtml(sanitized, fontSizeSp, theme, lang)
+                    pendingPrepareCont = cont
+                    wv.loadDataWithBaseURL("https://shelf.app/r/", html, "text/html", "UTF-8", null)
+                    cont.invokeOnCancellation { if (activeGeneration.get() == gen) pendingPrepareCont = null }
                 }
-            } ?: run {
-                Log.w(TAG, "prepare timed out (gen=$gen), falling back to 1 page")
-                _totalPages = 1
-                1
             }
-
-            count
         }
+        result ?: 1
     }
 
     suspend fun renderPage(pageIndex: Int): Bitmap = withContext(Dispatchers.Main) {
-        renderMutex.withLock {
-            val gen = activeGeneration.get()
-            val wv = webView ?: error("HtmlPageRenderer not prepared")
-
-            withTimeoutOrNull(5_000L) {
+        val result = withTimeoutOrNull(3000L) {
+            renderMutex.withLock {
+                val gen = activeGeneration.get()
+                val wv = webView ?: error("Not prepared")
                 suspendCancellableCoroutine { cont ->
+                    pendingRenderGen = gen
+                    pendingRenderPage = pageIndex
+                    pendingRenderCont = cont
                     wv.evaluateJavascript(
                         """
                         (function(){
                           var el = document.getElementById('content-wrapper') || document.body;
                           var stride = window.innerWidth;
-                          var targetX = -( ${pageIndex} * stride );
-                          el.style.transform = 'translateX(' + targetX + 'px)';
-                          var curX = el.getBoundingClientRect().left;
-                          return { stride: stride, curX: curX, targetX: targetX };
+                          el.style.transform = 'translateX(' + (-( ${pageIndex} * stride )) + 'px)';
+                          var f = el.offsetHeight;
+                          setTimeout(function() { AndroidPageReady.onPageOffsetApplied($gen, $pageIndex); }, 40);
                         })();
-                        """.trimIndent()
-                    ) { jsonResult ->
-                        if (gen != activeGeneration.get()) {
-                            Log.w(TAG, "renderPage: Stale render request gen=$gen vs ${activeGeneration.get()}")
-                            if (cont.isActive) cont.resume(Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888))
-                            return@evaluateJavascript
-                        }
-
-                        // Synchronize with Choreographer: wait 2 frames for WebView repaint before capturing bitmap
-                        Choreographer.getInstance().postFrameCallback {
-                            Choreographer.getInstance().postFrameCallback {
-                                try {
-                                    val bmp = Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
-                                    val canvas = AndroidCanvas(bmp)
-                                    wv.draw(canvas)
-                                    if (cont.isActive) cont.resume(bmp)
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Error drawing webview page $pageIndex", e)
-                                    if (cont.isActive) cont.resume(Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888))
-                                }
-                            }
-                        }
-                    }
+                        """.trimIndent(), null
+                    )
+                    cont.invokeOnCancellation { if (pendingRenderGen == gen && pendingRenderPage == pageIndex) pendingRenderCont = null }
                 }
-            } ?: Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
+            }
         }
-    }
-
-    fun createBacksideBitmap(frontBitmap: Bitmap, paperColor: Int): Bitmap {
-        val result = Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
-        val canvas = AndroidCanvas(result)
-        canvas.drawColor(paperColor)
-        val mirrorMatrix = Matrix().apply {
-            preScale(-1f, 1f, pageWidth / 2f, pageHeight / 2f)
-        }
-        val paint = AndroidPaint(AndroidPaint.ANTI_ALIAS_FLAG or AndroidPaint.FILTER_BITMAP_FLAG).apply {
-            alpha = 26
-        }
-        canvas.drawBitmap(frontBitmap, mirrorMatrix, paint)
-        return result
+        result ?: Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
     }
 
     fun release() {
@@ -215,201 +183,98 @@ class HtmlPageRenderer(
         (wv.parent as? ViewGroup)?.removeView(wv)
         wv.destroy()
         webView = null
-        _totalPages = 0
     }
 
     private fun getOrCreateWebView(theme: ReaderThemeColors): WebView {
         webView?.let { return it }
-
         val wv = WebView(context).also { wv ->
             wv.settings.apply {
-                javaScriptEnabled = true
-                domStorageEnabled = true
-                allowFileAccess = true
-                allowContentAccess = true
-                @Suppress("DEPRECATION")
-                allowFileAccessFromFileURLs = true
-                @Suppress("DEPRECATION")
-                allowUniversalAccessFromFileURLs = true
-                useWideViewPort = false
-                loadWithOverviewMode = false
-                textZoom = 100
-                cacheMode = WebSettings.LOAD_NO_CACHE
-                setSupportZoom(false)
-                displayZoomControls = false
-                layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
+                javaScriptEnabled = true; domStorageEnabled = true; allowFileAccess = true; allowContentAccess = true
+                useWideViewPort = false; loadWithOverviewMode = false; textZoom = 100; cacheMode = WebSettings.LOAD_NO_CACHE
+                setSupportZoom(false); displayZoomControls = false; layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
             }
-            wv.setInitialScale(100)
-            try {
-                val paperColorInt = android.graphics.Color.parseColor(theme.bodyBg)
-                wv.setBackgroundColor(paperColorInt)
-            } catch (_: Exception) {
-                wv.setBackgroundColor(android.graphics.Color.WHITE)
-            }
-            wv.isHorizontalScrollBarEnabled = false
-            wv.isVerticalScrollBarEnabled = false
+            wv.setBackgroundColor(Color.parseColor(theme.bodyBg))
+            wv.isHorizontalScrollBarEnabled = false; wv.isVerticalScrollBarEnabled = false
             wv.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-
-            val widthSpec  = View.MeasureSpec.makeMeasureSpec(pageWidth,  View.MeasureSpec.EXACTLY)
-            val heightSpec = View.MeasureSpec.makeMeasureSpec(pageHeight, View.MeasureSpec.EXACTLY)
-            wv.measure(widthSpec, heightSpec)
+            wv.addJavascriptInterface(jsInterface, "AndroidPageReady")
+            wv.webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
+                    Log.d("chromium", msg.message()); return true
+                }
+            }
+            wv.measure(View.MeasureSpec.makeMeasureSpec(pageWidth, View.MeasureSpec.EXACTLY),
+                       View.MeasureSpec.makeMeasureSpec(pageHeight, View.MeasureSpec.EXACTLY))
             wv.layout(0, 0, pageWidth, pageHeight)
         }
-
-        attachToWindow(wv)
-
+        val activity = context as? Activity
+        val decor = activity?.window?.decorView as? ViewGroup
+        if (wv.parent != null) (wv.parent as? ViewGroup)?.removeView(wv)
+        decor?.addView(wv, ViewGroup.LayoutParams(pageWidth, pageHeight))
+        wv.translationX = -10000f
         webView = wv
         return wv
     }
 
-    private fun attachToWindow(wv: WebView) {
-        val activity = context as? Activity ?: return
-        val decorView = activity.window?.decorView as? ViewGroup ?: return
-        val lp = ViewGroup.LayoutParams(pageWidth, pageHeight)
-        decorView.addView(wv, lp)
-        wv.translationX = -20000f
-    }
+    private fun sanitizeHtmlContent(raw: String) = raw.replace("&nbsp;", "\u00A0").replace("&mdash;", "—").replace("&ndash;", "–")
+        .replace("&hellip;", "…").replace("&ldquo;", "“").replace("&rdquo;", "”")
+        .replace("&lsquo;", "‘").replace("&rsquo;", "’").replace("--", "—")
+        .replace(Regex("<p>\\s*</p>"), "").replace(Regex("(<br\\s*/?>\\s*){3,}"), "<br/><br/>")
 
-    private fun sanitizeHtmlContent(raw: String): String {
-        return raw
-            .replace("&nbsp;", "\u00A0")
-            .replace("&mdash;", "—")
-            .replace("&ndash;", "–")
-            .replace("&hellip;", "…")
-            .replace("&ldquo;", "“")
-            .replace("&rdquo;", "”")
-            .replace("&lsquo;", "‘")
-            .replace("&rsquo;", "’")
-            .replace("--", "—")
-            .replace(Regex("<p>\\s*</p>"), "")
-            .replace(Regex("(<br\\s*/?>\\s*){3,}"), "<br/><br/>")
-    }
-
-    private fun buildHtml(
-        content: String,
-        fontSizeSp: Int,
-        theme: ReaderThemeColors,
-        bookLanguage: String = "en",
-    ): String {
-        val pT = cssPadTop
-        val pL = cssPadLeft
-        val pB = cssPadBottom
-        val pR = cssPadRight
-        val iPV = cssImgPadV
+    private fun buildHtml(content: String, fontSizeSp: Int, theme: ReaderThemeColors, lang: String): String {
         val qB = cssQuoteBorder
-        val lang = bookLanguage.trim().ifEmpty { "en" }
+        val cW = cssPageWidth
         return """
         <!DOCTYPE html>
-        <html lang="$lang">
+        <html lang="${lang.ifEmpty { "en" }}">
         <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <meta name="viewport" content="width=${cW.toInt()}, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
         <style>
           *, *::before, *::after { box-sizing: border-box; }
-          html, body {
-            margin: 0; padding: 0;
-            height: 100vh;
-            width: 100vw;
-            overflow: hidden;
-            background: ${theme.bodyBg};
-            color: ${theme.textColor};
-            font-family: serif;
-            font-size: ${fontSizeSp}px;
-            line-height: 1.68;
+          html, body { 
+            margin: 0; padding: 0; height: 100vh; width: ${cW}px; 
+            overflow: hidden; background: ${theme.bodyBg}; 
+            -webkit-text-size-adjust: none;
+          }
+          body { 
+            color: ${theme.textColor}; 
+            font-family: "Crimson Pro", "EB Garamond", "Palatino", "Georgia", serif; 
+            font-size: ${fontSizeSp}px; 
+            line-height: 1.6; 
+            text-rendering: geometricPrecision;
+            -webkit-font-smoothing: antialiased;
           }
           #content-wrapper {
-            box-sizing: border-box;
-            display: block;
-            height: calc(100vh - ${pT + pB}px);
-            margin-top: ${pT}px;
-            margin-left: 0;
-            padding-left: ${pL}px;
-            padding-right: ${pR}px;
-            width: max-content;
-            max-width: none;
-            column-width: calc(100vw - ${pL + pR}px);
-            column-gap: ${pL + pR}px;
+            position: relative; 
+            display: block; 
+            height: 100vh; 
+            margin: 0;
+            padding: 0;
+            width: auto !important; 
+            column-width: ${cW}px !important; 
+            column-gap: 0 !important; 
             column-fill: auto;
-            column-rule: 0 none transparent;
-            orphans: 2;
-            widows: 2;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-            hyphens: auto;
-            -webkit-hyphens: auto;
+            word-wrap: break-word; 
+            overflow-wrap: break-word; 
+            hyphens: auto; 
+            -webkit-hyphens: auto; 
             text-align: justify;
-            text-justify: inter-word;
-            overflow: visible;
+            overflow: visible; 
+            max-width: none !important; 
+            will-change: transform;
+            orphans: 1;
+            widows: 1;
           }
-          h1, h2, h3, h4 {
-            color: ${theme.headingColor};
-            break-after: avoid;
-            line-height: 1.35;
-            margin: 1.2em 0 0.6em;
-            word-break: break-word;
-            text-align: center;
-            text-indent: 0;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-          }
-          h1 { font-size: ${fontSizeSp + 8}px; }
-          h2 { font-size: ${fontSizeSp + 4}px; }
-          h3 { font-size: ${fontSizeSp + 2}px; }
-          p {
-            margin: 0 0 0.5em;
-            text-align: justify;
-            orphans: 2;
-            widows: 2;
-            word-break: break-word;
-            text-indent: 1.4em;
-          }
-          p.first, h1 + p, h2 + p, h3 + p, header + p {
-            text-indent: 0;
-          }
-          img, svg, figure {
-            max-width: calc(100vw - ${pL + pR}px) !important;
-            max-height: calc(100vh - ${pT + pB + iPV}px) !important;
-            width: auto !important;
-            height: auto !important;
-            object-fit: contain !important;
-            display: block !important;
-            margin: 0.5em auto !important;
-            break-inside: avoid !important;
-          }
-          svg {
-            width: 100% !important;
-            max-height: calc(100vh - ${pT + pB + iPV}px) !important;
-          }
-          blockquote {
-            border-left: ${qB}px solid ${theme.headingColor};
-            padding-left: 1.1em;
-            margin: 1.2em 0;
-            opacity: 0.82;
-            font-style: italic;
-            text-indent: 0;
-          }
-          hr {
-            border: none;
-            height: 1px;
-            background: rgba(128,128,128,0.25);
-            margin: 2em auto;
-            width: 40%;
-          }
-          a { color: ${theme.headingColor}; text-decoration: none; }
-          pre, code {
-            font-family: monospace;
-            font-size: 0.88em;
-            background: rgba(128,128,128,0.12);
-            border-radius: 4px;
-            padding: 0.15em 0.35em;
-            word-break: break-all;
-          }
+          h1, h2, h3 { color: ${theme.headingColor}; text-align: center !important; margin: 1.2em 0 0.6em !important; font-weight: 700 !important; line-height: 1.3; }
+          h1 { font-size: 1.5em !important; }
+          h2 { font-size: 1.3em !important; }
+          h3 { font-size: 1.15em !important; }
+          p { margin: 0 0 0.6em !important; text-align: justify !important; text-indent: 1.5em !important; line-height: 1.6 !important; }
+          img, svg { max-width: 100% !important; height: auto !important; display: block !important; margin: 0.8em auto !important; }
+          blockquote { border-left: ${qB}px solid ${theme.headingColor}; padding-left: 1.2em; margin: 1.5em 0; font-style: italic; opacity: 0.9; }
         </style>
         </head>
-        <body>
-          <div id="content-wrapper">$content</div>
-        </body>
+        <body><div id="content-wrapper">$content</div></body>
         </html>
     """.trimIndent()
     }
 }
-

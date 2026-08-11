@@ -182,6 +182,12 @@ class BookImportRepository(
             val formatEntity = coreFormatToEntity(format)
             val path = filePathOverride ?: if (uri.scheme == "file") uri.path else null
 
+            val chaptersJson = meta?.chapters?.let { list ->
+                val arr = JSONArray()
+                list.forEach { arr.put(it.title) }
+                arr.toString()
+            }
+
             path?.let { p ->
                 val existing = db.bookDao().getByPath(p)
                 if (existing != null) {
@@ -213,7 +219,7 @@ class BookImportRepository(
                 remotePath = remotePath,
                 coverPath = null,
                 spineColor = null,
-                chaptersJson = null,
+                chaptersJson = chaptersJson,
                 pageCount = pageCount,
                 durationMs = meta?.durationMs,
                 chapterCount = meta?.chapters?.size?.takeIf { it > 0 }
@@ -561,6 +567,13 @@ class BookImportRepository(
                     ?: meta?.chapters?.size?.takeIf { it > 0 }
                 val formatEntity = coreFormatToEntity(format)
                 val type = if (format.isAudio) BookTypeEntity.AUDIOBOOK else BookTypeEntity.EBOOK
+                
+                val chaptersJson = meta?.chapters?.let { list ->
+                    val arr = JSONArray()
+                    list.forEach { arr.put(it.title) }
+                    arr.toString()
+                }
+
                 val book = BookEntity(
                     title = title,
                     sortTitle = normalizeForSort(title),
@@ -583,7 +596,7 @@ class BookImportRepository(
                     isSample = true,
                     coverPath = null,
                     spineColor = null,
-                    chaptersJson = null,
+                    chaptersJson = chaptersJson,
                     pageCount = pageCount,
                     durationMs = meta?.durationMs,
                     chapterCount = meta?.chapters?.size?.takeIf { it > 0 }

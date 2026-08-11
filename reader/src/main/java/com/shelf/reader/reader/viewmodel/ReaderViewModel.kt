@@ -53,10 +53,15 @@ class ReaderViewModel(
         viewModelScope.launch(dispatchers.io) {
             val existing    = runCatching { db.progressDao().getByBook(bookId) }.getOrNull()
             val engineState = engine.loadBook(bookId)
+            
+            val restoredChapter = (existing?.chapterIndex ?: 0).coerceIn(0, engineState.chapters.size - 1)
+            val restoredPage = existing?.pageIndex ?: 0
+
             _state.value = engineState.copy(
+                currentChapterIndex = restoredChapter,
                 percent   = existing?.progressPercent ?: engineState.percent,
                 scrollPct = existing?.scrollPct ?: 0f,
-                currentPage = 0,
+                currentPage = restoredPage,
                 totalPages  = 0,   // will be filled in by HtmlPageRenderer via onPageCountKnown
             )
         }
@@ -76,19 +81,27 @@ class ReaderViewModel(
                 percent = pending,
                 pendingRepositionPct = null,
             )
+            persistProgress(pending, newPage)
         } else {
-            _state.value = prior.copy(totalPages = count)
+            // If we just loaded and have a restored currentPage, ensure it's within bounds
+            val safePage = if (count > 0) prior.currentPage.coerceIn(0, count - 1) else 0
+            val pct = if (count > 0) safePage.toFloat() / count.toFloat() else 0f
+            _state.value = prior.copy(totalPages = count, currentPage = safePage, percent = pct)
+            if (safePage != prior.currentPage) {
+                persistProgress(pct, safePage)
+            }
         }
     }
 
     /** Called each time the user completes a page turn. Updates progress. */
     fun onPageTurned(page: Int) {
-        if (page == _state.value.currentPage) return
-        val pct = if (_state.value.totalPages > 0)
-            page.toFloat() / _state.value.totalPages.toFloat()
+        val prior = _state.value
+        if (page == prior.currentPage) return
+        val pct = if (prior.totalPages > 0)
+            page.toFloat() / prior.totalPages.toFloat()
         else 0f
-        _state.value = _state.value.copy(currentPage = page, percent = pct)
-        persistProgress(pct)
+        _state.value = prior.copy(currentPage = page, percent = pct)
+        persistProgress(pct, page)
     }
 
     // ── Remaining API (used by BottomBar seek slider) ─────────────────────────
@@ -100,36 +113,37 @@ class ReaderViewModel(
     }
 
     fun seekToPercent(pct: Float) {
-        val page = if (_state.value.totalPages > 0)
-            (pct * _state.value.totalPages).toInt().coerceIn(0, _state.value.totalPages - 1)
+        val prior = _state.value
+        val page = if (prior.totalPages > 0)
+            (pct * prior.totalPages).toInt().coerceIn(0, prior.totalPages - 1)
         else 0
-        _state.value = _state.value.copy(currentPage = page, percent = pct)
-        persistProgress(pct)
+        _state.value = prior.copy(currentPage = page, percent = pct)
+        persistProgress(pct, page)
     }
 
-    fun setCurrentChapter(index: Int) {
+    fun setCurrentChapter(index: Int, targetChapterPct: Float = 0f) {
         if (index < 0 || index >= _state.value.chapters.size) return
         if (index == _state.value.currentChapterIndex) return
-        val pct = index.toFloat() / _state.value.chapters.size.toFloat()
         _state.value = _state.value.copy(
             currentChapterIndex = index,
             currentPage = 0,
-            percent = pct,
+            percent = 0f,
+            pendingRepositionPct = targetChapterPct,
         )
-        persistProgress(pct)
+        persistProgress(targetChapterPct, 0, index)
     }
 
     fun nextChapter() {
         val next = _state.value.currentChapterIndex + 1
         if (next < _state.value.chapters.size) {
-            setCurrentChapter(next)
+            setCurrentChapter(next, targetChapterPct = 0f)
         }
     }
 
     fun previousChapter() {
         val prev = _state.value.currentChapterIndex - 1
         if (prev >= 0) {
-            setCurrentChapter(prev)
+            setCurrentChapter(prev, targetChapterPct = 1f)
         }
     }
 
@@ -157,14 +171,19 @@ class ReaderViewModel(
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private fun persistProgress(pct: Float) {
+    private fun persistProgress(pct: Float, page: Int? = null, chapter: Int? = null) {
         val bookId = _currentBookId.value
         if (bookId == 0L) return
+        val currentChapter = chapter ?: _state.value.currentChapterIndex
+        val currentPage = page ?: _state.value.currentPage
+        
         viewModelScope.launch(dispatchers.io) {
             val prior = runCatching { db.progressDao().getByBook(bookId) }.getOrNull()
             db.progressDao().insertOrReplace(
                 (prior ?: ReadingProgressEntity(bookId = bookId)).copy(
                     progressPercent = pct,
+                    chapterIndex = currentChapter,
+                    pageIndex = currentPage,
                     updatedAt       = System.currentTimeMillis(),
                 )
             )
