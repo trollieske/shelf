@@ -19,26 +19,31 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.CommandButton
+import androidx.media3.session.LibraryResult
+import androidx.media3.session.MediaConstants
+import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaNotification
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.shelf.reader.data.local.ShelfDatabase
+import com.shelf.reader.data.local.entity.FormatEntity
 import com.shelf.reader.data.local.entity.ReadingProgressEntity
 import com.shelf.reader.player.engine.AudiobookChapter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
 
-class AudiobookPlaybackService : MediaSessionService() {
+class AudiobookPlaybackService : MediaLibraryService() {
 
     companion object {
         private const val TAG = "AudiobookPlaybackService"
@@ -61,6 +66,7 @@ class AudiobookPlaybackService : MediaSessionService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var player: ExoPlayer? = null
     private var session: MediaSession? = null
+    private var librarySession: MediaLibraryService.MediaLibrarySession? = null
     private var currentBookId: Long = -1L
     private var db: ShelfDatabase? = null
     private val binder = LocalBinder()
@@ -92,6 +98,18 @@ class AudiobookPlaybackService : MediaSessionService() {
             .setWakeMode(C.WAKE_MODE_NETWORK or C.WAKE_MODE_LOCAL)
             .build()
         exo.addListener(object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                val id = mediaItem?.mediaId ?: return
+                if (id.startsWith("book_")) {
+                    val bookId = runCatching { id.removePrefix("book_").toLong() }.getOrNull() ?: return
+                    if (currentBookId != bookId) {
+                        val startPlaying = exo.playWhenReady
+                        loadBook(bookId)
+                        if (startPlaying) serviceScope.launch(Dispatchers.Main) { player?.playWhenReady = true }
+                    }
+                }
+            }
+
             override fun onPlaybackStateChanged(playbackState: Int) {
                 Log.d(TAG, "onPlaybackStateChanged: $playbackState")
                 maybePersistProgress()
@@ -164,6 +182,73 @@ class AudiobookPlaybackService : MediaSessionService() {
             }
         }
 
+        val libraryCallback = object : MediaLibraryService.MediaLibrarySession.Callback {
+            override fun onGetLibraryRoot(
+                session: MediaLibraryService.MediaLibrarySession,
+                caller: MediaSession.ControllerInfo,
+                params: LibraryParams?
+            ): ListenableFuture<LibraryResult<MediaItem>> {
+                val root = MediaItem.Builder()
+                    .setMediaId("__ROOT__")
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle("Shelf Bibliotek")
+                            .setIsBrowsable(true)
+                            .setMediaType(MediaMetadata.MEDIA_TYPE_FOLDER_MIXED)
+                            .build()
+                    )
+                    .build()
+                return Futures.immediateFuture(LibraryResult.ofItem(root, params))
+            }
+
+            override fun onGetChildren(
+                session: MediaLibraryService.MediaLibrarySession,
+                caller: MediaSession.ControllerInfo,
+                parentId: String,
+                page: Int,
+                pageSize: Int,
+                params: LibraryParams?
+            ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
+                val db = db ?: return Futures.immediateFuture(LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE))
+                return Futures.immediateFuture(
+                    runCatching {
+                        val audioFormats = setOf(
+                            FormatEntity.M4B, FormatEntity.M4A, FormatEntity.MP3,
+                            FormatEntity.AAC, FormatEntity.FLAC, FormatEntity.OGG,
+                            FormatEntity.OPUS, FormatEntity.OGG_OPUS, FormatEntity.WAV
+                        )
+                        val allBooks = runBlocking(Dispatchers.IO) {
+                            db.bookDao().observeAll().first().filter { it.format in audioFormats }
+                        }
+                        val sorted = allBooks.sortedWith(
+                            compareByDescending<com.shelf.reader.data.local.entity.BookEntity> { it.lastOpenedAt ?: 0L }
+                                .thenBy { it.title }
+                        )
+                        val items = sorted.map { book ->
+                            MediaItem.Builder()
+                                .setMediaId("book_${book.id}")
+                                .setMediaMetadata(
+                                    MediaMetadata.Builder()
+                                        .setTitle(book.title)
+                                        .setDisplayTitle(book.title)
+                                        .setArtist(book.author)
+                                        .setAlbumTitle(book.title)
+                                        .setSubtitle(book.author)
+                                        .setIsPlayable(true)
+                                        .setIsBrowsable(false)
+                                        .build()
+                                )
+                                .build()
+                        }
+                        LibraryResult.ofItemList(ImmutableList.copyOf(items), params)
+                    }.getOrElse { t ->
+                        Log.e(TAG, "onGetChildren failed", t)
+                        LibraryResult.ofError(LibraryResult.RESULT_ERROR_UNKNOWN)
+                    }
+                )
+            }
+        }
+
         val sessionIntent = Intent().apply {
             setClassName(this@AudiobookPlaybackService, "com.shelf.reader.MainActivity")
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -187,11 +272,12 @@ class AudiobookPlaybackService : MediaSessionService() {
                 .build()
         )
 
-        session = MediaSession.Builder(this, exo)
+        // ─── ENESTE SESSION! MediaLibrarySession ER en MediaSession (alt fungerer: notif, BT, Auto) ───
+        librarySession = MediaLibraryService.MediaLibrarySession.Builder(this, exo, libraryCallback)
             .setSessionActivity(pi)
-            .setCallback(sessionCallback)
-            .setCustomLayout(layoutButtons)
+            .setId("shelf_audio")
             .build()
+        session = librarySession
 
         setMediaNotificationProvider(object : MediaNotification.Provider {
             override fun createNotification(
@@ -481,7 +567,7 @@ class AudiobookPlaybackService : MediaSessionService() {
         super.onDestroy()
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibraryService.MediaLibrarySession? = librarySession
 
     fun currentBookId(): Long = currentBookId
     fun currentPositionMs(): Long {

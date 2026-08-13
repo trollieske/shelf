@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.shelf.reader.core.dispatchers.DefaultDispatcherProvider
 import com.shelf.reader.core.dispatchers.DispatcherProvider
 import com.shelf.reader.data.local.ShelfDatabase
+import com.shelf.reader.data.local.entity.BookmarkEntity
+import com.shelf.reader.data.local.entity.BookmarkTypeEntity
 import com.shelf.reader.data.local.entity.BookTypeEntity
 import com.shelf.reader.data.local.entity.FormatEntity
 import com.shelf.reader.data.local.entity.ReadingProgressEntity
@@ -167,6 +169,60 @@ class ReaderViewModel(
             readerTheme = theme,
             pendingRepositionPct = currentPct.coerceIn(0f, 1f),
         )
+    }
+
+    fun saveBookmark(percent: Float, pageIndex: Int) {
+        val bookId = _currentBookId.value
+        if (bookId == 0L) return
+        viewModelScope.launch(dispatchers.io) {
+            val chapterIdx = _state.value.currentChapterIndex
+            val chapterTitle = _state.value.chapters.getOrNull(chapterIdx)?.title
+            val snippet = "Page ${pageIndex + 1}"
+            runCatching {
+                db.bookmarkDao().insert(
+                    BookmarkEntity(
+                        bookId = bookId,
+                        type = BookmarkTypeEntity.GENERIC,
+                        title = chapterTitle?.let { "Chap ${chapterIdx + 1}: $it" },
+                        snippet = snippet,
+                        pageIndex = pageIndex,
+                        chapterIndex = chapterIdx,
+                        positionPercent = percent.coerceIn(0f, 1f),
+                    )
+                )
+            }
+        }
+    }
+
+    fun saveHighlight(
+        text: String,
+        colorInt: Int,
+        pageIndex: Int,
+        startOffset: Float,
+        endOffset: Float,
+    ) {
+        val bookId = _currentBookId.value
+        if (bookId == 0L) return
+        val trimmed = text.trim().ifBlank { return }
+        viewModelScope.launch(dispatchers.io) {
+            val chapterIdx = _state.value.currentChapterIndex
+            val totalInChapter = _state.value.totalPages.coerceAtLeast(1)
+            val pct = ((pageIndex + startOffset) / totalInChapter.toFloat()).coerceIn(0f, 1f)
+            runCatching {
+                db.highlightDao().insert(
+                    com.shelf.reader.data.local.entity.HighlightEntity(
+                        bookId = bookId,
+                        text = trimmed,
+                        note = null,
+                        color = colorInt,
+                        pageIndex = pageIndex,
+                        startPageOffset = startOffset.coerceIn(0f, 1f),
+                        endPageOffset = endOffset.coerceIn(0f, 1f),
+                        positionPercent = pct,
+                    )
+                )
+            }
+        }
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

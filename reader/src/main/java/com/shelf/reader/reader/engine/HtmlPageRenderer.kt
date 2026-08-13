@@ -33,6 +33,14 @@ import kotlin.coroutines.resume
 
 private const val TAG = "HtmlPageRenderer"
 
+data class HighlightData(
+    val text: String,
+    val colorInt: Int,
+    val pageIndex: Int,
+    val startPageOffset: Float,
+    val endPageOffset: Float,
+)
+
 /**
  * Off-screen [WebView] renderer for professional ebook typography.
  */
@@ -41,6 +49,7 @@ class HtmlPageRenderer(
     private val context: Context,
     val pageWidth: Int,
     val pageHeight: Int,
+    val onHighlightSaved: (HighlightData) -> Unit = {},
 ) {
     private val density: Float = context.resources.displayMetrics.density.coerceAtLeast(1f)
     private val cssPageWidth: Int = (pageWidth / density).toInt()
@@ -95,6 +104,23 @@ class HtmlPageRenderer(
                         }
                     }
                 }
+            }
+        }
+
+        @JavascriptInterface
+        fun onHighlightCreated(text: String, colorInt: Int, pageIndex: Int, startOff: Double, endOff: Double) {
+            try {
+                onHighlightSaved(
+                    HighlightData(
+                        text = text,
+                        colorInt = colorInt,
+                        pageIndex = pageIndex,
+                        startPageOffset = startOff.toFloat(),
+                        endPageOffset = endOff.toFloat()
+                    )
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Highlight bridge error", e)
             }
         }
     }
@@ -274,9 +300,66 @@ class HtmlPageRenderer(
           p { margin: 0 0 0.6em !important; text-align: justify !important; text-indent: 1.5em !important; line-height: 1.6 !important; }
           img, svg { max-width: 100% !important; height: auto !important; display: block !important; margin: 0.8em auto !important; }
           blockquote { border-left: ${cssQuoteBorder}px solid ${theme.headingColor}; padding-left: 1.2em; margin: 1.5em 0; font-style: italic; opacity: 0.9; }
+          ::selection { background: rgba(255, 205, 90, 0.45); }
+          .__hl_float { position: fixed; z-index: 9999; display: none; padding: 6px; background: rgba(30,30,32,0.96); border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.35); }
+          .__hl_btn { display: inline-block; width: 22px; height: 22px; border-radius: 50%; margin: 0 3px; cursor: pointer; border: 2px solid rgba(255,255,255,0.7); }
         </style>
         </head>
-        <body><div id="content-wrapper">$content</div></body>
+        <body><div id="content-wrapper">$content</div>
+        <script>
+        (function() {
+            var colors = [
+                { hex: '#FFDD55', android: 0xFFFFFF7F & 0xFFFFFFFF },
+                { hex: '#FF9AA2', android: 0xFFFF9AA2 & 0xFFFFFFFF },
+                { hex: '#B5DEFF', android: 0xFFB5DEFF & 0xFFFFFFFF },
+                { hex: '#C7CEEA', android: 0xFFC7CEEA & 0xFFFFFFFF },
+                { hex: '#A0E7E5', android: 0xFFA0E7E5 & 0xFFFFFFFF },
+                { hex: '#B4F8C8', android: 0xFFB4F8C8 & 0xFFFFFFFF }
+            ];
+            var ui = document.createElement('div');
+            ui.className = '__hl_float';
+            ui.innerHTML = colors.map(function(c){ return '<span class="__hl_btn" data-c="'+c.android+'" style="background:'+c.hex+'"></span>' }).join('');
+            document.body.appendChild(ui);
+            var btns = ui.querySelectorAll('.__hl_btn');
+            for (var i = 0; i < btns.length; i++) {
+                btns[i].addEventListener('click', function(ev){
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    var sel = window.getSelection();
+                    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) { ui.style.display = 'none'; return; }
+                    var text = sel.toString();
+                    if (!text || text.trim().length === 0) { ui.style.display = 'none'; return; }
+                    var cInt = parseInt(this.getAttribute('data-c'), 10);
+                    var pageWidth = window.innerWidth || document.documentElement.clientWidth || 1;
+                    var rect = sel.getRangeAt(0).getBoundingClientRect();
+                    var page = Math.max(0, Math.round(rect.left / pageWidth));
+                    var startFrac = Math.max(0, Math.min(1, ((page * pageWidth) - rect.left + pageWidth) / pageWidth));
+                    var endFrac = Math.max(0, Math.min(1, ((page * pageWidth) - rect.right + pageWidth) / pageWidth));
+                    try { AndroidPageReady.onHighlightCreated(text, cInt, page, Math.min(startFrac, endFrac), Math.max(startFrac, endFrac)); } catch(e) {}
+                    sel.removeAllRanges();
+                    ui.style.display = 'none';
+                });
+            }
+            function hideIfOutside(e){ if (ui.style.display === 'none') return; var r = ui.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) ui.style.display = 'none'; }
+            document.addEventListener('selectionchange', function(){
+                var sel = window.getSelection();
+                if (!sel || sel.rangeCount === 0 || sel.isCollapsed || sel.toString().trim().length === 0) { ui.style.display = 'none'; return; }
+                var rect = sel.getRangeAt(0).getBoundingClientRect();
+                ui.style.display = 'block';
+                var top = rect.top - 48;
+                if (top < 4) top = rect.bottom + 6;
+                var left = rect.left + rect.width/2 - ui.offsetWidth/2;
+                if (left < 4) left = 4;
+                var maxL = (window.innerWidth || 360) - ui.offsetWidth - 4;
+                if (left > maxL) left = maxL;
+                ui.style.top = top + 'px';
+                ui.style.left = left + 'px';
+            });
+            document.addEventListener('mousedown', hideIfOutside);
+            document.addEventListener('scroll', function(){ ui.style.display = 'none'; }, true);
+        })();
+        </script>
+        </body>
         </html>
     """.trimIndent()
     }

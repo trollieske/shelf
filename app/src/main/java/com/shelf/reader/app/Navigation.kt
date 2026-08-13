@@ -6,6 +6,8 @@ import com.shelf.reader.data.local.entity.BookTypeEntity
 
 sealed class ShelfDestinations(val route: String) {
     object Library : ShelfDestinations("library")
+    object Books : ShelfDestinations("books")
+    object Audiobooks : ShelfDestinations("audiobooks")
     object Player : ShelfDestinations("player/{bookId}") {
         fun routeFor(bookId: Long) = "player/$bookId"
     }

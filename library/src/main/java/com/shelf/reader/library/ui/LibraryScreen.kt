@@ -46,6 +46,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
+    initialFilter: LibraryFilter = LibraryFilter.ALL,
     onBookClick: (Long) -> Unit,
     onBookLongClick: (Long) -> Unit,
     onImportClick: () -> Unit,
@@ -55,6 +56,7 @@ fun LibraryScreen(
     vm: LibraryViewModel = viewModel(factory = vmFactory ?: defaultLibraryVmFactory())
 ) {
     val ui by vm.state.collectAsStateWithLifecycle()
+    LaunchedEffect(initialFilter) { vm.setFilter(initialFilter) }
     var search by rememberSaveable { mutableStateOf("") }
     var bookActionTarget by rememberSaveable { mutableStateOf<Long?>(null) }
     var showSortFilterSheet by rememberSaveable { mutableStateOf(false) }

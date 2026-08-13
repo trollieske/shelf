@@ -92,8 +92,8 @@ private sealed class BottomNavItem(
     val label: String,
     val icon: ImageVector
 ) {
-    object Library : BottomNavItem(ShelfDestinations.Library.route, "Bibliotek", Icons.Default.AutoStories)
-    object Sources : BottomNavItem(ShelfDestinations.Sources.route, "Kilder", Icons.Filled.Storage)
+    object Books : BottomNavItem(ShelfDestinations.Books.route, "Bøker", Icons.Default.AutoStories)
+    object Audiobooks : BottomNavItem(ShelfDestinations.Audiobooks.route, "Lydbøker", Icons.Default.Headphones)
     object Settings : BottomNavItem(ShelfDestinations.Settings.route, "Innstillinger", Icons.Filled.Settings)
 }
 
@@ -108,12 +108,12 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
         return
     }
 
-    val defaultStart = if (hasSeenOnboardingState == true) ShelfDestinations.Library.route else ShelfDestinations.Onboarding.route
+    val defaultStart = if (hasSeenOnboardingState == true) ShelfDestinations.Books.route else ShelfDestinations.Onboarding.route
     val startDest = initialRoute ?: defaultStart
-    val items = listOf(BottomNavItem.Library, BottomNavItem.Sources, BottomNavItem.Settings)
+    val items = listOf(BottomNavItem.Books, BottomNavItem.Audiobooks, BottomNavItem.Settings)
     val showBottomRoutes = setOf(
-        ShelfDestinations.Library.route,
-        ShelfDestinations.Sources.route,
+        ShelfDestinations.Books.route,
+        ShelfDestinations.Audiobooks.route,
         ShelfDestinations.Settings.route
     )
 
@@ -226,6 +226,27 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
         ) {
             composable(ShelfDestinations.Library.route) {
                 LibraryScreen(
+                    initialFilter = com.shelf.reader.library.viewmodel.LibraryFilter.ALL,
+                    onBookClick = { id -> navController.navigate(ShelfDestinations.BookDetails.routeFor(id)) },
+                    onBookLongClick = {},
+                    onImportClick = { navController.navigate(ShelfDestinations.Import.route) },
+                    onFtpClick = { navController.navigate(ShelfDestinations.Sources.route) },
+                    onSettingsClick = { navController.navigate(ShelfDestinations.Settings.route) }
+                )
+            }
+            composable(ShelfDestinations.Books.route) {
+                LibraryScreen(
+                    initialFilter = com.shelf.reader.library.viewmodel.LibraryFilter.EBOOKS,
+                    onBookClick = { id -> navController.navigate(ShelfDestinations.BookDetails.routeFor(id)) },
+                    onBookLongClick = {},
+                    onImportClick = { navController.navigate(ShelfDestinations.Import.route) },
+                    onFtpClick = { navController.navigate(ShelfDestinations.Sources.route) },
+                    onSettingsClick = { navController.navigate(ShelfDestinations.Settings.route) }
+                )
+            }
+            composable(ShelfDestinations.Audiobooks.route) {
+                LibraryScreen(
+                    initialFilter = com.shelf.reader.library.viewmodel.LibraryFilter.AUDIOBOOKS,
                     onBookClick = { id -> navController.navigate(ShelfDestinations.BookDetails.routeFor(id)) },
                     onBookLongClick = {},
                     onImportClick = { navController.navigate(ShelfDestinations.Import.route) },
@@ -268,7 +289,10 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
                 )
             }
             composable(ShelfDestinations.Settings.route) {
-                SettingsScreen(onBack = { navController.popBackStack() })
+                SettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onSourcesClick = { navController.navigate(ShelfDestinations.Sources.route) }
+                )
             }
             composable(
                 route = ShelfDestinations.Player.route,
