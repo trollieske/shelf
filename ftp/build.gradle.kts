@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.shelf.reader.ftp"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         minSdk = 26

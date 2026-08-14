@@ -8,12 +8,12 @@ plugins {
 
 android {
     namespace = "com.shelf.reader"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.shelf.reader"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
 

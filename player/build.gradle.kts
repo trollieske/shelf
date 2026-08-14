@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.shelf.reader.player"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         minSdk = 26

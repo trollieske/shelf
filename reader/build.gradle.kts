@@ -12,7 +12,7 @@ repositories {
 
 android {
     namespace = "com.shelf.reader.reader"
-    compileSdk = 35
+    compileSdk = 34
 
     defaultConfig {
         minSdk = 26
