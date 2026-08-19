@@ -28,6 +28,8 @@ dependencies {
     api(project(":core"))
 
     api("androidx.core:core-ktx:1.13.1")
+    api("androidx.lifecycle:lifecycle-runtime-ktx:2.8.3")
+    api("androidx.lifecycle:lifecycle-process:2.8.3")
 
     api("androidx.room:room-runtime:2.6.1")
     api("androidx.room:room-ktx:2.6.1")

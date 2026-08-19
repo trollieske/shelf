@@ -84,6 +84,11 @@ class UserPreferencesRepository(private val context: Context) {
     val onlineCoverLookup: Flow<Boolean> = store.map { it[Keys.ONLINE_COVER_LOOKUP] ?: false }
     val hasSeenOnboarding: Flow<Boolean> = store.map { it[Keys.SEEN_ONBOARDING] ?: false }
 
+    // ---- Leserytme / Reading Goals ----
+    val rhythmStreakGoalDays: Flow<Int> = store.map { it[Keys.RHYTHM_STREAK_GOAL] ?: 7 }
+    val rhythmCelebrationsEnabled: Flow<Boolean> = store.map { it[Keys.RHYTHM_CELEBRATIONS] ?: true }
+    val rhythmDebugAutoTriggerOnLogin: Flow<Boolean> = store.map { it[Keys.RHYTHM_DEBUG_AUTO_TRIGGER] ?: true }
+
     // ---- Writes ----
 
     suspend fun setLibraryViewType(t: LibraryViewType) = edit(Keys.LIBRARY_VIEW, t.storageKey)
@@ -183,10 +188,18 @@ class UserPreferencesRepository(private val context: Context) {
         val ONLINE_COVER_LOOKUP = booleanPreferencesKey("online_cover_lookup")
         val SEEN_ONBOARDING = booleanPreferencesKey("seen_onboarding_v1")
         val USER_NAME = stringPreferencesKey("user_name")
+
+        val RHYTHM_STREAK_GOAL = intPreferencesKey("rhythm_streak_goal_days")
+        val RHYTHM_CELEBRATIONS = booleanPreferencesKey("rhythm_celebrations_enabled")
+        val RHYTHM_DEBUG_AUTO_TRIGGER = booleanPreferencesKey("rhythm_debug_auto_trigger")
     }
 
     val userName: Flow<String> = store.map { it[Keys.USER_NAME] ?: "Karoline" }
 
     suspend fun setUserName(name: String) = edit(Keys.USER_NAME, name)
     suspend fun setHasSeenOnboarding(seen: Boolean) = edit(Keys.SEEN_ONBOARDING, seen)
+
+    suspend fun setRhythmStreakGoalDays(days: Int) = edit(Keys.RHYTHM_STREAK_GOAL, days.coerceIn(1, 365))
+    suspend fun setRhythmCelebrationsEnabled(enabled: Boolean) = edit(Keys.RHYTHM_CELEBRATIONS, enabled)
+    suspend fun setRhythmDebugAutoTrigger(enabled: Boolean) = edit(Keys.RHYTHM_DEBUG_AUTO_TRIGGER, enabled)
 }

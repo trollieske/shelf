@@ -76,7 +76,23 @@ class MobiMetadataParser : FormatMetadataParser {
         sizeBytes: Long,
         sourceStreamProvider: (suspend () -> InputStream)?
     ): BookMetadata? {
-        return fallbackMetadata(filename)
+        val base = fallbackMetadata(filename)
+        val bytes = tryReadFirstBytes(ctx, uri, filename, sizeBytes, sourceStreamProvider)
+            ?: return base
+        return try {
+            val meta = MobiUnpack.parseMetadata(bytes)
+            base.copy(
+                title = meta.title?.ifBlank { null } ?: base.title,
+                author = meta.author?.ifBlank { null } ?: base.author,
+                publisher = meta.publisher,
+                publishedDate = meta.publishedDate,
+                language = meta.language,
+                isbn = meta.isbn,
+                description = meta.description
+            )
+        } catch (_: Throwable) {
+            base
+        }
     }
 }
 
@@ -88,7 +104,54 @@ class AzwMetadataParser : FormatMetadataParser {
         sizeBytes: Long,
         sourceStreamProvider: (suspend () -> InputStream)?
     ): BookMetadata? {
-        return fallbackMetadata(filename)
+        val base = fallbackMetadata(filename)
+        val bytes = tryReadFirstBytes(ctx, uri, filename, sizeBytes, sourceStreamProvider)
+            ?: return base
+        return try {
+            val meta = MobiUnpack.parseMetadata(bytes)
+            base.copy(
+                title = meta.title?.ifBlank { null } ?: base.title,
+                author = meta.author?.ifBlank { null } ?: base.author,
+                publisher = meta.publisher,
+                publishedDate = meta.publishedDate,
+                language = meta.language,
+                isbn = meta.isbn,
+                description = meta.description
+            )
+        } catch (_: Throwable) {
+            base
+        }
+    }
+}
+
+private suspend fun tryReadFirstBytes(
+    ctx: Context,
+    uri: Uri?,
+    filename: String,
+    sizeBytes: Long,
+    sourceStreamProvider: (suspend () -> InputStream)?
+): ByteArray? {
+    val hardCap = (sizeBytes.coerceAtMost(16L * 1024L * 1024L)).toInt().coerceAtLeast(4096)
+    return try {
+        val stream: InputStream? = when {
+            sourceStreamProvider != null -> runCatching { sourceStreamProvider() }.getOrNull()
+            uri != null -> runCatching { ctx.contentResolver.openInputStream(uri) }.getOrNull()
+            else -> null
+        }
+        stream?.use { s ->
+            val baos = java.io.ByteArrayOutputStream(hardCap)
+            val buf = ByteArray(64 * 1024)
+            var total = 0
+            while (total < hardCap) {
+                val n = s.read(buf)
+                if (n < 0) break
+                baos.write(buf, 0, n)
+                total += n
+            }
+            if (total > 0) baos.toByteArray() else null
+        }
+    } catch (_: Throwable) {
+        null
     }
 }
 

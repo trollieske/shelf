@@ -40,10 +40,14 @@ class PlayerViewModel(
 ) : AndroidViewModel(application) {
 
     private val engine = AudiobookEngine(getApplication(), db)
+    private val tracker by lazy {
+        (getApplication<Application>().applicationContext as com.shelf.reader.core.di.AppDependenciesProvider).readingTracker
+    }
 
     private var currentBookId: Long = 0L
     private var currentBookDurationMs: Long = 0L
     private var lastSavedPct: Float = -1f
+    private var lastIsPlaying: Boolean = false
     private var tickerJob: Job? = null
     private var sleepTimerJob: Job? = null
     private var sleepStartedAtMs: Long? = null
@@ -81,6 +85,7 @@ class PlayerViewModel(
             author = "",
             format = FormatEntity.UNKNOWN,
             type = BookTypeEntity.AUDIOBOOK,
+            coverPath = null,
             mediaUri = null,
             durationMs = 0L,
             currentMs = 0L,
@@ -98,6 +103,8 @@ class PlayerViewModel(
     fun load(bookId: Long) {
         currentBookId = bookId
         lastSavedPct = -1f
+        lastIsPlaying = false
+        tracker.startSession(bookId.toString(), com.shelf.reader.core.gamification.model.SessionSource.TTS)
 
         viewModelScope.launch(dispatchers.io) {
             val initialState = engine.loadBook(bookId)
@@ -224,6 +231,7 @@ class PlayerViewModel(
             _state.value = current.copy(
                 title = title,
                 author = author,
+                coverPath = current.coverPath,
                 durationMs = durationMs,
                 currentMs = currentMs,
                 isPlaying = isPlaying,
@@ -235,6 +243,11 @@ class PlayerViewModel(
                 sleepTimerRemainingMs = remMs,
                 error = null
             )
+
+            if (isPlaying != lastIsPlaying) {
+                lastIsPlaying = isPlaying
+                tracker.updateTtsPlaybackState(isPlaying)
+            }
 
             if (currentBookId > 0L) {
                 com.shelf.reader.data.repository.ActivePlaybackState.update(
@@ -332,6 +345,8 @@ class PlayerViewModel(
         sleepTimerJob?.cancel()
         sleepTimerJob = null
         sleepStartedAtMs = null
+        tracker.updateTtsPlaybackState(false)
+        tracker.endSession()
         if (_serviceBound.value) {
             try {
                 getApplication<Application>().unbindService(serviceConnection)

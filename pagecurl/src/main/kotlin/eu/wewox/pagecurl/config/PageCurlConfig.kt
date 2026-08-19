@@ -19,6 +19,22 @@ import androidx.compose.ui.unit.dp
 import eu.wewox.pagecurl.ExperimentalPageCurlApi
 
 /**
+ * Inward tolerance (as a fraction of total PageCurl width) applied to the START rectangles
+ * of the forward and backward drag zones in StartEndDragInteraction.
+ *
+ * Without this buffer, forward.start = Rect(0.5, 0, 1, 1) with zero tolerance, meaning any
+ * touch landing at fraction x = 0.499... (for example a finger placed just left of the
+ * mathematical center-line on a high-DPI screen) fails Rect.contains() and falls through
+ * to the tap-animation path. The user then sees a "fast pre-rendered curl animation"
+ * instead of the expected interactive drag-to-curl behavior.
+ *
+ * Value: 0.1f (10 % of total width applied inwards from each side). This is a general
+ * robustness improvement applicable to all Android hardware and screen densities, not a
+ * device-specific hack.
+ */
+internal const val DRAG_START_ZONE_INWARD_BUFFER = 0.1f
+
+/**
  * Creates a PageCurlConfig with the default properties and memorizes it.
  *
  * @param backPageColor Color of the back-page. In majority of use-cases it should be set to the content background
@@ -333,13 +349,17 @@ public class PageCurlConfig(
      * The drag interaction setting based on where user start and end drag gesture inside the PageCurl.
      *
      * @property pointerBehavior The pointer behavior during drag interaction.
-     * @property forward The forward tap configuration.
-     * @property backward The backward tap configuration.
+     * @property forward The forward tap configuration. Its [Config.start] zone includes an
+     * inward 10 % buffer (see [DRAG_START_ZONE_INWARD_BUFFER]) so touches landing fractionally
+     * left of the exact horizontal center still trigger interactive forward drag rather than
+     * falling through to the tap-animation path. Its [Config.end] zone uses the standard,
+     * unbuffered left half to preserve drag-succeed thresholds.
+     * @property backward The backward tap configuration, symmetric to [forward].
      */
     public data class StartEndDragInteraction(
         override val pointerBehavior: DragInteraction.PointerBehavior = DragInteraction.PointerBehavior.Default,
-        val forward: Config = Config(start = rightHalf(), end = leftHalf()),
-        val backward: Config = Config(start = leftHalf(), end = rightHalf())
+        val forward: Config = Config(start = rightHalfStartBuffered(), end = leftHalf()),
+        val backward: Config = Config(start = leftHalfStartBuffered(), end = rightHalf())
     ) : DragInteraction {
 
         /**
@@ -402,16 +422,46 @@ public class PageCurlConfig(
 }
 
 /**
+ * Forward (right-side) START zone for StartEndDragInteraction, with an inward tolerance
+ * buffer applied.
+ *
+ * Without the buffer this would be Rect(0.5, 0, 1.0, 1.0). Any finger placed fractionally
+ * left of the exact x = 0.5 line (for example x = 0.498 on a device with rounded pixel
+ * centers) would fail Rect.contains() and fall through to tap handling. The inward 10 %
+ * buffer (DRAG_START_ZONE_INWARD_BUFFER) expands the left edge to x = 0.4 so touches near
+ * the horizontal center still enter interactive drag mode.
+ *
+ * This is used ONLY for forward drag START zones. The forward END zone (where drag must
+ * finish to succeed), the TargetTapInteraction tap zones, and the backward equivalents
+ * keep unbuffered half-rectangles to preserve the 3-zone tap layout and drag-succeed
+ * thresholds.
+ */
+private fun rightHalfStartBuffered(): Rect =
+    Rect(0.5f - DRAG_START_ZONE_INWARD_BUFFER, 0.0f, 1.0f, 1.0f)
+
+/**
+ * Backward (left-side) START zone for StartEndDragInteraction, with a symmetric inward
+ * buffer. Expands the right edge from x = 0.5 to x = 0.6. See [rightHalfStartBuffered] for
+ * the full rationale.
+ */
+private fun leftHalfStartBuffered(): Rect =
+    Rect(0.0f, 0.0f, 0.5f + DRAG_START_ZONE_INWARD_BUFFER, 1.0f)
+
+/**
  * The full size of the PageCurl.
  */
 private fun full(): Rect = Rect(0.0f, 0.0f, 1.0f, 1.0f)
 
 /**
- * The left half of the PageCurl.
+ * The left half of the PageCurl. Used for backward drag END zones, backward tap target
+ * zones, and (through symmetric defaults) the original unbuffered left-half reference.
+ * NOT used for drag START zones — see [leftHalfStartBuffered] instead.
  */
 private fun leftHalf(): Rect = Rect(0.0f, 0.0f, 0.5f, 1.0f)
 
 /**
- * The right half of the PageCurl.
+ * The right half of the PageCurl. Used for forward drag END zones, forward tap target
+ * zones, and (through symmetric defaults) the original unbuffered right-half reference.
+ * NOT used for drag START zones — see [rightHalfStartBuffered] instead.
  */
 private fun rightHalf(): Rect = Rect(0.5f, 0.0f, 1.0f, 1.0f)

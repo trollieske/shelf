@@ -33,14 +33,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.shelf.reader.core.domain.model.LibraryViewType
 import com.shelf.reader.data.local.entity.BookEntity
 import com.shelf.reader.designsystem.components.*
 import com.shelf.reader.designsystem.theme.ShelfColors
 import com.shelf.reader.designsystem.theme.ShelfTypography
+import com.shelf.reader.core.di.AppDependenciesProvider
+import com.shelf.reader.library.gamification.ui.LeserytmeWidget
+import com.shelf.reader.library.gamification.ui.ReadingRhythmViewModel
+import com.shelf.reader.library.gamification.ui.SaluteEffectOverlay
+import com.shelf.reader.library.gamification.ui.SaluteTier
+import com.shelf.reader.library.gamification.ui.play
+import com.shelf.reader.library.gamification.ui.rememberSaluteEffectState
 import com.shelf.reader.library.viewmodel.LibraryFilter
 import com.shelf.reader.library.viewmodel.LibrarySort
 import com.shelf.reader.library.viewmodel.LibraryViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,7 +63,9 @@ fun LibraryScreen(
     onFtpClick: () -> Unit,
     onSettingsClick: () -> Unit = {},
     vmFactory: androidx.lifecycle.ViewModelProvider.Factory? = null,
-    vm: LibraryViewModel = viewModel(factory = vmFactory ?: defaultLibraryVmFactory())
+    vm: LibraryViewModel = viewModel(factory = vmFactory ?: defaultLibraryVmFactory()),
+    rhythmVmFactory: androidx.lifecycle.ViewModelProvider.Factory? = null,
+    rhythmVm: ReadingRhythmViewModel = viewModel(factory = rhythmVmFactory ?: defaultRhythmVmFactory())
 ) {
     val ui by vm.state.collectAsStateWithLifecycle()
     LaunchedEffect(initialFilter) { vm.setFilter(initialFilter) }
@@ -69,6 +81,41 @@ fun LibraryScreen(
 
     LaunchedEffect(search) { vm.setQuery(search) }
 
+    val saluteState = rememberSaluteEffectState()
+    var activeSaluteTier by remember { mutableStateOf(SaluteTier.GOLD) }
+    var hasAutoTriggeredDebug by rememberSaveable { mutableStateOf(false) }
+
+    val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val prefs = remember(appCtx) {
+        com.shelf.reader.data.prefs.UserPreferencesRepository(appCtx)
+    }
+    val celebrationsEnabled by prefs.rhythmCelebrationsEnabled.collectAsStateWithLifecycle(initialValue = true)
+    val debugAutoTriggerEnabled by prefs.rhythmDebugAutoTriggerOnLogin.collectAsStateWithLifecycle(initialValue = true)
+
+    LaunchedEffect(rhythmVm, celebrationsEnabled, saluteState) {
+        rhythmVm.tierEvents.collect { tier ->
+            if (celebrationsEnabled) {
+                activeSaluteTier = tier
+                val duration = if (tier == SaluteTier.GOLD) 5200 else 4500
+                saluteState.play(tier, duration)
+            }
+        }
+    }
+
+    val ctxPackage = androidx.compose.ui.platform.LocalContext.current
+    val isDebuggable = remember(ctxPackage) {
+        (ctxPackage.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+    }
+    LaunchedEffect(isDebuggable, debugAutoTriggerEnabled, hasAutoTriggeredDebug, saluteState) {
+        if (isDebuggable && debugAutoTriggerEnabled && !hasAutoTriggeredDebug) {
+            hasAutoTriggeredDebug = true
+            delay(900)
+            activeSaluteTier = SaluteTier.GOLD
+            saluteState.play(SaluteTier.GOLD, 6000)
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
         contentWindowInsets = WindowInsets(0.dp),
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -214,6 +261,12 @@ fun LibraryScreen(
 
             val booksToDisplay = remember(ui.flatGridBooks) { ui.flatGridBooks.distinctBy { it.id } }
             val activeAudio by com.shelf.reader.data.repository.ActivePlaybackState.state.collectAsStateWithLifecycle()
+
+            Spacer(Modifier.height(10.dp))
+            LeserytmeWidget(
+                viewModel = rhythmVm,
+                modifier = Modifier.padding(horizontal = 14.dp)
+            )
 
             // In-Progress Books Carousel (multiple books support)
             val inProgressBooks = remember(booksToDisplay, activeAudio) {
@@ -415,6 +468,12 @@ fun LibraryScreen(
                 }
             }
         }
+    }
+        SaluteEffectOverlay(
+            state = saluteState,
+            tier = activeSaluteTier,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 
@@ -620,6 +679,18 @@ private fun defaultLibraryVmFactory(): androidx.lifecycle.ViewModelProvider.Fact
         val db = com.shelf.reader.data.local.ShelfDatabase.getInstance(app)
         val prefs = com.shelf.reader.data.prefs.UserPreferencesRepository(app)
         LibraryViewModel(app, prefs)
+    }
+}
+
+private fun defaultRhythmVmFactory(): androidx.lifecycle.ViewModelProvider.Factory = viewModelFactory {
+    initializer {
+        val app = (this[androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as android.app.Application)
+        val provider = app.applicationContext as com.shelf.reader.core.di.AppDependenciesProvider
+        ReadingRhythmViewModel(
+            rhythmDao = com.shelf.reader.data.local.ShelfDatabase.getInstance(app).readingRhythmDao(),
+            engine = provider.readingTracker,
+            preferences = com.shelf.reader.data.prefs.UserPreferencesRepository(app)
+        )
     }
 }
 

@@ -4,6 +4,8 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Binder
 import android.os.Build
@@ -41,6 +43,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
+import java.io.File
 import java.util.concurrent.Executors
 
 class AudiobookPlaybackService : MediaLibraryService() {
@@ -225,6 +229,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
                                 .thenBy { it.title }
                         )
                         val items = sorted.map { book ->
+                            val cover = coverArtworkFor(book.id)
                             MediaItem.Builder()
                                 .setMediaId("book_${book.id}")
                                 .setMediaMetadata(
@@ -236,6 +241,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
                                         .setSubtitle(book.author)
                                         .setIsPlayable(true)
                                         .setIsBrowsable(false)
+                                        .apply { cover?.bytes?.let { setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) } }
                                         .build()
                                 )
                                 .build()
@@ -310,6 +316,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
                     .setContentTitle(session.player.mediaMetadata.title ?: "Lydbok")
                     .setContentText(session.player.mediaMetadata.artist ?: "")
                     .setSmallIcon(appIcon)
+                    .apply { currentCoverBitmap?.let { setLargeIcon(it) } }
                     .setSubText(session.player.mediaMetadata.albumTitle)
                     .setOngoing(session.player.isPlaying)
                     .setContentIntent(session.sessionActivity)
@@ -376,6 +383,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
     }
 
     private var activeChapters: List<AudiobookChapter> = emptyList()
+    private var currentCoverBitmap: Bitmap? = null
 
     private fun loadBook(bookId: Long) {
         currentBookId = bookId
@@ -395,6 +403,9 @@ class AudiobookPlaybackService : MediaLibraryService() {
                 }
             }
 
+            val cover = withContext(Dispatchers.IO) { coverArtworkFor(book.id, book.coverPath) }
+            currentCoverBitmap = cover?.bitmap
+
             activeChapters = parseChapters(book.chaptersJson ?: "")
 
             if (activeChapters.isNotEmpty()) {
@@ -411,6 +422,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
                                 .setAlbumTitle(book.title)
                                 .setDisplayTitle(ch.title)
                                 .setSubtitle("Kapittel ${ch.index + 1} av ${activeChapters.size}")
+                                .apply { cover?.bytes?.let { setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) } }
                                 .build()
                         )
                         .build()
@@ -440,6 +452,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
                             .setAlbumTitle(book.title)
                             .setDisplayTitle(book.title)
                             .setSubtitle(book.format.name + " – Lydbok")
+                            .apply { cover?.bytes?.let { setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) } }
                             .build()
                     )
                     .build()
@@ -642,5 +655,47 @@ class AudiobookPlaybackService : MediaLibraryService() {
                 )
             }
         }.getOrElse { emptyList() }
+    }
+
+    private data class CoverArtwork(val bytes: ByteArray, val bitmap: Bitmap)
+
+    private fun resolveCoverFile(bookId: Long, coverPathFromDb: String?): File? {
+        val fromDb = coverPathFromDb?.takeIf { it.isNotBlank() }?.let { File(it) }
+        if (fromDb != null && fromDb.exists() && fromDb.length() > 0L) return fromDb
+        val fallback = File(filesDir, "covers/book_${bookId}.webp")
+        return if (fallback.exists() && fallback.length() > 0L) fallback else null
+    }
+
+    private fun coverArtworkFor(bookId: Long): CoverArtwork? {
+        return coverArtworkFor(bookId, coverPathFromDb = null)
+    }
+
+    private fun coverArtworkFor(bookId: Long, coverPathFromDb: String?): CoverArtwork? {
+        val file = resolveCoverFile(bookId, coverPathFromDb) ?: return null
+        val path = file.absolutePath
+        return try {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(path, bounds)
+            val targetPx = 512
+            var scale = 1
+            while (bounds.outWidth / scale / 2 >= targetPx && bounds.outHeight / scale / 2 >= targetPx) scale *= 2
+            val opts = BitmapFactory.Options().apply { inSampleSize = scale }
+            val decoded = BitmapFactory.decodeFile(path, opts) ?: return null
+            val scaled = if (decoded.width <= targetPx && decoded.height <= targetPx) decoded else {
+                val ratio = minOf(targetPx.toFloat() / decoded.width, targetPx.toFloat() / decoded.height)
+                val w = (decoded.width * ratio).toInt().coerceAtLeast(1)
+                val h = (decoded.height * ratio).toInt().coerceAtLeast(1)
+                val s = Bitmap.createScaledBitmap(decoded, w, h, true)
+                if (s !== decoded) decoded.recycle()
+                s
+            }
+            val bao = ByteArrayOutputStream().apply {
+                scaled.compress(Bitmap.CompressFormat.JPEG, 90, this)
+            }
+            CoverArtwork(bao.toByteArray(), scaled)
+        } catch (t: Throwable) {
+            Log.w(TAG, "coverArtworkFor failed for book=$bookId", t)
+            null
+        }
     }
 }

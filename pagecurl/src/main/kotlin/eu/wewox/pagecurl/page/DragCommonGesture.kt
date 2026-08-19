@@ -2,6 +2,7 @@
 
 package eu.wewox.pagecurl.page
 
+import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector4D
 import androidx.compose.animation.core.VectorConverter
@@ -22,6 +23,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.PI
+
+private const val TAG_DRAG = "PageCurl.Drag"
 
 internal data class DragConfig(
     val edge: Animatable<Edge, AnimationVector4D>,
@@ -145,16 +148,41 @@ internal suspend fun PointerInputScope.detectCustomDragGestures(
 ) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
+        val systemTouchSlop = viewConfiguration.touchSlop
+        val density = this@detectCustomDragGestures.density
+        val sizeW = this@detectCustomDragGestures.size.width
+        val sizeH = this@detectCustomDragGestures.size.height
+        val startFracX = if (sizeW > 0) down.position.x / sizeW else 0f
+        val startFracY = if (sizeH > 0) down.position.y / sizeH else 0f
+        val downConsumedBefore = down.isConsumed
+        // FIX D VERIFY: Log every actual touchSlop value so OEM-specific differences can be
+        // confirmed before any bounded-reduction change is made. Also logged: size of PageCurl
+        // dimensions, and startX/startY as a fraction (1 = full width/height).
+        Log.d(TAG_DRAG, "Down event in drag detector: " +
+            "down.id=${down.id.value} " +
+            "pos=(${down.position.x},${down.position.y}) " +
+            "frac=(${String.format("%.3f", startFracX)},${String.format("%.3f", startFracY)}) " +
+            "size=${sizeW}x$sizeH " +
+            "touchSlopPx=$systemTouchSlop " +
+            "touchSlopFrac=${if (sizeW > 0) systemTouchSlop / sizeW else 0f} " +
+            "density=$density " +
+            "downAlreadyConsumed=$downConsumedBefore " +
+            "fx=D_verify|C_verify_before")
         var drag: PointerInputChange?
         var overSlop = Offset.Zero
+        var slopEvents = 0
         do {
             drag = awaitTouchSlopOrCancellation(down.id) { change, over ->
                 change.consume()
                 overSlop = over
+                slopEvents++
             }
         } while (drag != null && !drag.isConsumed)
+        Log.d(TAG_DRAG, "After touchSlop loop: down.id=${down.id.value} dragResult=${drag != null} slopEvents=$slopEvents consumedDrag=${drag?.isConsumed}")
         if (drag != null) {
-            if (!onDragStart.invoke(down.position, drag.position)) {
+            val startOK = onDragStart.invoke(down.position, drag.position)
+            if (!startOK) {
+                Log.d(TAG_DRAG, "onDragStart rejected (no matching getConfig?) for down at fracX=$startFracX")
                 return@awaitEachGesture
             }
             onDrag(drag, overSlop)

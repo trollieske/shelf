@@ -26,9 +26,12 @@ import com.shelf.reader.data.local.entity.*
         TorrentDownloadEntity::class,
         WorkEntity::class,
         WorkEditionEntity::class,
-        HandoffLinkEntity::class
+        HandoffLinkEntity::class,
+        ReadingSessionEntity::class,
+        DailyReadingEntity::class,
+        ReadingProfileEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -50,6 +53,7 @@ abstract class ShelfDatabase : RoomDatabase() {
     abstract fun workEditionDao(): com.shelf.reader.data.local.dao.WorkEditionDao
     abstract fun handoffLinkDao(): com.shelf.reader.data.local.dao.HandoffLinkDao
     abstract fun workWithEditionsDao(): com.shelf.reader.data.local.dao.WorkWithEditionsDao
+    abstract fun readingRhythmDao(): com.shelf.reader.data.local.dao.ReadingRhythmDao
 
     companion object {
         private const val DB_NAME = "shelf.db"

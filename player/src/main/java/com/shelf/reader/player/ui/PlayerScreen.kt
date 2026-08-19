@@ -2,26 +2,34 @@ package com.shelf.reader.player.ui
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -221,27 +229,83 @@ fun PlayerScreen(
                 colors = CardDefaults.elevatedCardColors(containerColor = ShelfColors.SpineBurgundy)
             ) {
                 Box(Modifier.fillMaxSize()) {
-                    Column(
-                        Modifier
-                            .fillMaxSize()
-                            .padding(20.dp),
-                        verticalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            state.title.ifBlank { "Lydbok" },
-                            style = ShelfTypography.TitleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis
+                    val cp = state.coverPath
+                    if (cp != null) {
+                        val req = remember(cp) {
+                            ImageRequest.Builder(ctx)
+                                .data(java.io.File(cp))
+                                .memoryCacheKey(cp)
+                                .diskCacheKey(cp)
+                                .crossfade(true)
+                                .build()
+                        }
+                        AsyncImage(
+                            model = req,
+                            contentDescription = state.title.ifBlank { "Bok-cover" },
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                            alignment = Alignment.Center
                         )
-                        Text(
-                            state.author.ifBlank { "" },
-                            style = ShelfTypography.BodyMedium,
-                            color = Color.White.copy(alpha = 0.85f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(
+                                            Color.Transparent,
+                                            Color.Black.copy(alpha = 0.18f),
+                                            Color.Black.copy(alpha = 0.62f)
+                                        ),
+                                        startY = 0f
+                                    )
+                                )
                         )
+                    } else {
+                        Canvas(Modifier.fillMaxSize()) {
+                            val w = size.width
+                            val h = size.height
+                            drawRect(
+                                brush = Brush.verticalGradient(
+                                    listOf(
+                                        Color(0xFF2B2446),
+                                        ShelfColors.SpineBurgundy,
+                                        Color(0xFF3E1A2B)
+                                    )
+                                )
+                            )
+                            drawRect(
+                                brush = Brush.radialGradient(
+                                    listOf(
+                                        Color.Transparent,
+                                        Color.Black.copy(alpha = 0.38f)
+                                    ),
+                                    center = Offset(w * 0.55f, h * 0.42f),
+                                    radius = h * 0.75f
+                                )
+                            )
+                        }
+                        Column(
+                            Modifier
+                                .fillMaxSize()
+                                .padding(20.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                state.title.ifBlank { "Lydbok" },
+                                style = ShelfTypography.TitleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                state.author.ifBlank { "" },
+                                style = ShelfTypography.BodyMedium,
+                                color = Color.White.copy(alpha = 0.85f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                     if (state.isPlaying) WaveformOverlay()
                 }

@@ -22,6 +22,7 @@ data class AudiobookState(
     val author: String,
     val format: FormatEntity,
     val type: BookTypeEntity,
+    val coverPath: String? = null,
     val mediaUri: String? = null,
     val durationMs: Long = 0L,
     val currentMs: Long = 0L,
@@ -47,6 +48,7 @@ class AudiobookEngine(
                 author = "",
                 format = FormatEntity.UNKNOWN,
                 type = BookTypeEntity.AUDIOBOOK,
+                coverPath = null,
                 error = "Fant ikke boken"
             )
 
@@ -66,11 +68,14 @@ class AudiobookEngine(
             .indexOfLast { it.startMs <= currentMs }
             .coerceAtLeast(0)
 
+        val coverPath = resolveCoverPath(ctx, book)
+
         return AudiobookState(
             title = book.title,
             author = book.author,
             format = book.format,
             type = book.type,
+            coverPath = coverPath,
             mediaUri = mediaUri,
             durationMs = durationMs,
             currentMs = currentMs,
@@ -82,6 +87,15 @@ class AudiobookEngine(
             sleepTimerMinutes = null,
             error = null
         )
+    }
+
+    private fun resolveCoverPath(ctx: Context, book: BookEntity): String? {
+        book.coverPath?.let { p ->
+            if (File(p).exists()) return p
+        }
+        val generated = File(ctx.filesDir, "covers/book_${book.id}.webp")
+        if (generated.exists()) return generated.absolutePath
+        return null
     }
 
     private fun resolveSourceForPlayback(ctx: Context, book: BookEntity): String? {

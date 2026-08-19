@@ -27,6 +27,8 @@ class TtsPlaybackEngine(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
 
+    private val appCtx = ctx.applicationContext
+
     private val _state = MutableStateFlow(TtsState())
     val state: StateFlow<TtsState> = _state
 
@@ -78,6 +80,9 @@ class TtsPlaybackEngine(
             return
         }
         _state.value = _state.value.copy(isPlaying = true)
+        runCatching {
+            (appCtx as? com.shelf.reader.core.di.AppDependenciesProvider)?.readingTracker?.updateTtsPlaybackState(true)
+        }
         val chap = chapters.getOrNull(state.value.currentChapter) ?: return
         val paraIdx = state.value.currentParagraph.coerceAtMost(chap.paragraphs.size - 1)
         speak(chap.paragraphs.getOrNull(paraIdx).orEmpty())
@@ -86,6 +91,9 @@ class TtsPlaybackEngine(
     fun pause() {
         tts?.stop()
         _state.value = _state.value.copy(isPlaying = false)
+        runCatching {
+            (appCtx as? com.shelf.reader.core.di.AppDependenciesProvider)?.readingTracker?.updateTtsPlaybackState(false)
+        }
     }
 
     fun toggle() {

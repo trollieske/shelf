@@ -29,6 +29,35 @@ interface BookDao {
     @Query("UPDATE books SET cover_path = :coverPath, spine_color = :spineColor WHERE id = :id")
     suspend fun updateCoverSilently(id: Long, coverPath: String, spineColor: Int)
 
+    /**
+     * Silent metadata enrichment update. Updates title, author, sort fields, isbn,
+     * publisher, published_date and description without touching last_modified_at.
+     * Used when online lookup fills in gaps like "Ukjent forfatter" for a book like Dune.
+     */
+    @Query("""
+        UPDATE books SET
+            title = :title,
+            sort_title = :sortTitle,
+            author = :author,
+            sort_author = :sortAuthor,
+            isbn = :isbn,
+            publisher = :publisher,
+            published_date = :publishedDate,
+            description = :description
+        WHERE id = :id
+    """)
+    suspend fun enrichMetadataSilently(
+        id: Long,
+        title: String,
+        sortTitle: String,
+        author: String,
+        sortAuthor: String,
+        isbn: String?,
+        publisher: String?,
+        publishedDate: String?,
+        description: String?
+    )
+
     @Query("SELECT * FROM books WHERE is_deleted = 0 ORDER BY last_opened_at DESC, date_added DESC, id ASC")
     fun observeAll(): Flow<List<BookEntity>>
 

@@ -124,4 +124,10 @@ class Converters {
 
     @TypeConverter
     fun stringToMatchStrength(value: String?): MatchStrengthEntity? = value?.let { MatchStrengthEntity.valueOf(it) }
+
+    @TypeConverter
+    fun sessionSourceToString(value: SessionSource?): String? = value?.name
+
+    @TypeConverter
+    fun stringToSessionSource(value: String?): SessionSource? = value?.let { SessionSource.valueOf(it) }
 }

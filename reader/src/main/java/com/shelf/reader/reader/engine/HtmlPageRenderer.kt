@@ -28,6 +28,7 @@ import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
 
@@ -66,9 +67,7 @@ class HtmlPageRenderer(
     val lastMetrics: StateFlow<String> = _lastMetrics.asStateFlow()
 
     private var pendingPrepareCont: CancellableContinuation<Int>? = null
-    private var pendingRenderGen = 0L
-    private var pendingRenderPage = -1
-    private var pendingRenderCont: CancellableContinuation<Bitmap>? = null
+    private val pendingRenders = ConcurrentHashMap<Pair<Long, Int>, CancellableContinuation<Bitmap>>()
 
     private val jsInterface = object {
         @JavascriptInterface
@@ -89,20 +88,84 @@ class HtmlPageRenderer(
         @JavascriptInterface
         fun onPageOffsetApplied(gen: Long, pageIndex: Int) {
             Handler(Looper.getMainLooper()).post {
-                if (gen == pendingRenderGen && pageIndex == pendingRenderPage) {
-                    val cont = pendingRenderCont
-                    pendingRenderCont = null
-                    if (cont?.isActive == true) {
-                        try {
-                            val bmp = Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
-                            val canvas = AndroidCanvas(bmp)
-                            webView?.draw(canvas)
-                            cont.resume(bmp)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Render error", e)
-                            cont.resume(Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888))
+                val key = Pair(gen, pageIndex)
+                val cont = pendingRenders.remove(key)
+                if (cont?.isActive == true) {
+                    try {
+                        val bmp = Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
+                        val canvas = AndroidCanvas(bmp)
+                        webView?.draw(canvas)
+                        // — FIX E VERIFY — Pixel-sampling after WebView.draw(canvas) ———————————————
+                        // Distinguishes two possible root causes of duplicate/stale pages:
+                        //   (i)  WebView.draw genuinely produced a BLANK / UNIFORM bitmap because the
+                        //        HWUI dirty-rect rejection (see Motorola logs) corrupted the capture.
+                        //        In that case a layout fix (LayoutParams 0×0) would be needed.
+                        //   (ii) The bitmap has real content but the RACE from FIX B caused a
+                        //        wrong-key misroute, and a timeout produced a separate blank.
+                        // Samples 9 strategically-chosen pixels; if ALL share the same single color
+                        // we report the bitmap as suspiciously uniform.
+                        val sampleCount = 9
+                        val sampleCoords = IntArray(sampleCount * 2).also { c ->
+                            val w = pageWidth; val h = pageHeight
+                            val midW = w / 2; val midH = h / 2
+                            c[0]=0;         c[1]=0          // top-left
+                            c[2]=midW;      c[3]=0          // top
+                            c[4]=w-1;       c[5]=0          // top-right
+                            c[6]=0;         c[7]=midH       // mid-left
+                            c[8]=midW;      c[9]=midH       // center (most diagnostic for text)
+                            c[10]=w-1;      c[11]=midH      // mid-right
+                            c[12]=0;        c[13]=h-1       // bot-left
+                            c[14]=midW;     c[15]=h-1       // bot
+                            c[16]=w-1;      c[17]=h-1       // bot-right
                         }
+                        var prevColor: Int? = null
+                        var allUniform = true
+                        var uniqueColors = 0
+                        var nonZeroAlpha = 0
+                        var centerPxColor: Int = 0
+                        val centerX = pageWidth / 2; val centerY = pageHeight / 2
+                        try {
+                            centerPxColor = bmp.getPixel(centerX, centerY)
+                            var i = 0
+                            while (i < sampleCount) {
+                                val px = sampleCoords[i * 2]; val py = sampleCoords[i * 2 + 1]
+                                val c = try { bmp.getPixel(px, py) } catch (_: Throwable) { 0 }
+                                if (c ushr 24 != 0) nonZeroAlpha++
+                                if (prevColor == null) { prevColor = c; uniqueColors = 1 }
+                                else if (prevColor != c) { allUniform = false; uniqueColors++ }
+                                i++
+                            }
+                        } catch (e: Throwable) {
+                            allUniform = false; uniqueColors = -1; centerPxColor = 0
+                        }
+                        val expectedBg: Int = try {
+                            (webView?.background as? android.graphics.drawable.ColorDrawable)?.color ?: 0
+                        } catch (_: Throwable) { 0 }
+                        Log.d(TAG, "Render bitmap analyze (gen=$gen, page=$pageIndex, fx=E_verify): " +
+                            "uniform9px=$allUniform " +
+                            "uniqueColors=$uniqueColors/$sampleCount " +
+                            "nonZeroAlphaPx=$nonZeroAlpha/$sampleCount " +
+                            "bgMatchesDrawable=${expectedBg != 0 && prevColor != null && expectedBg == prevColor} " +
+                            "centerPxARGB=0x${Integer.toHexString(centerPxColor)} " +
+                            "cornerPxARGB=0x${Integer.toHexString(prevColor ?: 0)} " +
+                            "w=$pageWidth h=$pageHeight")
+                        if (allUniform && uniqueColors == 1 && nonZeroAlpha == 0) {
+                            Log.w(TAG, "FIX E: Render bitmap appears GENUINELY BLANK (all 9 sampled pixels = 0x00000000 alpha=0). " +
+                                "This correlates with the HWUI dirty-rect warnings; a layout/translation fix is indicated. " +
+                                "(gen=$gen, page=$pageIndex)")
+                        } else if (allUniform) {
+                            Log.w(TAG, "FIX E: Render bitmap is UNIFORM (all 9 sampled pixels match). " +
+                                "Likely means the page really was blank or only background rendered. " +
+                                "(gen=$gen, page=$pageIndex)")
+                        }
+                        // — END FIX E VERIFY ———————————————————————————————————————————————————————
+                        cont.resume(bmp)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Render error (gen=$gen, page=$pageIndex)", e)
+                        cont.resume(Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888))
                     }
+                } else {
+                    Log.d(TAG, "onPageOffsetApplied: No matching pending render for (gen=$gen, page=$pageIndex). activeKeys=${pendingRenders.keys}")
                 }
             }
         }
@@ -188,9 +251,8 @@ class HtmlPageRenderer(
                 val gen = activeGeneration.get()
                 val wv = webView ?: error("Not prepared")
                 suspendCancellableCoroutine { cont ->
-                    pendingRenderGen = gen
-                    pendingRenderPage = pageIndex
-                    pendingRenderCont = cont
+                    val key = Pair(gen, pageIndex)
+                    pendingRenders[key] = cont
                     wv.evaluateJavascript(
                         """
                         (function(){
@@ -203,7 +265,9 @@ class HtmlPageRenderer(
                         })();
                         """.trimIndent(), null
                     )
-                    cont.invokeOnCancellation { if (pendingRenderGen == gen && pendingRenderPage == pageIndex) pendingRenderCont = null }
+                    cont.invokeOnCancellation {
+                        pendingRenders.remove(key, cont)
+                    }
                 }
             }
         }
@@ -212,6 +276,8 @@ class HtmlPageRenderer(
 
     fun release() {
         activeGeneration.incrementAndGet()
+        pendingRenders.values.forEach { it.cancel() }
+        pendingRenders.clear()
         val wv = webView ?: return
         (wv.parent as? ViewGroup)?.removeView(wv)
         wv.destroy()

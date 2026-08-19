@@ -99,6 +99,20 @@ fun ReaderScreen(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
 
+    val tracker = remember {
+        (context.applicationContext as com.shelf.reader.core.di.AppDependenciesProvider).readingTracker
+    }
+
+    LaunchedEffect(bookId) {
+        tracker.startSession(bookId.toString(), com.shelf.reader.core.gamification.model.SessionSource.READER)
+    }
+
+    DisposableEffect(bookId) {
+        onDispose {
+            tracker.endSession()
+        }
+    }
+
     // ── Immersive Mode ──────────────────────────────────────────────────────
     DisposableEffect(showControls) {
         val window = (context as? Activity)?.window ?: return@DisposableEffect onDispose {}
@@ -130,8 +144,8 @@ fun ReaderScreen(
                     RealBookSlideReader(
                         ui = ui,
                         showControls = showControls,
-                        onToggleControls = { showControls = !showControls; if (!showControls) showContentsSheet = false },
-                        onPageTurned = { vm.onPageTurned(it) },
+                        onToggleControls = { showControls = !showControls; if (!showControls) showContentsSheet = false; tracker.onUserInteraction() },
+                        onPageTurned = { vm.onPageTurned(it); tracker.onUserInteraction() },
                         onTotalPages = { vm.onPageCountKnown(it) },
                         onNextChapter = { vm.nextChapter() },
                         onPreviousChapter = { vm.previousChapter() },

@@ -45,6 +45,13 @@ import com.shelf.reader.designsystem.theme.ShelfColors
 import com.shelf.reader.designsystem.theme.ShelfTypography
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
+import com.shelf.reader.BuildConfig
+import com.shelf.reader.core.di.AppDependenciesProvider
+import com.shelf.reader.library.gamification.ui.ReadingRhythmViewModel
+import com.shelf.reader.library.gamification.ui.SaluteEffectOverlay
+import com.shelf.reader.library.gamification.ui.SaluteTier
+import com.shelf.reader.library.gamification.ui.play
+import com.shelf.reader.library.gamification.ui.rememberSaluteEffectState
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.FileInputStream
@@ -84,7 +91,10 @@ data class SettingsUiState(
     val onlineCoverLookup: Boolean = false,
     val handoffPrecision: String = com.shelf.reader.data.local.entity.HandoffPrecisionEntity.SMART.name,
     val handoffToastEnabled: Boolean = true,
-    val seenOnboarding: Boolean = false
+    val seenOnboarding: Boolean = false,
+    val rhythmStreakGoalDays: Int = 7,
+    val rhythmCelebrationsEnabled: Boolean = true,
+    val rhythmDebugAutoTrigger: Boolean = true
 )
 
 class SettingsViewModel(
@@ -126,7 +136,10 @@ class SettingsViewModel(
         prefs.libraryTabCountsEnabled,
         prefs.onlineCoverLookup,
         prefs.handoffPrecision,
-        prefs.handoffToastEnabled
+        prefs.handoffToastEnabled,
+        prefs.rhythmStreakGoalDays,
+        prefs.rhythmCelebrationsEnabled,
+        prefs.rhythmDebugAutoTriggerOnLogin
     ) { a ->
         @Suppress("UNCHECKED_CAST")
         SettingsUiState(
@@ -163,7 +176,10 @@ class SettingsViewModel(
             onlineCoverLookup = a[30] as Boolean,
             handoffPrecision = a[31] as String,
             handoffToastEnabled = a[32] as Boolean,
-            seenOnboarding = false
+            seenOnboarding = false,
+            rhythmStreakGoalDays = a[33] as Int,
+            rhythmCelebrationsEnabled = a[34] as Boolean,
+            rhythmDebugAutoTrigger = a[35] as Boolean
         )
     }.stateIn(
         scope = viewModelScope,
@@ -303,6 +319,18 @@ class SettingsViewModel(
         prefs.setHandoffToast(b)
     }
 
+    fun setRhythmStreakGoalDays(days: Int) = viewModelScope.launch(dispatchers.io) {
+        prefs.setRhythmStreakGoalDays(days)
+    }
+
+    fun setRhythmCelebrationsEnabled(b: Boolean) = viewModelScope.launch(dispatchers.io) {
+        prefs.setRhythmCelebrationsEnabled(b)
+    }
+
+    fun setRhythmDebugAutoTrigger(b: Boolean) = viewModelScope.launch(dispatchers.io) {
+        prefs.setRhythmDebugAutoTrigger(b)
+    }
+
     fun clearCache() = viewModelScope.launch(dispatchers.io) {
         val app = getApplication<Application>()
         val cacheDir = app.cacheDir
@@ -361,17 +389,228 @@ private fun defaultSettingsVmFactory(): ViewModelProvider.Factory {
     }
 }
 
+@Composable
+private fun defaultRhythmSettingsVmFactory(): ViewModelProvider.Factory {
+    return viewModelFactory {
+        initializer {
+            val app = (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application)
+            val provider = app.applicationContext as AppDependenciesProvider
+            ReadingRhythmViewModel(
+                rhythmDao = com.shelf.reader.data.local.ShelfDatabase.getInstance(app).readingRhythmDao(),
+                engine = provider.readingTracker,
+                preferences = UserPreferencesRepository(app)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsSection(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column {
+        Text(
+            title.uppercase(),
+            style = ShelfTypography.LabelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+            modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 6.dp)
+        )
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.large
+        ) {
+            Column(content = content)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SyncSourceRow(
+    label: String,
+    subtitle: String,
+    icon: ImageVector,
+    enabled: Boolean,
+    onToggleEnabled: (Boolean) -> Unit,
+    intervalMinutes: Int,
+    onIntervalChange: (Int) -> Unit,
+    wifiOnly: Boolean,
+    onWifiOnlyChange: (Boolean) -> Unit,
+    chargingOnly: Boolean,
+    onChargingOnlyChange: (Boolean) -> Unit
+) {
+    val intervalOptions = listOf(
+        15 to "15 min",
+        60 to "1 time",
+        360 to "6 timer",
+        1440 to "24 timer"
+    )
+    val selectedLabel = intervalOptions.firstOrNull { it.first == intervalMinutes }?.second
+        ?: "${intervalMinutes / 60}t"
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+        )
+    ) {
+        Column(
+            Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    icon, null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(26.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        label,
+                        style = ShelfTypography.BodyLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        subtitle,
+                        style = ShelfTypography.BodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = onToggleEnabled
+                )
+            }
+
+            if (enabled) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Intervall",
+                        style = ShelfTypography.BodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    var expanded by rememberSaveable { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
+                        expanded = expanded,
+                        onExpandedChange = { expanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = selectedLabel,
+                            onValueChange = {},
+                            readOnly = true,
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                            },
+                            modifier = Modifier
+                                .menuAnchor()
+                                .width(140.dp),
+                            shape = MaterialTheme.shapes.medium,
+                            textStyle = ShelfTypography.LabelMedium
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            intervalOptions.forEach { (mins, text) ->
+                                DropdownMenuItem(
+                                    text = { Text(text) },
+                                    onClick = {
+                                        onIntervalChange(mins)
+                                        expanded = false
+                                    },
+                                    leadingIcon = {
+                                        if (intervalMinutes == mins) {
+                                            Icon(Icons.Default.Check, null, Modifier.size(18.dp))
+                                        } else {
+                                            Spacer(Modifier.size(18.dp))
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Kun på Wi-Fi",
+                        style = ShelfTypography.BodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(
+                        checked = wifiOnly,
+                        onCheckedChange = onWifiOnlyChange
+                    )
+                }
+
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Kun under lading",
+                        style = ShelfTypography.BodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(
+                        checked = chargingOnly,
+                        onCheckedChange = onChargingOnlyChange
+                    )
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
     onSourcesClick: () -> Unit = {},
-    vm: SettingsViewModel = viewModel(factory = defaultSettingsVmFactory())
+    vm: SettingsViewModel = viewModel(factory = defaultSettingsVmFactory()),
+    rhythmVmFactory: ViewModelProvider.Factory? = null,
+    rhythmVm: ReadingRhythmViewModel = viewModel(factory = rhythmVmFactory ?: defaultRhythmSettingsVmFactory())
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val rhythmState by rhythmVm.uiState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val saluteState = rememberSaluteEffectState()
+
+    LaunchedEffect(Unit) {
+        rhythmVm.tierEvents.collect { tier ->
+            if (state.rhythmCelebrationsEnabled) {
+                val title = when (tier) {
+                    SaluteTier.GOLD -> "GULL! MÅL OPPNÅDD"
+                    SaluteTier.SILVER -> "SØLV! FLOTT JOBB"
+                    SaluteTier.BRONZE -> "BRONSE! BRA JOBB"
+                }
+                val subtitle = when (tier) {
+                    SaluteTier.GOLD -> "Du er en ekte lesehelt!"
+                    SaluteTier.SILVER -> "Nesten gull - fortsett!"
+                    SaluteTier.BRONZE -> "God start på reisen!"
+                }
+                scope.launch {
+                    saluteState.play(tier, 4500)
+                }
+                scope.launch {
+                    snackbarHostState.showSnackbar(title)
+                }
+            }
+        }
+    }
+
+    var lastSaluteTierForOverlay by remember { mutableStateOf(SaluteTier.GOLD) }
 
     val importDbLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -382,9 +621,10 @@ fun SettingsScreen(
         }
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
             TopAppBar(
                 title = {
                     Text(
@@ -1277,6 +1517,367 @@ fun SettingsScreen(
                 }
             }
 
+            SettingsSection("Leserytme & Mål") {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = androidx.compose.ui.graphics.Color(0x22F59E0B),
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = androidx.compose.ui.graphics.Color(0xFFF59E0B),
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Ditt leserytme",
+                                style = ShelfTypography.TitleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "${rhythmState.currentStreak} dager nå • ${rhythmState.longestStreak} rekord • ${rhythmState.totalReadingDays} dager totalt",
+                                style = ShelfTypography.BodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Daglig lesemål",
+                            style = ShelfTypography.BodyLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        AssistChip(
+                            onClick = { },
+                            label = {
+                                Text(
+                                    "${rhythmState.targetSeconds / 60} min",
+                                    style = ShelfTypography.LabelMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        )
+                    }
+                    Slider(
+                        value = (rhythmState.targetSeconds / 60).toInt().toFloat(),
+                        onValueChange = { rhythmVm.updateDailyTarget(it.toInt()) },
+                        valueRange = 5f..180f,
+                        steps = 34
+                    )
+
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(5, 10, 15, 30, 45, 60).forEach { mins ->
+                            val sel = (rhythmState.targetSeconds / 60).toInt() == mins
+                            AssistChip(
+                                onClick = { rhythmVm.updateDailyTarget(mins) },
+                                label = { Text("$mins min") },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = if (sel)
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surface
+                                )
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+                    Text(
+                        "Streak-mål",
+                        style = ShelfTypography.TitleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(3, 7, 14, 30, 60, 100).forEach { days ->
+                            val sel = state.rhythmStreakGoalDays == days
+                            FilterChip(
+                                selected = sel,
+                                onClick = { vm.setRhythmStreakGoalDays(days) },
+                                label = { Text("$days dager") },
+                                leadingIcon = {
+                                    androidx.compose.animation.AnimatedVisibility(visible = rhythmState.currentStreak >= days) {
+                                        Icon(Icons.Default.Check, null, Modifier.size(16.dp))
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    val streakLeft = (state.rhythmStreakGoalDays - rhythmState.currentStreak).coerceAtLeast(0)
+                    Text(
+                        if (rhythmState.currentStreak >= state.rhythmStreakGoalDays) {
+                            "Gratulerer! Du har nådd streak-målet på ${state.rhythmStreakGoalDays} dager \uD83D\uDD25"
+                        } else {
+                            "$streakLeft dager igjen av streak-målet ditt"
+                        },
+                        style = ShelfTypography.BodySmall,
+                        color = if (rhythmState.currentStreak >= state.rhythmStreakGoalDays)
+                            androidx.compose.ui.graphics.Color(0xFFF59E0B)
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Ukentlig måloppnåelse",
+                                style = ShelfTypography.BodyLarge
+                            )
+                            Text(
+                                "${rhythmState.weeklyActiveMinutes} / ${rhythmState.weeklyGoalMinutes} min denne uken",
+                                style = ShelfTypography.BodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            "${(rhythmState.weeklyProgressFraction * 100).toInt()}%",
+                            style = ShelfTypography.TitleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = androidx.compose.ui.graphics.Color(0xFFF59E0B)
+                        )
+                    }
+                    LinearProgressIndicator(
+                        progress = { rhythmState.weeklyProgressFraction },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = androidx.compose.ui.graphics.Color(0xFFF59E0B),
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+
+                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Festlig 3D-effekt ved mål",
+                                style = ShelfTypography.BodyLarge
+                            )
+                            Text(
+                                "Ekstraordinær konfetti-effekt når du når dagens mål",
+                                style = ShelfTypography.BodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Switch(
+                            checked = state.rhythmCelebrationsEnabled,
+                            onCheckedChange = { vm.setRhythmCelebrationsEnabled(it) }
+                        )
+                    }
+                }
+            }
+
+            if (BuildConfig.DEBUG) {
+                SettingsSection("🛠️ Utviklerverktøy — Leserytme") {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+
+                        Text(
+                            "Trigger 3D-salute-effekt",
+                            style = ShelfTypography.TitleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilledTonalButton(
+                                onClick = {
+                                    lastSaluteTierForOverlay = SaluteTier.BRONZE
+                                    scope.launch {
+                                        saluteState.play(SaluteTier.BRONZE, 4500)
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.EmojiEvents, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Bronse", fontWeight = FontWeight.SemiBold)
+                            }
+                            FilledTonalButton(
+                                onClick = {
+                                    lastSaluteTierForOverlay = SaluteTier.SILVER
+                                    scope.launch {
+                                        saluteState.play(SaluteTier.SILVER, 4500)
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.EmojiEvents, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Sølv", fontWeight = FontWeight.SemiBold)
+                            }
+                            FilledTonalButton(
+                                onClick = {
+                                    lastSaluteTierForOverlay = SaluteTier.GOLD
+                                    scope.launch {
+                                        saluteState.play(SaluteTier.GOLD, 5000)
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.WorkspacePremium, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Gull", fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+
+                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+                        Text(
+                            "Simuler lese-aktivitet",
+                            style = ShelfTypography.TitleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    rhythmVm.debugAddActiveSeconds(60)
+                                    scope.launch { snackbarHostState.showSnackbar("+1 minutt lagt til i dag") }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Add, null, Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("+1 min")
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    rhythmVm.debugAddActiveSeconds(10 * 60)
+                                    scope.launch { snackbarHostState.showSnackbar("+10 min lagt til i dag") }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Add, null, Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("+10 min")
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    rhythmVm.debugAddActiveSeconds(30 * 60)
+                                    scope.launch { snackbarHostState.showSnackbar("+30 min lagt til i dag") }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Add, null, Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("+30 min")
+                            }
+                        }
+
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    rhythmVm.debugSimulateGoalReached()
+                                    scope.launch { snackbarHostState.showSnackbar("Simulerte: Dagens mål nådd") }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, null, Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Mål nådd")
+                            }
+                        }
+
+                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+                        Text(
+                            "Tilbakestill",
+                            style = ShelfTypography.TitleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    rhythmVm.debugResetStreak()
+                                    scope.launch { snackbarHostState.showSnackbar("Streak nullstilt") }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Refresh, null, Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Nullstill streak")
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    rhythmVm.debugResetAll()
+                                    scope.launch { snackbarHostState.showSnackbar("Profil nullstilt") }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.DeleteOutline, null, Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Alt")
+                            }
+                        }
+
+                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    "Auto-trigger salute på library (DEBUG)",
+                                    style = ShelfTypography.BodyLarge
+                                )
+                                Text(
+                                    "Viser gull-effekt automatisk når åpner biblioteket",
+                                    style = ShelfTypography.BodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Switch(
+                                checked = state.rhythmDebugAutoTrigger,
+                                onCheckedChange = { vm.setRhythmDebugAutoTrigger(it) }
+                            )
+                        }
+                    }
+                }
+            }
+
             SettingsSection("Om") {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
@@ -1333,171 +1934,12 @@ fun SettingsScreen(
             Spacer(Modifier.height(24.dp))
         }
     }
-}
-
-@Composable
-private fun SettingsSection(
-    title: String,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Column {
-        Text(
-            title.uppercase(),
-            style = ShelfTypography.LabelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-            modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 6.dp)
+    SaluteEffectOverlay(
+            state = saluteState,
+            tier = lastSaluteTierForOverlay,
+            modifier = Modifier.fillMaxSize()
         )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large
-        ) {
-            Column(content = content)
-        }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SyncSourceRow(
-    label: String,
-    subtitle: String,
-    icon: ImageVector,
-    enabled: Boolean,
-    onToggleEnabled: (Boolean) -> Unit,
-    intervalMinutes: Int,
-    onIntervalChange: (Int) -> Unit,
-    wifiOnly: Boolean,
-    onWifiOnlyChange: (Boolean) -> Unit,
-    chargingOnly: Boolean,
-    onChargingOnlyChange: (Boolean) -> Unit
-) {
-    val intervalOptions = listOf(
-        15 to "15 min",
-        60 to "1 time",
-        360 to "6 timer",
-        1440 to "24 timer"
-    )
-    val selectedLabel = intervalOptions.firstOrNull { it.first == intervalMinutes }?.second
-        ?: "${intervalMinutes / 60}t"
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-        )
-    ) {
-        Column(
-            Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    icon, null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(26.dp)
-                )
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        label,
-                        style = ShelfTypography.BodyLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        subtitle,
-                        style = ShelfTypography.BodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
-                Switch(
-                    checked = enabled,
-                    onCheckedChange = onToggleEnabled
-                )
-            }
-
-            if (enabled) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Intervall",
-                        style = ShelfTypography.BodyMedium,
-                        modifier = Modifier.weight(1f)
-                    )
-                    var expanded by rememberSaveable { mutableStateOf(false) }
-                    ExposedDropdownMenuBox(
-                        expanded = expanded,
-                        onExpandedChange = { expanded = it }
-                    ) {
-                        OutlinedTextField(
-                            value = selectedLabel,
-                            onValueChange = {},
-                            readOnly = true,
-                            trailingIcon = {
-                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-                            },
-                            modifier = Modifier
-                                .menuAnchor()
-                                .width(140.dp),
-                            shape = MaterialTheme.shapes.medium,
-                            textStyle = ShelfTypography.LabelMedium
-                        )
-                        ExposedDropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false }
-                        ) {
-                            intervalOptions.forEach { (mins, text) ->
-                                DropdownMenuItem(
-                                    text = { Text(text) },
-                                    onClick = {
-                                        onIntervalChange(mins)
-                                        expanded = false
-                                    },
-                                    leadingIcon = {
-                                        if (intervalMinutes == mins) {
-                                            Icon(Icons.Default.Check, null, Modifier.size(18.dp))
-                                        } else {
-                                            Spacer(Modifier.size(18.dp))
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Kun på Wi-Fi",
-                        style = ShelfTypography.BodyMedium,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Switch(
-                        checked = wifiOnly,
-                        onCheckedChange = onWifiOnlyChange
-                    )
-                }
-
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Kun under lading",
-                        style = ShelfTypography.BodyMedium,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Switch(
-                        checked = chargingOnly,
-                        onCheckedChange = onChargingOnlyChange
-                    )
-                }
-            }
-        }
-    }
-}

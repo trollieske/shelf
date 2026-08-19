@@ -1,6 +1,7 @@
 package com.shelf.reader
 
 import android.app.Application
+import android.content.Context
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.decode.GifDecoder
@@ -9,6 +10,9 @@ import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.request.CachePolicy
 import coil.util.DebugLogger
+import com.shelf.reader.core.di.AppDependenciesProvider
+import com.shelf.reader.core.gamification.ReadingTrackerFacade
+import com.shelf.reader.data.gamification.engine.ReadingTrackerEngine
 import com.shelf.reader.data.local.ShelfDatabase
 import com.shelf.reader.app.workers.MediaScannerWorker
 import com.shelf.reader.ftp.worker.FtpSyncWorker
@@ -16,7 +20,10 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
-class ShelfApplication : Application(), ImageLoaderFactory {
+class ShelfApplication : Application(), ImageLoaderFactory, AppDependenciesProvider {
+
+    override val appContext: Context
+        get() = this
 
     private var _database: ShelfDatabase? = null
     val database: ShelfDatabase
@@ -30,20 +37,29 @@ class ShelfApplication : Application(), ImageLoaderFactory {
                 .also { _database = it }
         }
 
+    private var _readingTracker: ReadingTrackerEngine? = null
+    override val readingTracker: ReadingTrackerFacade
+        get() = _readingTracker ?: synchronized(this) {
+            _readingTracker ?: ReadingTrackerEngine(database.readingRhythmDao())
+                .also {
+                    it.initialize()
+                    _readingTracker = it
+                }
+        }
+
     override fun onCreate() {
         super.onCreate()
         instance = this
-        // Warm up DB on a background thread; do NOT block app onCreate.
-        // First access will happen from LibraryScreen on main; getIfCreated would be ideal but
-        // current API returns non-null; instead ensure DB path deleted if corrupted on prestart.
         val warmUpThread = Thread {
-            runCatching { database }
+            runCatching {
+                database
+                readingTracker
+            }
         }
         warmUpThread.name = "shelf-db-warm"
         warmUpThread.isDaemon = true
         warmUpThread.start()
 
-        // Future-proof background scanning & sync
         MediaScannerWorker.schedule(this)
         FtpSyncWorker.schedule(this)
         runCatching { com.shelf.reader.torrent.worker.TorrentDownloadWorker.schedule(this) }
