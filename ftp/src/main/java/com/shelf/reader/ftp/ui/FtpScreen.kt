@@ -304,7 +304,8 @@ fun FtpScreen(
 
                 PathBreadcrumb(
                     currentPath = state.currentPath,
-                    onNavigateUp = vm::navigateUp
+                    onNavigateUp = vm::navigateUp,
+                    onNavigateTo = vm::navigateTo
                 )
 
                 Spacer(Modifier.height(8.dp))
@@ -713,14 +714,18 @@ private fun ServerCard(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PathBreadcrumb(currentPath: String, onNavigateUp: () -> Unit) {
+private fun PathBreadcrumb(
+    currentPath: String,
+    onNavigateUp: () -> Unit,
+    onNavigateTo: (String) -> Unit
+) {
     val segments = currentPath.split('/').filter { it.isNotBlank() }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         AssistChip(
-            onClick = { },
+            onClick = { onNavigateTo("/") },
             leadingIcon = { Icon(Icons.Default.Home, null, Modifier.size(14.dp)) },
             label = { Text("/", style = ShelfTypography.LabelSmall) }
         )
@@ -731,10 +736,11 @@ private fun PathBreadcrumb(currentPath: String, onNavigateUp: () -> Unit) {
                 label = { Text("..", style = ShelfTypography.LabelSmall) }
             )
         }
-        segments.forEach { seg ->
+        segments.forEachIndexed { idx, seg ->
             Text("/", style = ShelfTypography.BodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val buildPath = "/" + segments.take(idx + 1).joinToString("/")
             AssistChip(
-                onClick = { },
+                onClick = { onNavigateTo(buildPath) },
                 label = { Text(seg, style = ShelfTypography.LabelSmall) }
             )
         }

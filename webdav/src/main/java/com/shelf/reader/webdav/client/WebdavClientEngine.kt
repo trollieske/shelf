@@ -1,6 +1,7 @@
 package com.shelf.reader.webdav.client
 
 import android.net.Uri
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Credentials
@@ -20,6 +21,8 @@ import javax.net.ssl.HostnameVerifier
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
+
+private const val TAG_WEBDAV_ENGINE = "WebdavClientEngine"
 
 enum class WebdavEntryType { FILE, FOLDER, UNKNOWN }
 
@@ -69,8 +72,13 @@ class WebdavClientEngine {
 
             if (trustAll) {
                 val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-                    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-                    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+                    override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                        Log.w(TAG_WEBDAV_ENGINE, "Trust-all: godtar klientsertifikat ${chain?.size ?: 0} stk (authType=$authType). Ikke anbefalt i produksjon.")
+                    }
+                    override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                        val subject = chain?.firstOrNull()?.subjectX500Principal?.name?.take(120) ?: "ukjent"
+                        Log.w(TAG_WEBDAV_ENGINE, "Trust-all: godtar tjener-sertifikat: $subject (authType=$authType). Ikke anbefalt i produksjon — aktivert av bruker.")
+                    }
                     override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
                 })
                 val sslContext = SSLContext.getInstance("TLS")

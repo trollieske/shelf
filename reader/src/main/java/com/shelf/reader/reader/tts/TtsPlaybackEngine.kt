@@ -49,7 +49,13 @@ class TtsPlaybackEngine(
             if (status == TextToSpeech.SUCCESS) {
                 tts?.language = java.util.Locale.forLanguageTag("no-NO")
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String) {}
+                    override fun onStart(utteranceId: String) {
+                        _state.value = _state.value.copy(isPlaying = true, error = null)
+                        runCatching {
+                            (appCtx as? com.shelf.reader.core.di.AppDependenciesProvider)
+                                ?.readingTracker?.updateTtsPlaybackState(true)
+                        }
+                    }
                     override fun onDone(utteranceId: String) {
                         scope.launch { playNextParagraph() }
                     }

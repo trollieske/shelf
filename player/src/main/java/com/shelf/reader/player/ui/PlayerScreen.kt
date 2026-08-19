@@ -87,6 +87,7 @@ fun PlayerScreen(
     }
     val showToast by prefs.handoffToastEnabled.collectAsStateWithLifecycle(initialValue = true)
     var animatingToggle by remember { mutableStateOf(false) }
+    var carMode by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(bookId) {
         // #region debug-point UI:player-screen-enter
@@ -478,9 +479,19 @@ fun PlayerScreen(
                     label = { Text("Kapitler (${state.chapters.size})") }
                 )
                 AssistChip(
-                    onClick = { },
+                    onClick = {
+                        carMode = !carMode
+                        android.widget.Toast.makeText(
+                            ctx,
+                            if (carMode) "Bilmodus på: forenklet UI, større knapper" else "Bilmodus av",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    },
                     leadingIcon = { Icon(Icons.Default.DirectionsCar, null, Modifier.size(18.dp)) },
-                    label = { Text("Bilmodus") }
+                    label = { Text(if (carMode) "Bilmodus: PÅ" else "Bilmodus") },
+                    colors = AssistChipDefaults.assistChipColors(
+                        containerColor = if (carMode) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surface
+                    )
                 )
             }
         }

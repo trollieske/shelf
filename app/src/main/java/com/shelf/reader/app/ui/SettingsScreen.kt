@@ -612,6 +612,18 @@ fun SettingsScreen(
 
     var lastSaluteTierForOverlay by remember { mutableStateOf(SaluteTier.GOLD) }
 
+    val NUM_DLG_FONT = 1
+    val NUM_DLG_SKIP_BACK = 2
+    val NUM_DLG_SKIP_FWD = 3
+    val NUM_DLG_DAILY_GOAL = 4
+    var activeNumDialog by remember { mutableStateOf(0) }
+    var numDialogInput by remember { mutableStateOf("") }
+
+    fun openNumDialog(which: Int, currentValue: Int) {
+        numDialogInput = currentValue.toString()
+        activeNumDialog = which
+    }
+
     val importDbLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
@@ -899,7 +911,7 @@ fun SettingsScreen(
                             modifier = Modifier.weight(1f)
                         )
                         AssistChip(
-                            onClick = { },
+                            onClick = { openNumDialog(NUM_DLG_FONT, state.readerFontSizeSp) },
                             label = {
                                 Text(
                                     "${state.readerFontSizeSp} sp",
@@ -1026,7 +1038,7 @@ fun SettingsScreen(
                             modifier = Modifier.weight(1f)
                         )
                         AssistChip(
-                            onClick = { },
+                            onClick = { openNumDialog(NUM_DLG_SKIP_BACK, state.audioSkipBackSec) },
                             label = {
                                 Text(
                                     "${state.audioSkipBackSec} s",
@@ -1053,7 +1065,7 @@ fun SettingsScreen(
                             modifier = Modifier.weight(1f)
                         )
                         AssistChip(
-                            onClick = { },
+                            onClick = { openNumDialog(NUM_DLG_SKIP_FWD, state.audioSkipFwdSec) },
                             label = {
                                 Text(
                                     "${state.audioSkipFwdSec} s",
@@ -1565,7 +1577,7 @@ fun SettingsScreen(
                             modifier = Modifier.weight(1f)
                         )
                         AssistChip(
-                            onClick = { },
+                            onClick = { openNumDialog(NUM_DLG_DAILY_GOAL, (rhythmState.targetSeconds / 60).toInt()) },
                             label = {
                                 Text(
                                     "${rhythmState.targetSeconds / 60} min",
@@ -1934,6 +1946,78 @@ fun SettingsScreen(
             Spacer(Modifier.height(24.dp))
         }
     }
+
+    if (activeNumDialog != 0) {
+        val values: List<Any> = when (activeNumDialog) {
+            NUM_DLG_FONT -> listOf(
+                "Skriftstørrelse", "10 – 32", "sp", 10, 32,
+                { v: Int -> vm.setFontSize(v); scope.launch { snackbarHostState.showSnackbar("Skriftstørrelse: ${v} sp") } }
+            )
+            NUM_DLG_SKIP_BACK -> listOf(
+                "Tilbake-spole", "5 – 60", "s", 5, 60,
+                { v: Int -> vm.setSkipBack(v); scope.launch { snackbarHostState.showSnackbar("Tilbake-spole: ${v} s") } }
+            )
+            NUM_DLG_SKIP_FWD -> listOf(
+                "Frem-spole", "10 – 120", "s", 10, 120,
+                { v: Int -> vm.setSkipFwd(v); scope.launch { snackbarHostState.showSnackbar("Frem-spole: ${v} s") } }
+            )
+            NUM_DLG_DAILY_GOAL -> listOf(
+                "Daglig lesemål", "5 – 180", "minutter", 5, 180,
+                { v: Int -> rhythmVm.updateDailyTarget(v); scope.launch { snackbarHostState.showSnackbar("Daglig mål: ${v} min") } }
+            )
+            else -> listOf("Verdi", "", "", 0, 1, { _: Int -> })
+        }
+        val dlgTitle = values[0] as String
+        val rangeStr = values[1] as String
+        val suffix = values[2] as String
+        val minVal = values[3] as Int
+        val maxVal = values[4] as Int
+        @Suppress("UNCHECKED_CAST")
+        val onConfirm = values[5] as (Int) -> Unit
+        AlertDialog(
+            onDismissRequest = { activeNumDialog = 0 },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val v = numDialogInput.toIntOrNull()
+                        if (v != null && v in minVal..maxVal) {
+                            onConfirm(v)
+                            activeNumDialog = 0
+                        } else {
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    "Ugyldig verdi. Bruk tall mellom $minVal og $maxVal."
+                                )
+                            }
+                        }
+                    }
+                ) { Text("Lagre") }
+            },
+            dismissButton = {
+                TextButton(onClick = { activeNumDialog = 0 }) { Text("Avbryt") }
+            },
+            title = { Text(dlgTitle) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = numDialogInput,
+                        onValueChange = { numDialogInput = it.filter { c -> c.isDigit() }.take(3) },
+                        label = { Text("Verdi ($suffix)") },
+                        suffix = { Text(suffix) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "Gyldig område: ${rangeStr} ${suffix}.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        )
+    }
+
     SaluteEffectOverlay(
             state = saluteState,
             tier = lastSaluteTierForOverlay,

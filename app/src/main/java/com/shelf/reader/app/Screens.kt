@@ -2,6 +2,7 @@ package com.shelf.reader.app
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
@@ -174,6 +175,7 @@ fun BookDetailsScreen(
     }
 
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showCoverDialog by remember { mutableStateOf(false) }
     var isDescriptionExpanded by remember { mutableStateOf(false) }
     var chaptersExpanded by remember { mutableStateOf(true) }
     var bookmarksExpanded by remember { mutableStateOf(true) }
@@ -298,8 +300,37 @@ fun BookDetailsScreen(
             ) {
                 BookCoverCard(
                     book = buildBookVisual(),
-                    onClick = { },
-                    onLongClick = { },
+                    onClick = {
+                        showCoverDialog = true
+                    },
+                    onLongClick = {
+                        val b = book ?: return@BookCoverCard
+                        val title = b.title
+                        val author = b.author
+                        val filePath = b.filePath
+                        val file = filePath?.takeIf { it.isNotBlank() }?.let { java.io.File(it) }?.takeIf { it.canRead() }
+                        if (file != null) {
+                            val fileUri = androidx.core.content.FileProvider.getUriForFile(
+                                ctx,
+                                "${ctx.packageName}.fileprovider",
+                                file
+                            )
+                            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "*/*"
+                                putExtra(android.content.Intent.EXTRA_TITLE, title)
+                                putExtra(
+                                    android.content.Intent.EXTRA_TEXT,
+                                    "\"$title\" – $author\n(hentet via Shelf-appen)"
+                                )
+                                putExtra(android.content.Intent.EXTRA_STREAM, fileUri)
+                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            ctx.startActivity(android.content.Intent.createChooser(intent, null))
+                        } else {
+                            scope.launch { snackbarHostState.showSnackbar("Del bok: $title") }
+                        }
+                    },
                     modifier = Modifier
                         .width(140.dp)
                         .aspectRatio(1f / 1.55f)
@@ -340,7 +371,16 @@ fun BookDetailsScreen(
                     }
                     Spacer(Modifier.height(10.dp))
                     AssistChip(
-                        onClick = { },
+                        onClick = {
+                            scope.launch {
+                                val formatName = book?.format?.name ?: "Ukjent"
+                                val typeName = book?.type?.name ?: "Ukjent"
+                                val fileSize = book?.fileSizeBytes?.takeIf { it > 0 }?.let { formatBytes(it) } ?: "—"
+                                snackbarHostState.showSnackbar(
+                                    "Format: $formatName · Type: $typeName · Størrelse: $fileSize"
+                                )
+                            }
+                        },
                         label = { Text(book?.format?.name ?: "—") },
                         leadingIcon = {
                             Icon(
@@ -895,6 +935,58 @@ fun BookDetailsScreen(
         }
     }
 
+    if (showCoverDialog) {
+        AlertDialog(
+            onDismissRequest = { showCoverDialog = false },
+            confirmButton = {
+                TextButton(onClick = { showCoverDialog = false }) { Text("Lukk") }
+            },
+            title = { Text(book?.title?.takeIf { it.isNotBlank() } ?: "Omslag") },
+            text = {
+                val coverPath = book?.coverPath
+                if (coverPath != null && java.io.File(coverPath).exists()) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f / 1.55f)
+                            .clip(RoundedCornerShape(12.dp))
+                    ) {
+                        coil.compose.AsyncImage(
+                            model = coil.request.ImageRequest.Builder(LocalContext.current)
+                                .data(java.io.File(coverPath))
+                                .memoryCacheKey(coverPath)
+                                .diskCacheKey(coverPath)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "Omslag for ${book?.title}",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                    }
+                } else {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f / 1.55f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(ShelfColors.SpineNavy),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.AutoStories, null, tint = Color.White, modifier = Modifier.size(64.dp))
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "Ingen omslag lastet opp",
+                                color = Color.White,
+                                style = ShelfTypography.BodyMedium
+                            )
+                        }
+                    }
+                }
+            }
+        )
+    }
+
     if (showDeleteDialog && book != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
@@ -1187,12 +1279,64 @@ private fun ImportCard(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OnboardingScreen(onDone: (String) -> Unit) {
+fun OnboardingScreen(
+    onDone: (String) -> Unit,
+    onNavigateImport: () -> Unit = {},
+    onNavigateFtp: () -> Unit = {}
+) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var step by remember { mutableIntStateOf(0) }
     var userNameInput by remember { mutableStateOf("") }
-    val pages = listOf("Velkommen", "Navn", "Kom i gang")
+    val pages = listOf("Velkommen", "Navn", "Tilganger", "Kom i gang")
+
+    var permissionFolder by remember { mutableStateOf(false) }
+    var permissionMedia by remember { mutableStateOf(false) }
+
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { tree: Uri? ->
+        if (tree != null) {
+            runCatching {
+                ctx.contentResolver.takePersistableUriPermission(
+                    tree,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            permissionFolder = true
+            android.widget.Toast.makeText(ctx, "Bibliotekmappe lagret", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val mediaPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        val anyGranted = perms.values.any { it }
+        permissionMedia = anyGranted || permissionMedia
+        android.widget.Toast.makeText(
+            ctx,
+            if (anyGranted) "Medietilgang: OK" else "Kan endres senere i Innstillinger",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    fun requestMediaPermissions() {
+        val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            arrayOf(
+                android.Manifest.permission.READ_MEDIA_IMAGES,
+                android.Manifest.permission.READ_MEDIA_AUDIO,
+                android.Manifest.permission.READ_MEDIA_VIDEO
+            )
+        } else {
+            arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+        mediaPermissionLauncher.launch(perms)
+    }
+
+    fun launchSamples() {
+        ImportWorker.enqueueSamples(WorkManager.getInstance(ctx))
+        android.widget.Toast.makeText(ctx, "Laster inn prøvebøker i bakgrunnen…", android.widget.Toast.LENGTH_LONG).show()
+    }
 
     Surface(
         color = Color(0xFF1E130D),
@@ -1299,38 +1443,63 @@ fun OnboardingScreen(onDone: (String) -> Unit) {
                     }
                 }
                 2 -> {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                        Spacer(Modifier.height(20.dp))
-                        Surface(
-                            shape = androidx.compose.foundation.shape.CircleShape,
-                            color = Color(0x22FFFFFF),
-                            modifier = Modifier.size(90.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Default.AutoAwesome,
-                                    null,
-                                    tint = Color(0xFFD4AF37),
-                                    modifier = Modifier.size(44.dp)
-                                )
+                    Column(
+                        horizontalAlignment = Alignment.Start,
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Spacer(Modifier.height(8.dp))
+                        PermissionStep(
+                            onPickLibraryFolder = { folderPickerLauncher.launch(null) },
+                            onRequestMediaAccess = { requestMediaPermissions() }
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (permissionFolder) {
+                                Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF22C55E), modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Bibliotekmappe valgt", style = ShelfTypography.BodySmall, color = Color(0xFF22C55E))
                             }
                         }
-                        Spacer(Modifier.height(28.dp))
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (permissionMedia) {
+                                Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF22C55E), modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Medietilgang gitt", style = ShelfTypography.BodySmall, color = Color(0xFF22C55E))
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
                         Text(
-                            if (userNameInput.isNotBlank()) "Klar, ${userNameInput.trim()}!" else "Biblioteket er klart!",
-                            style = ShelfTypography.HeadlineLarge,
-                            color = Color(0xFFFFF8F2),
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
-                            textAlign = TextAlign.Center
+                            "Du kan også gjøre dette senere via Innstillinger eller Import-skjerm.",
+                            style = ShelfTypography.BodySmall,
+                            color = Color(0xFF80776C)
                         )
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            "Du kan nå legge til dine egne e-bøker og lydbøker fra enheten eller koble til FTP-serveren din.",
-                            style = ShelfTypography.BodyLarge,
-                            color = Color(0xFFC0B2A6),
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                    }
+                }
+                3 -> {
+                    Column(
+                        horizontalAlignment = Alignment.Start,
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Spacer(Modifier.height(8.dp))
+                        if (userNameInput.isNotBlank()) {
+                            Text(
+                                "Klar, ${userNameInput.trim()}!",
+                                style = ShelfTypography.HeadlineMedium,
+                                color = Color(0xFFFFF8F2),
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Serif
+                            )
+                            Spacer(Modifier.height(4.dp))
+                        }
+                        GetStartedStep(
+                            onTrySampleBooks = { launchSamples() },
+                            onAddFtpServer = { onNavigateFtp() },
+                            onImportFromDevice = { onNavigateImport() }
                         )
                     }
                 }
@@ -1418,8 +1587,12 @@ private fun WelcomeStep() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PermissionStep() {
+private fun PermissionStep(
+    onPickLibraryFolder: () -> Unit,
+    onRequestMediaAccess: () -> Unit
+) {
     Column {
         Text("Gi Shelf tilgang", style = ShelfTypography.HeadlineMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
@@ -1430,14 +1603,29 @@ private fun PermissionStep() {
         )
         Spacer(Modifier.height(20.dp))
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            PermissionRow(Icons.Default.FolderOpen, "Velg bibliotekmappe", "Trykk for å velge hvor bøker skal lagres")
-            PermissionRow(Icons.Default.PermMedia, "Medie- og filtilgang", "Trykk for å gi tilgang via systemvelger")
+            PermissionRow(
+                icon = Icons.Default.FolderOpen,
+                title = "Velg bibliotekmappe",
+                subtitle = "Trykk for å velge hvor bøker skal lagres",
+                onClick = onPickLibraryFolder
+            )
+            PermissionRow(
+                icon = Icons.Default.PermMedia,
+                title = "Medie- og filtilgang",
+                subtitle = "Trykk for å gi tilgang via systemvelger",
+                onClick = onRequestMediaAccess
+            )
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun GetStartedStep() {
+private fun GetStartedStep(
+    onTrySampleBooks: () -> Unit,
+    onAddFtpServer: () -> Unit,
+    onImportFromDevice: () -> Unit
+) {
     Column {
         Text("Kom i gang", style = ShelfTypography.HeadlineMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
@@ -1448,34 +1636,46 @@ private fun GetStartedStep() {
         )
         Spacer(Modifier.height(20.dp))
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+            ElevatedCard(
+                onClick = onTrySampleBooks,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.AutoAwesome, null, tint = Color(0xFFB8860B))
                     Spacer(Modifier.width(12.dp))
-                    Column {
+                    Column(Modifier.weight(1f)) {
                         Text("Prøv prøvebøker", style = ShelfTypography.TitleMedium, fontWeight = FontWeight.SemiBold)
                         Text("Laste inn noen offentlige klassikere umiddelbart.", style = ShelfTypography.BodySmall)
                     }
+                    Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+            ElevatedCard(
+                onClick = onAddFtpServer,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.CloudSync, null, tint = Color(0xFF2D3A5C))
                     Spacer(Modifier.width(12.dp))
-                    Column {
+                    Column(Modifier.weight(1f)) {
                         Text("Legg til FTP-server", style = ShelfTypography.TitleMedium, fontWeight = FontWeight.SemiBold)
                         Text("Koble til NAS eller hjemmeserver for å synkronisere.", style = ShelfTypography.BodySmall)
                     }
+                    Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+            ElevatedCard(
+                onClick = onImportFromDevice,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.UploadFile, null, tint = Color(0xFF2D5C3A))
                     Spacer(Modifier.width(12.dp))
-                    Column {
+                    Column(Modifier.weight(1f)) {
                         Text("Importer fra enheten", style = ShelfTypography.TitleMedium, fontWeight = FontWeight.SemiBold)
                         Text("Åpne ebøker eller lydbøker som allerede ligger på telefonen.", style = ShelfTypography.BodySmall)
                     }
+                    Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -1486,10 +1686,11 @@ private fun GetStartedStep() {
 private fun PermissionRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
-    subtitle: String
+    subtitle: String,
+    onClick: () -> Unit
 ) {
     Card(
-        onClick = { },
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large
     ) {
@@ -1507,7 +1708,7 @@ private fun PermissionRow(
                 Text(subtitle, style = ShelfTypography.BodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Icon(Icons.Default.ChevronRight, null)
+            Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -96,6 +96,9 @@ fun ReaderScreen(
     var showThemesSheet by rememberSaveable { mutableStateOf(false) }
     var showBookmarksSheet by rememberSaveable { mutableStateOf(false) }
     var showInteractiveHighlightView by rememberSaveable { mutableStateOf(false) }
+    var showSearchDialog by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var orientationLocked by rememberSaveable { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
 
@@ -187,10 +190,23 @@ fun ReaderScreen(
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f).padding(horizontal = 6.dp)
                             )
-                            IconButton(onClick = { }) {
+                            IconButton(onClick = { showSearchDialog = true }) {
                                 Icon(Icons.Default.Search, "Søk", modifier = Modifier.size(24.dp))
                             }
-                            IconButton(onClick = { }) {
+                            IconButton(onClick = {
+                                val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    val pct = ((ui.percent.coerceIn(0f, 1f)) * 100).toInt()
+                                    val chapTitle = ui.chapters.getOrNull(ui.currentChapterIndex)?.title?.takeIf { it.isNotBlank() } ?: "Kapittel ${ui.currentChapterIndex + 1}"
+                                    putExtra(
+                                        android.content.Intent.EXTRA_TEXT,
+                                        "Jeg lser nå \"${ui.bookTitle}\" — $chapTitle (side ${ui.currentPage + 1} av ${ui.totalPages.coerceAtLeast(1)}, $pct%)\n#ShelfApp"
+                                    )
+                                    putExtra(android.content.Intent.EXTRA_TITLE, ui.bookTitle)
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(shareIntent, "Del lesefremgang"))
+                            }) {
                                 Icon(Icons.Outlined.Share, "Del", modifier = Modifier.size(24.dp))
                             }
                         }
@@ -270,10 +286,32 @@ fun ReaderScreen(
                                     label = { Text("Mark Text", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
                                 )
                                 NavigationBarItem(
-                                    selected = false,
-                                    onClick = { },
-                                    icon = { Icon(Icons.Outlined.Lock, null, modifier = Modifier.size(26.dp)) },
-                                    label = { Text("Lock", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
+                                    selected = orientationLocked,
+                                    onClick = {
+                                        orientationLocked = !orientationLocked
+                                        val activity = context as? Activity
+                                        if (activity != null) {
+                                            activity.requestedOrientation = if (orientationLocked) {
+                                                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LOCKED
+                                            } else {
+                                                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                                            }
+                                        }
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            if (orientationLocked) "Skjerm låst i nåværende rotasjon" else "Skjerm låst opp",
+                                            android.widget.Toast.LENGTH_SHORT
+                                        ).show()
+                                    },
+                                    icon = {
+                                        Icon(
+                                            if (orientationLocked) Icons.Default.Lock else Icons.Outlined.Lock,
+                                            null,
+                                            modifier = Modifier.size(26.dp),
+                                            tint = if (orientationLocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    label = { Text(if (orientationLocked) "Låst" else "Lock", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
                                 )
                             }
                         }
@@ -517,6 +555,54 @@ fun ReaderScreen(
                         }
                     }
                 }
+            }
+        }
+
+        if (showSearchDialog) {
+            AlertDialog(
+                onDismissRequest = { showSearchDialog = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        if (searchQuery.isNotBlank()) {
+                            android.widget.Toast.makeText(
+                                context,
+                                "Søk etter \"$searchQuery\" i nåværende kapittel – bytt til Marker tekst for interaktivt søk.",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        showSearchDialog = false
+                    }) { Text("Søk") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSearchDialog = false }) { Text("Avbryt") }
+                },
+                title = { Text("Søk i kapittel") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            label = { Text("Ord eller setning") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            "Tips: trykk på Mark-tekst nederst i menyen for å bla i teksten og søke direkte i HTML-visningen med finne-i-side.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            val activity = context as? Activity
+            if (activity != null && orientationLocked) {
+                activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             }
         }
     }

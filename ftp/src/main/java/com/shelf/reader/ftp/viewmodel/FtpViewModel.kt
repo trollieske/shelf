@@ -280,6 +280,25 @@ class FtpViewModel(
         }
     }
 
+    fun navigateTo(targetPath: String) = viewModelScope.launch(dispatchers.io) {
+        val normalized = if (targetPath.isBlank()) "/" else targetPath.trimEnd('/').ifBlank { "/" }
+        formState.value = formState.value.copy(isLoading = true, error = null)
+        try {
+            val entries = engine.listDirectory(normalized)
+            formState.value = formState.value.copy(
+                currentPath = normalized,
+                entries = entries,
+                selected = emptySet(),
+                isLoading = false
+            )
+        } catch (e: Exception) {
+            formState.value = formState.value.copy(
+                isLoading = false,
+                error = "Kunne ikke navigere til '${normalized}': ${e.message}"
+            )
+        }
+    }
+
     fun toggleSelect(name: String) {
         val current = formState.value.selected
         val newSelected = if (current.contains(name)) {

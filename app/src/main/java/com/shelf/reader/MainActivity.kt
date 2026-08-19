@@ -345,11 +345,19 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
                 ImportProgressScreen(onBack = { navController.popBackStack() })
             }
             composable(ShelfDestinations.Onboarding.route) {
-                OnboardingScreen(onDone = { name ->
-                    navController.navigate(ShelfDestinations.Library.route) {
-                        popUpTo(0) { inclusive = true }
+                OnboardingScreen(
+                    onDone = { name ->
+                        navController.navigate(ShelfDestinations.Library.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                    onNavigateImport = {
+                        navController.navigate(ShelfDestinations.Import.route)
+                    },
+                    onNavigateFtp = {
+                        navController.navigate(ShelfDestinations.Sources.route)
                     }
-                })
+                )
             }
             composable(
                 route = ShelfDestinations.FtpServer.route,
@@ -664,7 +672,20 @@ private fun LanDiscoverySection() {
                                         Text(cand.label, fontWeight = FontWeight.SemiBold)
                                         Spacer(Modifier.width(8.dp))
                                         AssistChip(
-                                            onClick = {},
+                                            onClick = {
+                                                val typeLabel = when (cand.type) {
+                                                    com.shelf.reader.core.net.DiscoveredSourceType.FTP -> "FTP-tjener"
+                                                    com.shelf.reader.core.net.DiscoveredSourceType.SMB -> "SMB/Windows-fildeling"
+                                                    com.shelf.reader.core.net.DiscoveredSourceType.WEBDAV -> "WebDAV"
+                                                    com.shelf.reader.core.net.DiscoveredSourceType.CALIBRE -> "Calibre bibliotek"
+                                                    com.shelf.reader.core.net.DiscoveredSourceType.HTTP_CANDIDATE -> "HTTP-katalog"
+                                                }
+                                                android.widget.Toast.makeText(
+                                                    ctx,
+                                                    "Heuristisk tillit: ${cand.confidencePct}% sannsynlighet for at dette er en $typeLabel. Trykk på linjen for å forhåndsvise URL.",
+                                                    android.widget.Toast.LENGTH_LONG
+                                                ).show()
+                                            },
                                             label = { Text("${cand.confidencePct}% sannsynlig") },
                                             colors = AssistChipDefaults.assistChipColors(
                                                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow
@@ -834,7 +855,10 @@ private fun SimpleListItem(
 @Composable
 private fun ImportProgressScreen(onBack: () -> Unit) {
     val navContext = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
+    var showHistoryDialogFor: com.shelf.reader.data.local.entity.SyncHistoryEntity? by remember { mutableStateOf(null) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -845,7 +869,8 @@ private fun ImportProgressScreen(onBack: () -> Unit) {
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().padding(16.dp)) {
             val db = com.shelf.reader.data.local.ShelfDatabase.getInstance(navContext)
@@ -904,13 +929,56 @@ private fun ImportProgressScreen(onBack: () -> Unit) {
                                         Spacer(Modifier.height(4.dp))
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             AssistChip(
-                                                onClick = {},
+                                                onClick = {
+                                                    val detail = buildString {
+                                                        append("Type: $sourceLabel · ")
+                                                        append("Kilde: ")
+                                                        if (task.serverId != null) append("Server #${task.serverId}") else append("Lokal import")
+                                                        append("\nEkstern: ${task.remotePath}")
+                                                        if (task.localPath != null) append("\nLokalt: ${task.localPath}")
+                                                        val sizeTxt = if (task.sizeBytes > 0) "Størrelse: ${formatBytes(task.sizeBytes)}" else null
+                                                        if (sizeTxt != null) append("\n").append(sizeTxt)
+                                                        if (task.retryCount > 0) append("\nForsøk: ${task.retryCount + 1}")
+                                                    }
+                                                    scope.launch { snackbarHostState.showSnackbar(detail) }
+                                                },
                                                 label = { Text(sourceLabel) },
                                                 colors = AssistChipDefaults.assistChipColors()
                                             )
                                             Spacer(Modifier.width(6.dp))
                                             AssistChip(
-                                                onClick = {},
+                                                onClick = {
+                                                    when (task.status) {
+                                                        com.shelf.reader.data.local.entity.DownloadStatusEntity.RUNNING -> {
+                                                            scope.launch {
+                                                                snackbarHostState.showSnackbar(
+                                                                    "Kjører: ${task.remoteName}. Trykk på system-meldinger for å avbryte via WorkManager."
+                                                                )
+                                                            }
+                                                        }
+                                                        com.shelf.reader.data.local.entity.DownloadStatusEntity.FAILED -> {
+                                                            val err = task.errorMessage ?: "Ukjent feil"
+                                                            scope.launch {
+                                                                snackbarHostState.showSnackbar(
+                                                                    "Feilet: $err · Gå til Kilder → velg tjener → Synk nå for å prøve igjen."
+                                                                )
+                                                            }
+                                                        }
+                                                        com.shelf.reader.data.local.entity.DownloadStatusEntity.COMPLETED -> {
+                                                            scope.launch {
+                                                                snackbarHostState.showSnackbar(
+                                                                    "Fullført: ${task.remoteName} (${formatBytes(task.downloadedBytes)})"
+                                                                )
+                                                            }
+                                                        }
+                                                        com.shelf.reader.data.local.entity.DownloadStatusEntity.CANCELLED -> {
+                                                            scope.launch { snackbarHostState.showSnackbar("Oppgaven er avbrutt.") }
+                                                        }
+                                                        else -> {
+                                                            scope.launch { snackbarHostState.showSnackbar("Status: ${task.status.name}") }
+                                                        }
+                                                    }
+                                                },
                                                 label = { Text(task.status.name.lowercase().replaceFirstChar { it.uppercase() }) },
                                                 colors = AssistChipDefaults.assistChipColors(labelColor = statusColor)
                                             )
@@ -1004,7 +1072,7 @@ private fun ImportProgressScreen(onBack: () -> Unit) {
                                                 )
                                             }
                                             AssistChip(
-                                                onClick = {},
+                                                onClick = { showHistoryDialogFor = h },
                                                 label = { Text(h.status.name.lowercase().replaceFirstChar { it.uppercase() }) },
                                                 colors = AssistChipDefaults.assistChipColors(labelColor = statusColor)
                                             )
@@ -1032,6 +1100,45 @@ private fun ImportProgressScreen(onBack: () -> Unit) {
                 }
             }
         }
+    }
+    val hist = showHistoryDialogFor
+    if (hist != null) {
+        val hCompletedAt = hist.completedAt
+        val fmt = java.text.SimpleDateFormat("dd. MMM yyyy HH:mm:ss", java.util.Locale.getDefault())
+        val durMs = (hCompletedAt ?: System.currentTimeMillis()) - hist.startedAt
+        val durSec = (durMs / 1000).toInt()
+        val durTxt = if (hCompletedAt != null) {
+            if (durSec < 60) "${durSec} sek" else "${durSec / 60}m ${durSec % 60}s"
+        } else "Pågår"
+        AlertDialog(
+            onDismissRequest = { showHistoryDialogFor = null },
+            confirmButton = {
+                TextButton(onClick = { showHistoryDialogFor = null }) { Text("Lukk") }
+            },
+            title = { Text("Synk-detaljer · Server ${hist.serverId}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Status: ${hist.status.name.lowercase().replaceFirstChar { it.uppercase() }}")
+                    Text("Startet: ${fmt.format(java.util.Date(hist.startedAt))}")
+                    Text("Ferdig: ${if (hCompletedAt != null) fmt.format(java.util.Date(hCompletedAt)) else "—"}")
+                    Text("Varighet: $durTxt")
+                    HorizontalDivider()
+                    Text("📊 Resultater:", fontWeight = FontWeight.SemiBold)
+                    Text("   • Funnet: ${hist.filesFound} filer")
+                    Text("   • Nye (uleste): ${hist.filesNew}")
+                    Text("   • Lastet ned OK: ${hist.filesDownloaded}")
+                    Text("   • Feilet: ${hist.filesFailed}")
+                    if (hist.errorMessage != null) {
+                        HorizontalDivider()
+                        Text(
+                            "❌ Feil: ${hist.errorMessage}",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
+        )
     }
 }
 
