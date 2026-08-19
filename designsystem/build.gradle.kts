@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.shelf.reader.designsystem"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         minSdk = 26
@@ -16,15 +16,24 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 
-    kotlinOptions { jvmTarget = "17" }
+    kotlinOptions {
+        jvmTarget = "17"
+        freeCompilerArgs = freeCompilerArgs + listOf(
+            "-Xjvm-default=all",
+            "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
+            "-opt-in=kotlin.RequiresOptIn"
+        )
+    }
 
     buildFeatures { compose = true }
 }
 
 dependencies {
-    api(platform("androidx.compose:compose-bom:2024.06.00"))
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    api(platform(libs.androidx.compose.bom))
     api("androidx.compose.ui:ui")
     api("androidx.compose.ui:ui-graphics")
     api("androidx.compose.ui:ui-unit")
@@ -37,7 +46,7 @@ dependencies {
     api("androidx.compose.runtime:runtime")
     debugApi("androidx.compose.ui:ui-tooling")
 
-    api("io.coil-kt:coil-compose:2.6.0")
+    api(libs.coil.compose)
 
-    implementation("androidx.core:core-ktx:1.13.1")
+    implementation(libs.androidx.core.ktx)
 }
