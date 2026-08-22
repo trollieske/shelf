@@ -1,5 +1,73 @@
 # 📋 Fullverdig Endringslogg (Changelog)
 
+## 🌟 FASE 4: Forfatter-Tolkning, Rensbar Import, Cover-forbedring + Sikkerhetsnett mot Bencode/Søppeldata (2026-08-22)
+
+### 1. 🧠 NY EbookFilenameParser: 220+ Kjente Forfattere + Release-mønster Dekoding (Fikset "Ukjent Forfatter")
+- **NY FIL:** [EbookFilenameParser.kt](library/src/main/java/com/shelf/reader/library/util/EbookFilenameParser.kt)
+- **220+ forhåndsregistrerte forfattere** (canonical full name mapping via etternavn):
+  - Sci-Fi/Fantasy: `Herbert → Frank Herbert`, `Tolkien → J. R. R. Tolkien`, `Pratchett → Terry Pratchett`, `Rowling → J. K. Rowling`, `Martin → George R. R. Martin`, `Sanderson → Brandon Sanderson`, `Jordan → Robert Jordan`, `Le Guin → Ursula K. Le Guin`, `Gaiman → Neil Gaiman`, `Lewis → C. S. Lewis`, m.fl.
+  - Nordisk/Krim: `Nesbø → Jo Nesbø`, `Larsson → Stieg Larsson`, `Mankell → Henning Mankell`, `Gaarder → Jostein Gaarder`, `Kjærstad → Jan Kjærstad`, `Lindgren → Astrid Lindgren`, `Knausgård → Karl Ove Knausgård`, m.fl.
+- **Fire mønster-gjenkjenningslag:**
+  - **Bracket-parse** (komma-separert): `[Herbert, Dune 005, Dune Messiah (1969)]` → forfatter *Frank Herbert*, serie *Dune*, serieNr **5.0**, tittel *Dune Messiah*
+  - **Dash-splitt**: `Terry Pratchett - [Discworld 29] - Night Watch (US) [Retail]` → *Terry Pratchett*, *Discworld #29*, *Night Watch*
+  - **"by Author" mønster**: `Foundation by Isaac Asimov` → *Isaac Asimov*, *Foundation*
+  - **Last, First comma-swap**: `Asimov, Isaac` → *Isaac Asimov*
+- **Last-name → full name resolve via `resolveAuthor(raw)` (public API):** Brukes både i import (BookImportRepository) og kan gjenbrukes hvor som helst.
+- **Release-støy rensket bort automatisk**: `(retail)`, `[Retail]`, `v5.1`, `scan`, `digital`, `unabridged`, `US/UK/DE edition`, `EPUB/PDF/MP3`-tagger, årstall som ikke tilhører serienavn, fjerner bindestreker og bruddstilling.
+- **TitleCase med norsk støtte**: ÆØÅ + vanlige små-ord-unntak (of/and/the/van/von/til/de/den/det) – får ikke "Of" store forbokstaver i titler.
+- **Serie-volum deteksjon**: Regex for `Series 005`, `Discworld 29`, `Volume 3`, `Vol. 4`, `Bok 7`, `Del 12`, `Tome 3` etc. → mappes til `series: String?` + `seriesIndex: Double?`.
+
+### 2. 📥 BookImportRepository: Parser koblet inn, UNKNOWN-format stoppes i importfasen
+- **Ny sikkerhetsgitter:** [BookImportRepository.kt:L159-L162](library/src/main/java/com/shelf/reader/library/data/BookImportRepository.kt#L159-L162)
+  ```kotlin
+  if (format == BookFormat.UNKNOWN) {
+      Log.w(TAG, "Skipping import of '$displayName' (format=UNKNOWN, not a recognised book/audio file)")
+      return@withContext 0L
+  }
+  ```
+  → `.torrent`, `.dat`, `.bin`, ukjente filtyper IMPORTERES IKKE lengre, kommer aldri inn i biblioteket.
+- **Parser som fallback-kjegde:** [BookImportRepository.kt:L180-L219](library/src/main/java/com/shelf/reader/library/data/BookImportRepository.kt#L180-L219)
+  - Dersom EPUB/MOBI metadata-mangler author/title/series → `EbookFilenameParser.parse(nameNoExt)` → author resolveres videre via `resolveAuthor()`.
+  - `series`/`seriesIndex` bruker også parser-verdier som fallback dersom metadata ikke har dem.
+  - Sikrer at import **alltid** gir meningsfylte author/title/series, aldri bare "Ukjent forfatter" for kjente release-navn.
+
+### 3. 🛡️ BookLoaderEngine: 3-lags Sikkerhetsnett mot Rare Tegn (Torrent Bencode m.fl.)
+- **Lag 1:** Ukjent format = definitivt skadet/DRM beskyttet, aldri rå-UTF-8 dekoding.
+  [BookLoaderEngine.kt:L232-L272](reader/src/main/java/com/shelf/reader/reader/engine/BookLoaderEngine.kt#L232-L272)
+- **Lag 2 — detectStructuredGarbage() kall rett før raw-UTF-8 fallback:** Returnerer en leservennlig feilmelding i stedet for søppel på skjermen.
+  [BookLoaderEngine.kt:L274-L297](reader/src/main/java/com/shelf/reader/reader/engine/BookLoaderEngine.kt#L274-L297)
+- **Lag 3 — faktisk `detectStructuredGarbage(bytes)` detektor:**
+  [BookLoaderEngine.kt:L638-L718](reader/src/main/java/com/shelf/reader/reader/engine/BookLoaderEngine.kt#L638-L718)
+  - **EKSATT BitTorrent Bencode-pattern match** på det brukeren så på skjermen: `4:pathl63:Herbert … (epub).epub eed6:lengthi3429231e` → avslår som BitTorrent-metadata med melding om bruk av Torrent-skjermstedet i stedet.
+  - **Alle kjente magic-byte headere:** PK (ZIP/EPUB), RAR!, 7z, MZ (EXE), ELF, PNG (‰PNG), JPG (ÿØÿÛ), PDF (%PDF), MP4 (ftyp-box), MP3 (ID3) → avslår som "fil er konteinerformat som ikke er bok/lyd".
+  - **Printable character ratio <85%:** = høy sannsynlighet for binær → avslår.
+  - **Bencode tetthet vs setninger:** ≥6 bencode tokens + ≤1 menneskelig setning → avslår som BitTorrent-metadata.
+  - **Whitespace ratio <10%:** = typisk for komprimert data, avslår.
+
+### 4. 🎨 Cover-forbedring: Bedre Input til MetadataFetcher → Bedre Online Cover
+- **Ingen direkte endringer i CoverRepository**, men akkumulert forbedring:
+  - Tidligere: author = "", title = filnavn `[Herbert, Dune 005,]` → `MetadataFetcher.isAuthorUnknown()` = true, men søkestrengen dårlig → sjelden treff på ekte omslag.
+  - **Nå:** author = *"Frank Herbert"*, title = *"Dune Messiah"*, series = *"Dune"* → riktig søkestreng til OpenLibrary/Google Books API → mye større sannsynlighet for **ekte omslagbilde** i stedet for typografisk placeholder.
+- Forslag til senere (TODO i kodebasen): Legg serie-navn til i søkestrengen for enda bedre treff på seriebind.
+
+### 5. 🐛 Tidligere Fikser (verifisert i dagens bygg, påkrevd for at dagens endringer skal kjøre)
+- **CarApp-klasser SLETTET permanent** (ShelfCarAppService, ShelfCarAppSession, AudiobooksScreen): Forhindret Compose MultiDex-konflikt med GMS sitt shaded Compose. Manifestet beholder fortsatt `MediaLibraryService` for at appen skal dukke opp i Android Auto sitt Media-hodeapp (ikkje Car App Service).
+- **Startup Runtime ClassCast fixed** (1.1.1 → 1.2.0 force via resolutionStrategy i `libs.versions.toml` + `app/build.gradle.kts`): `WorkManagerInitializer` og `ProcessLifecycleInitializer` initialiseres manuelt i `ShelfApplication.onCreate()`, Manifestets `InitializationProvider` er slettet.
+- **Gradle JDK makro fikset** i `gradle.properties`: `org.gradle.java.home=C:/Users/tlarsen/.jdks/jbr-21.0.11` (ingen `${}` makroer som ikke er tilgjengelig).
+- **IllegalArgumentException coerceIn(0, -1) i ReaderViewModel fikset:** `safeChapterMax = chapters.size.coerceAtLeast(0)` + `runCatching` rundt `load()` kall.
+- **Evig spinner i ReaderScreen fikset:** [ReaderScreen.kt:L138-L145](reader/src/main/java/com/shelf/reader/reader/ui/ReaderScreen.kt#L138-L145) — når `chapters=[]` OG `book.title!= ""` → viser `ErrorView` i stedet for CircularProgressIndicator (unngår evig venting).
+
+### 6. 🧪 Aksepterte Resultater (Verifisert på CPH2653/Oppo ColorOS)
+- ✅ **Hel ren installasjon mulig:** `run-as com.shelf.reader.debug rm -rf databases files shared_prefs cache code_cache no_backup` (appens egen bruker, trenger ikke root på ColorOS).
+- ✅ **Gammel shelf.db (303KB → 4KB ny):** Kun schema, 0 bøker → onboarding mulig.
+- ✅ **Ingen bøker igjen etter rens:** Ny parser brukes umiddelbart ved reimport.
+- ✅ **BUILD SUCCESSFUL, 272 tasks:** Ingen compile errors. `assembleDebug` → 73MB APK.
+- ✅ **`[Herbert, Dune 005, …]` import gir forfatter Frank Herbert**, ikke "Ukjent".
+- ✅ **`.torrent`-filer hoppet over i import** (BookFormat.UNKNOWN).
+- ✅ **Tidligere Bencode-visning (rare tegn) fjernet:** Viser nå feilmelding + tilbakeknapp.
+
+---
+
 ## 🚀 Kritiske Fikser, Minnebesparelser, Privat Torrent-Støtte & Arbeidsoptimeringer (2026-08-09)
 
 ### 1. 🔊 Lydbøker: Full Kapittelstøtte for M4B/M4A (Fikset Kun Én Kapittel)

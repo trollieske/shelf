@@ -230,6 +230,7 @@ class BookLoaderEngine(
         //                               return — treat as "definitely damaged" to avoid the old bug
         //                               of decoding compressed binary bytes as UTF-8 (gibberish output).
         val mobiFormatsHere = listOf(FormatEntity.MOBI, FormatEntity.AZW, FormatEntity.AZW3)
+        val knownTextFormats = listOf(FormatEntity.TXT, FormatEntity.HTML, FormatEntity.MD, FormatEntity.RTF, FormatEntity.DOCX)
         val definitelyDamagedOrDrm = when {
             book.format in listOf(FormatEntity.EPUB, FormatEntity.FB2, FormatEntity.CBZ,
                 FormatEntity.CBR, FormatEntity.ZIP, FormatEntity.PDF) -> true
@@ -238,14 +239,27 @@ class BookLoaderEngine(
                         "should have been handled by loadMobiFamilyBook(). Treating as damaged to avoid gibberish output.")
                 true
             }
+            // UNKNOWN files: NEVER attempt raw text decoding.
+            // Import scanner should have filtered them, but this is the safety net.
+            book.format == FormatEntity.UNKNOWN -> {
+                Log.w(TAG, "UNKNOWN-format book (id=${bookId}) reached raw-text fallback. " +
+                        "Showing error instead of possibly decoding binary/Bencode as gibberish.")
+                true
+            }
             else -> false
         }
         if (definitelyDamagedOrDrm) {
-            val drmHint = if (book.format in mobiFormatsHere)
-                "Denne ${book.format.name}-filen kunne ikke leses (ugyldig format, skadet, eller støtten er endret). " +
+            val drmHint = when {
+                book.format in mobiFormatsHere ->
+                    "Denne ${book.format.name}-filen kunne ikke leses (ugyldig format, skadet, eller støtten er endret). " +
                         "Prøv å importere boken på nytt, eller bruk en DRM-fri EPUB-versjon av boken."
-            else
-                "Filen kan være skadet, tom, eller ha et støttet format som ikke kunne tolkes."
+                book.format == FormatEntity.UNKNOWN ->
+                    "Filtypen er ikke gjenkjent som en bok (${book.filePath?.substringAfterLast('/')
+                        ?: book.fileUri?.substringAfterLast('/')?.substringBefore('?') ?: "ukjent"}). " +
+                        "Hvis dette skulle vært en bok, prøv å gi filen et riktig navn (f.eks. .epub, .mobi eller .pdf) og importer på nytt."
+                else ->
+                    "Filen kan være skadet, tom, ha en DRM-beskyttelse, eller ha et støttet format som ikke kunne tolkes."
+            }
             return@withContext ReaderBookState(
                 bookId = bookId,
                 bookTitle = book.title,
@@ -258,6 +272,29 @@ class BookLoaderEngine(
         }
 
         // Final attempt: treat as raw text/markdown if not already handled
+        // SAFETY NET (strong content detector):
+        // Even for TXT/HTML/MD, block obviously structured garbage (Bencode torrents,
+        // zip headers, object code, XML dumps, JSON lists with only binary metadata).
+        // Prevents the infamous "4:pathl...eedd6:lengthi...e" (BitTorrent Bencode) display bug.
+        runCatching { detectStructuredGarbage(bytes) }.getOrNull()?.let { garbageHint ->
+            Log.w(TAG, "Rejecting raw-text decode for book=$bookId (format=${book.format}): $garbageHint")
+            val what = if (garbageHint.contains("torrent", ignoreCase = true))
+                "Dette er en BitTorrent-fil (.torrent) eller torrent-metadata. " +
+                    "Åpne den i Torrent-skjermstedet for å laste ned bøkene, ikke i leseren!"
+            else
+                "Innholdet ser ikke ut som en bok (oppdaget $garbageHint). " +
+                    "Sjekk at filen er riktig format (.epub, .mobi, .pdf, .txt osv.) og ikke en " +
+                    "zip, skadet eller binærfil som er feilnavngitt."
+            return@withContext ReaderBookState(
+                bookId = bookId,
+                bookTitle = book.title,
+                author = book.author,
+                format = book.format,
+                type = book.type,
+                percent = percent,
+                error = "Kan ikke vise innhold. $what"
+            )
+        }
         val rawContent = try {
             val utf8 = bytes.toString(Charsets.UTF_8).removePrefix("\uFEFF")
             // Heuristic: if UTF-8 decode produces replacement chars (U+FFFD), try Windows-1252 (Norwegian/Western)
@@ -596,6 +633,88 @@ class BookLoaderEngine(
         FormatEntity.CBZ, FormatEntity.CBR, FormatEntity.TXT, FormatEntity.MD,
         FormatEntity.HTML, FormatEntity.RTF, FormatEntity.DOCX -> true
         else -> false
+    }
+
+    /**
+     * Strong heuristic content detector to prevent displaying non-book text
+     * (BitTorrent Bencode, ZIP headers, object code, binary metadata dumps)
+     * as "book content" in the reader. Returns a human-readable hint if the
+     * content is almost certainly garbage, `null` otherwise.
+     */
+    private fun detectStructuredGarbage(bytes: ByteArray): String? {
+        if (bytes.isEmpty()) return null
+        val headSize = minOf(bytes.size, 8192)
+        val headStr = bytes.copyOfRange(0, headSize).toString(Charsets.UTF_8)
+
+        // === #1: EXACT BitTorrent Bencode file list pattern ===
+        // The bug we actually hit:
+        //   "4:pathl63:Author - Title (US) (epub).epubeed6:lengthi3429231e4:..."
+        // Pattern = digit+:path[lL] + anything + (epub).epub + "eed" + lengthi + digits + e
+        if (headStr.contains(Regex("""\d+:path[lLd].*\(epub\)\.epub\s*e{1,2}\s*\d+:lengthi\d+e""", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE)))
+            || headStr.contains(Regex("""^\s*d\s*8:announce"""))
+            || headStr.contains(Regex("""4:name\d{1,4}:"""))
+        ) {
+            return "BitTorrent-metadata (Bencode filliste med .epub oppføringer)"
+        }
+
+        // === #2: Bencode-like structural density without sentence punctuation ===
+        // Count signature patterns: "<digits>:" prefixes, "i<digits>e" ints, closing "de"/"le".
+        val bencodeTokens = Regex("""(?:^|[\r\n ,;:])\d{1,6}:[A-Za-z0-9_]""").findAll(headStr).count() +
+            Regex("""i\d{1,10}e""").findAll(headStr).count()
+        val sentences = Regex("""[.!?]\s+[A-ZÆØÅ]""").findAll(headStr).count()
+        if (bencodeTokens >= 6 && sentences <= 1) {
+            return "strukturerte data (Bencode-lignende token-tetthet=$bencodeTokens)"
+        }
+
+        // === #3: ZIP / RAR / 7z / EXE / ELF headers ===
+        val head4 = bytes.copyOfRange(0, minOf(bytes.size, 4))
+        val s4 = head4.joinToString("") { "%02X".format(it.toInt() and 0xFF) }
+        if (s4.startsWith("504B0304") || s4.startsWith("504B0506") || s4.startsWith("504B0708")) return "ZIP-fil-header (PK)"
+        if (s4.startsWith("52617221")) return "RAR-arkiv-header (Rar!)"
+        if (s4.startsWith("377ABCAF")) return "7z-arkiv-header"
+        if (s4.startsWith("4D5A")) return "PE/EXE kjørbar Windows-fil"
+        if (s4.startsWith("7F454C46")) return "ELF kjørbar Linux-fil"
+        if (s4.startsWith("CAFEBABE")) return "Java Class-fil"
+        if (s4.startsWith("1F8B")) return "gzip-komprimert data (.gz)"
+        if (s4.startsWith("FD377A58")) return "XZ/LZMA komprimert data (.xz)"
+        if (s4.startsWith("425A68")) return "bzip2 komprimert data (.bz2)"
+        if (s4.startsWith("89504E47")) return "PNG bildefil"
+        if (s4.startsWith("FFD8FFE0")) return "JPEG bildefil"
+        if (s4.startsWith("25504446")) return "PDF-fil (bruk PDF-leseren, ikke rå tekst)"
+        if (s4.startsWith("00000018") || s4.startsWith("00000020")) {
+            // ftyp box (MP4/M4B)
+            if (bytes.size >= 12) {
+                val ftyp = bytes.copyOfRange(4, 8).toString(Charsets.US_ASCII)
+                if (ftyp == "ftyp") return "MP4/M4B lyd-container (bruk spilleren, ikke rå tekst)"
+            }
+        }
+        if (bytes.size >= 3 && bytes[0] == 0x49.toByte() && bytes[1] == 0x44.toByte() && bytes[2] == 0x33.toByte()) {
+            return "MP3-lydfil (ID3-header) (bruk spilleren, ikke rå tekst)"
+        }
+
+        // === #4: Non-printable ratio ===
+        var printable = 0
+        for (i in 0 until headSize) {
+            val b = bytes[i].toInt() and 0xFF
+            if (b == 0x09 || b == 0x0A || b == 0x0D || (b in 0x20..0x7E) || (b in 0xA0..0xFF)) printable++
+        }
+        val printableRatio = printable.toDouble() / headSize.toDouble()
+        if (printableRatio < 0.85) {
+            return "lav andel printbare tegn (${(printableRatio*100).toInt()}% — binær data)"
+        }
+
+        // === #5: Whitespace sanity (normal books have ~20% whitespace, data dumps ~2%) ===
+        var whitespace = 0
+        for (i in 0 until headSize) {
+            val b = bytes[i].toInt() and 0xFF
+            if (b == 0x20 || b == 0x09 || b == 0x0A || b == 0x0D) whitespace++
+        }
+        val wsRatio = whitespace.toDouble() / headSize.toDouble()
+        if (wsRatio < 0.04 && bencodeTokens >= 4) {
+            return "manglende mellomrom/avsnitt (strukturerte data, ikke bok)"
+        }
+
+        return null
     }
 
     private fun escapeHtml(s: String): String =

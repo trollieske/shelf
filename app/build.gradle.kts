@@ -132,6 +132,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.svg)
     implementation(libs.coil.gif)
+    implementation(libs.androidx.startup.runtime)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.ext.junit)
@@ -144,6 +145,7 @@ dependencies {
 configurations.all {
     resolutionStrategy {
         force("org.bouncycastle:bcprov-jdk18on:1.80")
+        force("androidx.startup:startup-runtime:1.2.0")
         dependencySubstitution {
             substitute(module("org.bouncycastle:bcprov-jdk15on")).using(module("org.bouncycastle:bcprov-jdk18on:1.80"))
             substitute(module("org.bouncycastle:bcprov-jdk15to18")).using(module("org.bouncycastle:bcprov-jdk18on:1.80"))

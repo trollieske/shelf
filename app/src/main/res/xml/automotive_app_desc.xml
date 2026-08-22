@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<automotiveApp xmlns:android="http://schemas.android.com/apk/res/android">
+<automotiveApp xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses name="template" />
     <uses name="mediaPlayback" />
+    <uses name="notification" />
+    <uses name="clusterNavigationState" tools:targetApi="31" />
 </automotiveApp>

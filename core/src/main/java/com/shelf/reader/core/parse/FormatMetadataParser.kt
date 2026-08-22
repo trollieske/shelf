@@ -244,18 +244,23 @@ class AudioMetadataParser : FormatMetadataParser {
             }
 
             val album = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ALBUM)
+            val albumArtist = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
             val artist = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ARTIST)
-                ?: mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
-            val title = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_TITLE)
+                ?: albumArtist
+            val trackTitle = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_TITLE)
             val durStr = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
             val durationMs = durStr?.toLongOrNull() ?: streamDurMs
 
             val fallback = fallbackMetadata(filename)
             return fallback.copy(
-                title = album?.takeIf { it.isNotBlank() } ?: title?.takeIf { it.isNotBlank() } ?: fallback.title,
+                title = trackTitle?.takeIf { it.isNotBlank() }
+                    ?: album?.takeIf { it.isNotBlank() }
+                    ?: fallback.title,
                 author = artist?.takeIf { it.isNotBlank() } ?: fallback.author,
                 durationMs = durationMs,
-                chapters = embeddedChapters
+                chapters = embeddedChapters,
+                album = album?.takeIf { it.isNotBlank() },
+                albumArtist = albumArtist?.takeIf { it.isNotBlank() } ?: artist?.takeIf { it.isNotBlank() }
             )
         } catch (_: Exception) {
             return fallbackMetadata(filename).copy(durationMs = streamDurMs, chapters = embeddedChapters)
@@ -420,7 +425,7 @@ private fun parseMp4Chapters(stream: InputStream, size: Long): Pair<List<Chapter
             index = idx,
             title = title.trim().ifBlank { "Kapittel ${idx + 1}" },
             startMs = startMs,
-            endMs = -1L,
+            endMs = null,
             href = null
         )
     }.toMutableList()

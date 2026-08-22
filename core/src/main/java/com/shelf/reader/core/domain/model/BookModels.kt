@@ -106,5 +106,7 @@ data class BookMetadata(
     val isbn: String?,
     val pageCount: Int?,
     val durationMs: Long?,
-    val chapters: List<ChapterInfo>
+    val chapters: List<ChapterInfo>,
+    val album: String? = null,
+    val albumArtist: String? = null
 )

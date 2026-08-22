@@ -5,7 +5,7 @@ import java.util.Locale
 object AudiobookNormalizer {
 
     private val trackPrefixRegex = Regex(
-        "(?i)^(\\d{1,3}[.\\-_\\s]+|track\\s*\\d{1,3}[.\\-_\\s]+|chapter\\s*\\d{1,3}[.\\-_\\s]+|part\\s*\\d{1,3}[.\\-_\\s]+|cd\\s*\\d{1,2}[.\\-_\\s]+)"
+        "(?i)^(\\d{1,3}[.\\-_\\s]+|track\\s*\\d{1,3}[.\\-_\\s]+|kapittel\\s*\\d{1,3}[.\\-_\\s]+|chapter\\s*\\d{1,3}[.\\-_\\s]+|part\\s*\\d{1,3}[.\\-_\\s]+|del\\s*\\d{1,3}[.\\-_\\s]+|cd\\s*\\d{1,2}[.\\-_\\s]+|disk\\s*\\d{1,2}[.\\-_\\s]+)"
     )
 
     private val extensionRegex = Regex("(?i)\\.(mp3|m4b|m4a|aac|flac|ogg|opus|wav)$")
@@ -18,6 +18,12 @@ object AudiobookNormalizer {
         "ftp", "smb", "webdav", "storage", "files", "download", "downloads",
         "audiobook", "audiobooks", "bøker", "lydbøker", "library", "shelf",
         "manual", "temp", "media", "music", "imports", "documents"
+    )
+
+    private val genericTitles = setOf(
+        "audiobook", "audiobooks", "kapittel", "chapter", "track", "spoor",
+        "del", "part", "cd", "disk", "disc", "vol", "volume", "bind",
+        "unknown", "ukjent", "untitled", "uten tittel", "title", "tittel"
     )
 
     fun extractCanonicalFolderName(rawPathOrFolder: String?): String {
@@ -60,6 +66,25 @@ object AudiobookNormalizer {
         return clean.replace(Regex("\\s+"), " ")
     }
 
+    private fun isGenericTitle(normalizedTitle: String): Boolean {
+        if (normalizedTitle.isBlank()) return true
+        val t = normalizedTitle.trim()
+        if (t in genericTitles) return true
+        if (t matches Regex("^(kapittel|chapter|track|del|part|cd|disk|disc|vol|volume|bind)\\s*\\d+$")) return true
+        if (t matches Regex("^\\d+$")) return true
+        if (t.length <= 4) return true
+        return false
+    }
+
+    private fun pathHash(rawPathOrFolder: String?): String {
+        val path = rawPathOrFolder ?: ""
+        var h = 0x811c9dc5L.toInt()
+        for (b in path.encodeToByteArray()) {
+            h = (h xor (b.toInt() and 0xff)) * 0x01000193
+        }
+        return (h.toLong() and 0xffffffffL).toString(16).padStart(8, '0')
+    }
+
     fun computeGroupKey(
         albumOrTitle: String?,
         authorOrArtist: String?,
@@ -71,12 +96,22 @@ object AudiobookNormalizer {
         val normFolder = normalizeString(canonicalFolder)
 
         val isFolderGeneric = normFolder in genericFolderNames || normFolder.isBlank()
+        val isTitleGeneric = isGenericTitle(normTitle)
+
+        val suffix = pathHash(rawPathOrFolder)
 
         return when {
-            normTitle.isNotBlank() && normAuthor.isNotBlank() -> "${normTitle}_by_${normAuthor}"
-            normTitle.isNotBlank() -> normTitle
-            !isFolderGeneric -> normFolder
-            else -> "audiobook_unknown"
+            normTitle.isNotBlank() && normAuthor.isNotBlank() && !isTitleGeneric ->
+                "${normTitle}_by_${normAuthor}"
+            normTitle.isNotBlank() && !isTitleGeneric && !isFolderGeneric ->
+                "${normTitle}__${normFolder}"
+            normTitle.isNotBlank() && !isTitleGeneric ->
+                "${normTitle}__${suffix}"
+            normAuthor.isNotBlank() && !isFolderGeneric ->
+                "${normAuthor}__${normFolder}"
+            !isFolderGeneric ->
+                normFolder
+            else -> "audiobook_${suffix}"
         }
     }
 }

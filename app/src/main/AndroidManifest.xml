@@ -13,6 +13,16 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.MEDIA_CONTENT_CONTROL" />
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <uses-feature
+        android:name="android.hardware.type.automotive"
+        android:required="false" />
+    <uses-feature
+        android:name="android.software.automotive"
+        android:required="false" />
 
     <application
         android:name=".ShelfApplication"
@@ -68,6 +78,7 @@
                 <action android:name="androidx.media3.session.MediaSessionService" />
                 <action android:name="androidx.media3.session.MediaLibraryService" />
                 <action android:name="android.media.browse.MediaBrowserService" />
+                <action android:name="android.media.session.MediaSession" />
                 <category android:name="androidx.media3.session.SERVICE_CATEGORY_AUDIO" />
             </intent-filter>
         </service>
@@ -76,8 +87,11 @@
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
         <meta-data
-            android:name="androidx.car.app.minCarApiLevel"
-            android:value="1" />
+            android:name="com.google.android.gms.car.media.ALWAYS_RESOLVE_MEDIA_BUTTON"
+            android:value="true" />
+        <meta-data
+            android:name="com.google.android.gms.car.media.MEDIA_RESUME_CALLBACK"
+            android:value="true" />
 
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"

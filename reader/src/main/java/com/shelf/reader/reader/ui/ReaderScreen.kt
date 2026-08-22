@@ -137,6 +137,11 @@ fun ReaderScreen(
     Box(Modifier.fillMaxSize()) {
         when {
             ui.error != null -> ErrorView(ui.error!!, onBack)
+            ui.chapters.isEmpty() && ui.bookTitle.isNotBlank() -> ErrorView(
+                message = "Fant ingen lesbare kapitler i boken.\n\n" +
+                    "Filen kan være tom, skadet, ha en DRM-beskyttelse, eller ha et støttet format som ikke kunne tolkes korrekt. Prøv å importere boken på nytt, eller konvertere til en ren DRM-fri EPUB først.",
+                onBack = onBack,
+            )
             ui.chapters.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             else -> {
                 val themeColors = readerThemeColors(ui.readerTheme)

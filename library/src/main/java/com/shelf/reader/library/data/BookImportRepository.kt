@@ -17,6 +17,7 @@ import com.shelf.reader.data.local.entity.FormatEntity
 import com.shelf.reader.data.local.entity.ImportSourceEntity
 import com.shelf.reader.data.local.entity.ReadingProgressEntity
 import com.shelf.reader.library.util.AudiobookNormalizer
+import com.shelf.reader.library.util.EbookFilenameParser
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -156,6 +157,11 @@ class BookImportRepository(
             val (displayName, sizeBytes) = queryDisplayNameAndSize(uri)
             val format = BookFormat.fromFilename(displayName)
 
+            if (format == BookFormat.UNKNOWN) {
+                Log.w(TAG, "Skipping import of '${displayName}' (format=UNKNOWN, not a recognised book/audio file)")
+                return@withContext 0L
+            }
+
             if (format.isAudio) {
                 return@withContext importAudiobookFolder(
                     files = listOf(uri to displayName),
@@ -174,17 +180,44 @@ class BookImportRepository(
             val parser = getParserFor(format)
             val meta = parser.parse(ctx, uri, displayName, sizeBytes, streamProvider)
             val nameNoExt = filenameWithoutExtension(displayName)
-            val title = meta?.title?.takeIf { it.isNotBlank() } ?: nameNoExt
-            val author = meta?.author ?: ""
+            // Parse filename for author/title/series clues — many release groups tag filenames
+            // better than the actual EPUB OPF metadata (e.g. "[Herbert, Dune 005, Messiah]" format).
+            val parsed = runCatching { EbookFilenameParser.parse(nameNoExt) }
+                .getOrNull()
+                ?: EbookFilenameParser.ParsedFilename(nameNoExt, "", null, null)
+
+            val hasMetaAuthor = !meta?.author.isNullOrBlank()
+            val hasMetaTitle = !meta?.title.isNullOrBlank()
+            val hasMetaSeries = !meta?.series.isNullOrBlank()
+            val hasMetaSeriesIndex = (meta?.seriesIndex != null)
+
+            val authorFull = if (hasMetaAuthor) {
+                val a = meta!!.author!!
+                a.ifBlank { parsed.author }
+            } else parsed.author
+            val author: String = EbookFilenameParser.resolveAuthor(authorFull)
+
+            val title = (if (hasMetaTitle) meta!!.title!!.trim() else "").ifBlank { parsed.title.ifBlank { nameNoExt } }
             val pageCount = meta?.pageCount
                 ?: meta?.durationMs?.let { (it / 60_000).toInt() }
                 ?: meta?.chapters?.size?.takeIf { it > 0 }
+            val series = (if (hasMetaSeries) meta!!.series else null) ?: parsed.series
+            val seriesIndex = (if (hasMetaSeriesIndex) meta!!.seriesIndex else null) ?: parsed.seriesIndex
             val formatEntity = coreFormatToEntity(format)
             val path = filePathOverride ?: if (uri.scheme == "file") uri.path else null
 
             val chaptersJson = meta?.chapters?.let { list ->
                 val arr = JSONArray()
-                list.forEach { arr.put(it.title) }
+                list.forEachIndexed { idx, ch ->
+                    val chObj = JSONObject().apply {
+                        put("index", idx)
+                        put("title", ch.title.takeIf { it.isNotBlank() } ?: "Kapittel ${idx + 1}")
+                        put("startMs", ch.startMs)
+                        put("endMs", ch.endMs ?: JSONObject.NULL)
+                        ch.href?.let { put("href", it) }
+                    }
+                    arr.put(chObj)
+                }
                 arr.toString()
             }
 
@@ -196,7 +229,7 @@ class BookImportRepository(
                 }
             }
 
-            val book = BookEntity(
+            val unsaved = BookEntity(
                 title = title,
                 sortTitle = normalizeForSort(title),
                 author = author,
@@ -225,13 +258,14 @@ class BookImportRepository(
                 chapterCount = meta?.chapters?.size?.takeIf { it > 0 }
             )
 
-            val bookId = db.bookDao().insert(book)
+            val bookId = db.bookDao().insert(unsaved)
             insertProgressFor(bookId)
+            val savedBook = unsaved.copy(id = bookId)
 
             Log.i(TAG, "[CREATE_EBOOK] id=$bookId title='$title' author='$author' format=$formatEntity path=$path")
 
             val coverRepo = com.shelf.reader.library.cover.CoverRepository(ctx, db, dispatchers)
-            coverRepo.coverFileFor(book)
+            coverRepo.coverFileFor(savedBook)
 
             bookId
         } catch (t: Exception) {
@@ -265,11 +299,13 @@ class BookImportRepository(
             val meta = getParserFor(format).parse(ctx, uri, name, size, streamProvider)
             val trackDurationMs = meta?.durationMs ?: (5L * 60L * 1000L)
 
-            if (detectedAlbum.isNullOrBlank() && !meta?.title.isNullOrBlank()) {
-                detectedAlbum = meta?.title
+            if (detectedAlbum.isNullOrBlank() && !meta?.album.isNullOrBlank()) {
+                detectedAlbum = meta?.album
             }
-            if (detectedAuthor.isNullOrBlank() && !meta?.author.isNullOrBlank()) {
-                detectedAuthor = meta?.author
+            val detectedAlbumArtist = meta?.albumArtist?.takeIf { it.isNotBlank() }
+                ?: meta?.author?.takeIf { it.isNotBlank() }
+            if (detectedAuthor.isNullOrBlank() && detectedAlbumArtist != null) {
+                detectedAuthor = detectedAlbumArtist
             }
 
             val trackTitle = meta?.title?.takeIf { it.isNotBlank() && it != name }
@@ -304,9 +340,19 @@ class BookImportRepository(
         val groupKey = AudiobookNormalizer.computeGroupKey(titleCandidate, authorCandidate, rawFolder)
 
         val existingBooks = db.bookDao().getAllOnce().filter { it.type == BookTypeEntity.AUDIOBOOK && !it.isDeleted }
+        val normTitleCand = AudiobookNormalizer.normalizeString(titleCandidate)
+        val normAuthorCand = AudiobookNormalizer.normalizeString(authorCandidate)
         var targetBook = existingBooks.firstOrNull { b ->
             val bKey = AudiobookNormalizer.computeGroupKey(b.title, b.author, b.filePath)
-            bKey == groupKey || (b.title.equals(titleCandidate, ignoreCase = true) && titleCandidate.isNotBlank())
+            if (bKey == groupKey) return@firstOrNull true
+            // Fallback: require BOTH title AND author to match (if author available)
+            val bNormTitle = AudiobookNormalizer.normalizeString(b.title)
+            val bNormAuthor = AudiobookNormalizer.normalizeString(b.author)
+            val titleMatches = normTitleCand.isNotBlank() &&
+                    bNormTitle == normTitleCand
+            val authorMatches = (normAuthorCand.isBlank() && bNormAuthor.isBlank()) ||
+                    (normAuthorCand.isNotBlank() && bNormAuthor == normAuthorCand)
+            titleMatches && authorMatches
         }
 
         var totalSizeBytes = 0L
@@ -321,13 +367,18 @@ class BookImportRepository(
             totalDurationMs += t.durationMs
 
             val embed = t.embeddedChapters
-            if (embed.size >= 2 && embed.all { (it.endMs ?: 0L) > it.startMs }) {
-                // This single audio file has proper embedded chapters; emit one chapter per
+            if (embed.isNotEmpty() && embed.all { it.startMs >= 0L }) {
+                // This single audio file has embedded chapters; emit one chapter per
                 // embedded entry, with absolute start/end offsets based on trackStartMs.
-                for (c in embed) {
+                // Ensure chapters are sorted ascending by startMs before emitting.
+                val sortedEmbed = embed.sortedBy { it.startMs }
+                for ((localIdx, c) in sortedEmbed.withIndex()) {
                     val absStart = trackStartMs + c.startMs
-                    val endVal = c.endMs ?: (t.durationMs.takeIf { it > 0 } ?: 0L)
-                    val absEnd = (trackStartMs + endVal).coerceAtMost(totalDurationMs)
+                    val relEnd = c.endMs
+                        ?: sortedEmbed.getOrNull(localIdx + 1)?.startMs
+                        ?: t.durationMs.takeIf { it > 0L }
+                        ?: (trackStartMs + c.startMs + 5L * 60L * 1000L)
+                    val absEnd = (trackStartMs + relEnd).coerceAtMost(totalDurationMs)
                     val chObj = JSONObject().apply {
                         put("index", chapterIdx)
                         put("title", c.title.takeIf { it.isNotBlank() } ?: "Kapittel ${chapterIdx + 1}")
@@ -451,6 +502,23 @@ class BookImportRepository(
                         .thenBy { it.id }
                 )
                 val canonicalBook = sortedList.first()
+
+                // Safety: do not merge books whose durations or file sizes diverge wildly,
+                // as they are almost certainly different books sharing a weak group key.
+                val safeToMerge = sortedList.all { b ->
+                    val durOk = canonicalBook.durationMs == null || b.durationMs == null ||
+                            kotlin.math.abs((canonicalBook.durationMs ?: 0L) - (b.durationMs ?: 0L))
+                                    .toDouble() / (canonicalBook.durationMs ?: 1L).coerceAtLeast(1L) < 1.5
+                    val sizeOk = canonicalBook.fileSizeBytes == 0L || b.fileSizeBytes == 0L ||
+                            kotlin.math.abs(canonicalBook.fileSizeBytes - b.fileSizeBytes)
+                                    .toDouble() / canonicalBook.fileSizeBytes.coerceAtLeast(1L) < 5.0
+                    durOk && sizeOk
+                }
+                if (!safeToMerge) {
+                    Log.w(TAG, "[CONSOLIDATE_SKIP] Group '$groupKey' has ${booksInGroup.size} books but divergent metadata; skipping merge.")
+                    continue
+                }
+
                 val duplicates = sortedList.drop(1)
 
                 val allTracks = mutableListOf<JSONObject>()

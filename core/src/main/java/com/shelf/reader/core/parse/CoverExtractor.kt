@@ -62,6 +62,14 @@ object CoverExtractor {
             com.shelf.reader.core.domain.model.BookFormat.CBZ,
             com.shelf.reader.core.domain.model.BookFormat.CBR -> cbzCover(srcFile)
             com.shelf.reader.core.domain.model.BookFormat.FB2 -> fb2Cover(srcFile)
+            com.shelf.reader.core.domain.model.BookFormat.M4B,
+            com.shelf.reader.core.domain.model.BookFormat.M4A,
+            com.shelf.reader.core.domain.model.BookFormat.MP3,
+            com.shelf.reader.core.domain.model.BookFormat.AAC,
+            com.shelf.reader.core.domain.model.BookFormat.FLAC,
+            com.shelf.reader.core.domain.model.BookFormat.OGG,
+            com.shelf.reader.core.domain.model.BookFormat.OPUS,
+            com.shelf.reader.core.domain.model.BookFormat.WAV -> audioCover(ctx, srcFile, filePath)
             else -> null
         }
         val scaled = raw?.let { downscale(it, maxWidthPx, maxHeightPx) }
@@ -225,6 +233,33 @@ object CoverExtractor {
             ByteArrayInputStream(bytes).use { s -> decodeSampled(s, 800, 1200) }
         }
     }.getOrNull()
+
+    // ------------ Audio (embedded album art) ------------
+
+    private fun audioCover(ctx: Context, srcFile: File, filePathOrNull: String?): Bitmap? {
+        var mmr: android.media.MediaMetadataRetriever? = null
+        return try {
+            mmr = android.media.MediaMetadataRetriever()
+            val pathToUse = filePathOrNull ?: srcFile.absolutePath
+            val dataSourceOk = try {
+                mmr.setDataSource(pathToUse)
+                true
+            } catch (_: Throwable) {
+                runCatching {
+                    mmr.setDataSource(ctx, android.net.Uri.parse(pathToUse))
+                }.isSuccess
+            }
+            if (!dataSourceOk) return null
+            val bytes = mmr.embeddedPicture
+            if (bytes != null && bytes.size > 512) {
+                decodeSampled(java.io.ByteArrayInputStream(bytes), 800, 1200)
+            } else null
+        } catch (_: Throwable) {
+            null
+        } finally {
+            runCatching { mmr?.release() }
+        }
+    }
 
     // ------------ helpers ------------
 

@@ -2,6 +2,9 @@ package com.shelf.reader
 
 import android.app.Application
 import android.content.Context
+import androidx.lifecycle.ProcessLifecycleInitializer
+import androidx.startup.AppInitializer
+import androidx.work.WorkManagerInitializer
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.decode.GifDecoder
@@ -50,6 +53,16 @@ class ShelfApplication : Application(), ImageLoaderFactory, AppDependenciesProvi
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        // InitializationProvider er FJERNET FRA MANIFEST (tools:node="remove") for å unngå
+        // ClassCastException mellom startup-runtime versjoner fra car-app vs lifecycle.
+        // Kjører derfor alle kjente Startup-Initializers MANUELT (try/sikker).
+        runCatching {
+            val ai = AppInitializer.getInstance(this)
+            runCatching { ai.initializeComponent(WorkManagerInitializer::class.java) }
+            runCatching { ai.initializeComponent(ProcessLifecycleInitializer::class.java) }
+        }
+
         val warmUpThread = Thread {
             runCatching {
                 database

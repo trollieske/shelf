@@ -53,19 +53,35 @@ class ReaderViewModel(
     fun load(bookId: Long) {
         _currentBookId.value = bookId
         viewModelScope.launch(dispatchers.io) {
-            val existing    = runCatching { db.progressDao().getByBook(bookId) }.getOrNull()
-            val engineState = engine.loadBook(bookId)
-            
-            val restoredChapter = (existing?.chapterIndex ?: 0).coerceIn(0, engineState.chapters.size - 1)
-            val restoredPage = existing?.pageIndex ?: 0
+            runCatching {
+                val existing    = runCatching { db.progressDao().getByBook(bookId) }.getOrNull()
+                val engineState = engine.loadBook(bookId)
 
-            _state.value = engineState.copy(
-                currentChapterIndex = restoredChapter,
-                percent   = existing?.progressPercent ?: engineState.percent,
-                scrollPct = existing?.scrollPct ?: 0f,
-                currentPage = restoredPage,
-                totalPages  = 0,   // will be filled in by HtmlPageRenderer via onPageCountKnown
-            )
+                val safeChapterMax = (engineState.chapters.size - 1).coerceAtLeast(0)
+                val restoredChapter = (existing?.chapterIndex ?: 0).coerceIn(0, safeChapterMax)
+                val restoredPage = existing?.pageIndex ?: 0
+                val mergedError = engineState.error
+                    ?: if (engineState.chapters.isEmpty() && engineState.bookTitle.isNotBlank())
+                        "Fant ingen lesbare kapitler i boken. Filen kan være skadet, tom, eller ha et støttet format som ikke kunne tolkes."
+                    else null
+
+                engineState.copy(
+                    currentChapterIndex = restoredChapter,
+                    percent   = existing?.progressPercent ?: engineState.percent,
+                    scrollPct = existing?.scrollPct ?: 0f,
+                    currentPage = restoredPage,
+                    totalPages  = 0,   // will be filled in by HtmlPageRenderer via onPageCountKnown
+                    error       = mergedError,
+                )
+            }.onSuccess {
+                _state.value = it
+            }.onFailure { t ->
+                val prior = _state.value
+                _state.value = prior.copy(
+                    error = t.message ?: "Kan ikke åpne boken (ukjent feil)",
+                    bookTitle = prior.bookTitle.ifBlank { "Kan ikke åpne bok" },
+                )
+            }
         }
     }
 

@@ -59,15 +59,35 @@ class CoverRepository(
     }
 
     suspend fun coverFileFor(book: BookEntity): File = withContext(dispatchers.io) {
-        book.coverPath?.let { File(it) }?.takeIf { it.exists() }
+        val existingPath = book.coverPath?.let { File(it) }?.takeIf { it.exists() }
             ?: generatedFile(book.id).takeIf { it.exists() }
-            ?: renderAndPersist(book)
+        if (existingPath != null) {
+            val stale = try {
+                existingPath.lastModified() < book.lastModifiedAt
+            } catch (_: Throwable) { false }
+            if (stale) {
+                evictCacheFor(book)
+                runCatching { existingPath.delete() }
+                renderAndPersist(book)
+            } else existingPath
+        } else renderAndPersist(book)
+    }
+
+    private fun evictCacheFor(book: BookEntity) {
+        val key = book.coverPath ?: generatedFile(book.id).absolutePath
+        runCatching { bitmapMemCache.remove(key)?.recycle() }
+        runCatching {
+            val generatedKey = generatedFile(book.id).absolutePath
+            if (generatedKey != key) bitmapMemCache.remove(generatedKey)?.recycle()
+        }
     }
 
     fun coverFileFlow(book: BookEntity): Flow<File> = flow { emit(coverFileFor(book)) }
         .flowOn(dispatchers.io)
 
     suspend fun regenerate(book: BookEntity): File = withContext(dispatchers.io) {
+        evictCacheFor(book)
+        book.coverPath?.let { File(it) }?.takeIf { it.exists() }?.delete()
         generatedFile(book.id).takeIf { it.exists() }?.delete()
         renderAndPersist(book)
     }
