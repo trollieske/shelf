@@ -680,18 +680,19 @@ private fun RealBookSlideReader(
     }
 
     // Bitmap-cache: nøkler "c<kap>p<side>". Tømmes kun ved font/tema/størrelse.
-    val cache = remember(effectiveWidthPx, shPx) { PageBitmapCache(maxSize = 14) }
+    val configEpoch = "$configKey" // inkluderer font/tema + render-størrelse
+    val cache = remember(effectiveWidthPx, shPx, fontKey) { PageBitmapCache(maxSize = 14) }
     val lastKnownPages = remember(effectiveWidthPx, shPx) { mutableIntStateOf(1) }
-    val prepared = remember(effectiveWidthPx, shPx) { mutableStateMapOf<Int, Int>() }
+    val prepared = remember(effectiveWidthPx, shPx, fontKey) { mutableStateMapOf<Int, Int>() }
 
     // ── Render-koordinator: enkelt-eierskap, dedup på nøkkel, spesulativ lav prio ──
-    val coordinatorScope = remember(effectiveWidthPx, shPx) {
+    val coordinatorScope = remember(effectiveWidthPx, shPx, fontKey) {
         CoroutineScope(SupervisorJob() + Dispatchers.Main)
     }
-    DisposableEffect(effectiveWidthPx, shPx) {
+    DisposableEffect(effectiveWidthPx, shPx, fontKey) {
         onDispose { coordinatorScope.cancel() }
     }
-    val coordinator = remember(effectiveWidthPx, shPx) {
+    val coordinator = remember(effectiveWidthPx, shPx, fontKey) {
         RenderCoordinator<Bitmap>(
             scope = coordinatorScope,
             isUsable = ::isUsableRenderBitmap,
@@ -709,8 +710,10 @@ private fun RealBookSlideReader(
         ?: lastKnownPages.intValue
     val curlCount = chapterPages.coerceAtLeast(0)
 
-    fun cacheKey(ch: Int, page: Int) = "c${ch}p${page}"
-    fun coordKey(ch: Int, page: Int) = "$ch|$page|$configKey"
+    // ÉN kanonisk nøkkel for cache-lesing, cache-skriving (koordinator-callback),
+    // koordinator-dedup og spesulativ prefetch. Inkluderer kapittel, side,
+    // font/tema og faktisk render-størrelse.
+    fun renderKey(ch: Int, page: Int): String = "$ch|$configKey|p$page"
 
     val curlState = rememberPageCurlState(initialCurrent = 0)
     val updatedUi by rememberUpdatedState(ui)
@@ -789,7 +792,7 @@ private fun RealBookSlideReader(
         if (next < chapterPages) {
             coordinator.requestSpeculative(
                 ownerKey = chapIdx,
-                pageKey = coordKey(chapIdx, next),
+                pageKey = renderKey(chapIdx, next),
                 page = next,
             ) { p -> rendererFor(chapIdx).renderPage(p) }
         }
@@ -819,21 +822,31 @@ private fun RealBookSlideReader(
     @Composable
     fun CurlPageContent(pageIdx: Int) {
         val target = if (pageIdx in 0 until chapterPages) Pair(chapIdx, pageIdx) else null
-        val cacheK = target?.let { cacheKey(it.first, it.second) } ?: ""
-        var bitmap by remember(cacheK, fontKey, sizeKey) {
-            mutableStateOf<Bitmap?>(if (cacheK.isEmpty()) null else cache.getSync(cacheK))
+        val renderK = target?.let { renderKey(it.first, it.second) } ?: ""
+        var bitmap by remember(renderK, fontKey, sizeKey) {
+            mutableStateOf<Bitmap?>(if (renderK.isEmpty()) null else cache.getSync(renderK))
         }
-        LaunchedEffect(cacheK, fontKey, sizeKey) {
+        LaunchedEffect(renderK, fontKey, sizeKey) {
             if (bitmap == null && target != null) {
                 val bmp = coordinator.renderCurrent(
                     ownerKey = target.first,
-                    pageKey = coordKey(target.first, target.second),
+                    pageKey = renderK,
                     page = target.second,
                 ) { p -> rendererFor(target.first).renderPage(p) }
-                if (bmp != null) bitmap = bmp
+                if (bmp != null) {
+                    bitmap = bmp
+                    // KANONISK-NØKKEL-bevis: coordinatoren må ha lagret under EXACT
+                    // samme nøkkel som UI leser med — instans-identitet sjekkes.
+                    val fromCache = cache.getSync(renderK)
+                    curlDiag("RENDER-OK key=$renderK cacheHit=${fromCache === bmp} sameInstance=${fromCache === bmp}")
+                } else {
+                    curlDiag("RENDER-FAIL key=$renderK")
+                }
+            } else if (bitmap != null && target != null) {
+                curlDiag("CACHE-HIT key=$renderK (andre request for synlig side fikk cachet bitmap)")
             }
             if (target != null && target.first == chapIdx) {
-                cache.getSync(cacheK)?.let { lastGood.value = it }
+                cache.getSync(renderK)?.let { lastGood.value = it }
             }
         }
         // Synlig side uten ferdig bitmap → spinner. Klaff/annet uten bitmap → papir.
