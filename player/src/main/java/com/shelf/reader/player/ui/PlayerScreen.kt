@@ -339,7 +339,12 @@ fun PlayerScreen(
 
             val chapterCount = state.chapters.size
             val currentChapterIdx = state.currentChapterIndex
-            val chapterLabel = if (chapterCount > 0) "KAPITTEL ${currentChapterIdx + 1} AV $chapterCount" else "LYDSPILLER"
+            // Aldri "1 av 1": telleren vises bare når boken virkelig har flere kapitler.
+            val chapterLabel = when {
+                chapterCount > 1 -> "KAPITTEL ${currentChapterIdx + 1} AV $chapterCount"
+                chapterCount == 1 -> "LYDBOK"
+                else -> "LYDSPILLER"
+            }
 
             val chapterObj = state.chapters.getOrNull(currentChapterIdx)
             val displayTitle = when {

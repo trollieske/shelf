@@ -47,6 +47,14 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.Executors
 
+/** Intern spesifikasjon for ett MediaItem: kapittel + global start + evt. klipp innenfor samme fil. */
+private data class ActiveItemSpec(
+    val chapter: AudiobookChapter,
+    val globalStartMs: Long,
+    val clipStartMs: Long?,
+    val clipEndMs: Long?
+)
+
 class AudiobookPlaybackService : MediaLibraryService() {
 
     companion object {
@@ -383,6 +391,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
     }
 
     private var activeChapters: List<AudiobookChapter> = emptyList()
+    private var activeItemSpecs: List<ActiveItemSpec> = emptyList()
     private var currentCoverBitmap: Bitmap? = null
 
     private fun loadBook(bookId: Long) {
@@ -409,23 +418,57 @@ class AudiobookPlaybackService : MediaLibraryService() {
             activeChapters = parseChapters(book.chaptersJson ?: "")
 
             if (activeChapters.isNotEmpty()) {
-                val mediaItems = activeChapters.map { ch ->
+                // Flere kapitler i SAMME fil (M4B/MP3 med innebygde kapitler) får
+                // ClippingConfiguration slik at hvert MediaItem spiller KUN sitt intervall.
+                // Én fil per kapittel (mappe-import) klippes ikke — startMs er kumulativ.
+                val uriCounts = HashMap<String, Int>()
+                activeChapters.forEach { ch ->
+                    val u = ch.mediaUri ?: source ?: ""
+                    uriCounts[u] = (uriCounts[u] ?: 0) + 1
+                }
+                val uriBases = HashMap<String, Long>()
+                val itemSpecs = activeChapters.map { ch ->
+                    val u = ch.mediaUri ?: source ?: ""
+                    if ((uriCounts[u] ?: 0) > 1) {
+                        val base = uriBases.getOrPut(u) { ch.startMs }
+                        val clipStart = (ch.startMs - base).coerceAtLeast(0L)
+                        val clipEnd = ch.endMs?.takeIf { it > ch.startMs }?.let { it - base }
+                        ActiveItemSpec(ch, clipStart, clipStart, clipEnd)
+                    } else {
+                        ActiveItemSpec(ch, ch.startMs, null, null)
+                    }
+                }
+                activeItemSpecs = itemSpecs
+
+                val mediaItems = itemSpecs.map { spec ->
+                    val ch = spec.chapter
                     val uriStr = ch.mediaUri ?: source ?: ""
-                    MediaItem.Builder()
+                    val builder = MediaItem.Builder()
                         .setUri(Uri.parse(uriStr))
                         .setMediaId("${book.id}_${ch.index}")
-                        .setMediaMetadata(
-                            MediaMetadata.Builder()
-                                .setTitle(ch.title)
-                                .setArtist(book.author)
-                                .setAlbumArtist(book.author)
-                                .setAlbumTitle(book.title)
-                                .setDisplayTitle(ch.title)
-                                .setSubtitle("Kapittel ${ch.index + 1} av ${activeChapters.size}")
-                                .apply { cover?.bytes?.let { setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) } }
+                    if (spec.clipStartMs != null) {
+                        builder.setClippingConfiguration(
+                            MediaItem.ClippingConfiguration.Builder()
+                                .setStartPositionMs(spec.clipStartMs)
+                                .setEndPositionMs(
+                                    if (spec.clipEndMs != null && spec.clipEndMs > spec.clipStartMs) spec.clipEndMs
+                                    else C.TIME_END_OF_SOURCE
+                                )
                                 .build()
                         )
-                        .build()
+                    }
+                    builder.setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(ch.title)
+                            .setArtist(book.author)
+                            .setAlbumArtist(book.author)
+                            .setAlbumTitle(book.title)
+                            .setDisplayTitle(ch.title)
+                            .setSubtitle("Kapittel ${ch.index + 1} av ${activeChapters.size}")
+                            .apply { cover?.bytes?.let { setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) } }
+                            .build()
+                    )
+                    builder.build()
                 }
 
                 withContext(Dispatchers.Main) {
@@ -434,8 +477,8 @@ class AudiobookPlaybackService : MediaLibraryService() {
                     if (prog > 0f && totalDur > 0L) {
                         val targetMs = (prog * totalDur).toLong()
                         val targetIdx = activeChapters.indexOfLast { it.startMs <= targetMs }.coerceAtLeast(0)
-                        val offsetMs = targetMs - activeChapters[targetIdx].startMs
-                        p.seekTo(targetIdx, offsetMs.coerceAtLeast(0L))
+                        val offsetMs = (targetMs - (itemSpecs.getOrNull(targetIdx)?.globalStartMs ?: 0L)).coerceAtLeast(0L)
+                        p.seekTo(targetIdx, offsetMs)
                     }
                     p.prepare()
                 }
@@ -475,9 +518,9 @@ class AudiobookPlaybackService : MediaLibraryService() {
             return
         }
 
-        val duration = p.duration
+        val duration = durationMs()
         if (duration <= 0L) return
-        val pos = p.currentPosition
+        val pos = currentPositionMs()
         val pct = pos.toFloat() / duration
         serviceScope.launch { saveProgress(pct.coerceIn(0f, 1f)) }
     }
@@ -586,11 +629,10 @@ class AudiobookPlaybackService : MediaLibraryService() {
     fun currentPositionMs(): Long {
         val p = player ?: return 0L
         val idx = p.currentMediaItemIndex
-        val currentTrackMs = p.currentPosition.coerceAtLeast(0L)
-        if (activeChapters.isNotEmpty() && idx in activeChapters.indices) {
-            return activeChapters[idx].startMs + currentTrackMs
-        }
-        return currentTrackMs
+        val posInItem = p.currentPosition.coerceAtLeast(0L)
+        // posInItem er relativt til klipp-start; globalStartMs er kapittelens start
+        // på den globale boktidslinjen (filposisjon for enkeltfil, kumulativt for mapper).
+        return (activeItemSpecs.getOrNull(idx)?.globalStartMs ?: 0L) + posInItem
     }
 
     fun durationMs(): Long {
@@ -620,7 +662,8 @@ class AudiobookPlaybackService : MediaLibraryService() {
             val p = player ?: return
             if (activeChapters.isNotEmpty()) {
                 val idx = activeChapters.indexOfLast { it.startMs <= ms }.coerceAtLeast(0)
-                val trackMs = (ms - activeChapters[idx].startMs).coerceAtLeast(0L)
+                val globalStart = activeItemSpecs.getOrNull(idx)?.globalStartMs ?: activeChapters[idx].startMs
+                val trackMs = (ms - globalStart).coerceAtLeast(0L)
                 p.seekTo(idx, trackMs)
             } else {
                 p.seekTo(ms.coerceAtLeast(0L).let { if (durationMs() != C.TIME_UNSET) it.coerceAtMost(durationMs()) else it })
@@ -642,7 +685,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
 
     private fun parseChapters(json: String): List<AudiobookChapter> {
         if (json.isBlank()) return emptyList()
-        return runCatching {
+        val list = runCatching {
             val arr = org.json.JSONArray(json)
             (0 until arr.length()).map { i ->
                 val obj = arr.getJSONObject(i)
@@ -650,11 +693,16 @@ class AudiobookPlaybackService : MediaLibraryService() {
                     index = obj.optInt("index", i),
                     title = obj.optString("title", "Kapittel ${i + 1}"),
                     startMs = obj.optLong("startMs", 0L),
-                    endMs = obj.optLong("endMs", 0L),
+                    endMs = obj.optLong("endMs", 0L).takeIf { it > 0L },
                     mediaUri = if (obj.has("mediaUri") && !obj.isNull("mediaUri")) obj.getString("mediaUri") else null
                 )
             }
         }.getOrElse { emptyList() }
+        return list.mapIndexed { i, ch ->
+            val end = ch.endMs?.takeIf { it > ch.startMs }
+                ?: list.getOrNull(i + 1)?.startMs?.takeIf { it > ch.startMs }
+            ch.copy(endMs = end)
+        }
     }
 
     private data class CoverArtwork(val bytes: ByteArray, val bitmap: Bitmap)

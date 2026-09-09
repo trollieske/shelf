@@ -120,7 +120,7 @@ class AudiobookEngine(
     }
 
     private fun parseChapters(json: String): List<AudiobookChapter> {
-        return runCatching {
+        val parsed = runCatching {
             val arr = org.json.JSONArray(json)
             (0 until arr.length()).map { i ->
                 val obj = arr.getJSONObject(i)
@@ -128,26 +128,36 @@ class AudiobookEngine(
                     index = obj.optInt("index", i),
                     title = obj.optString("title", "Kapittel ${i + 1}"),
                     startMs = obj.optLong("startMs", 0L),
-                    endMs = obj.optLong("endMs", 0L),
+                    endMs = obj.optLong("endMs", 0L).takeIf { it > 0L },
                     mediaUri = obj.optString("mediaUri").takeIf { it.isNotBlank() }
                 )
             }
         }.getOrElse { emptyList() }
+        return normalizeChapterEnds(parsed)
     }
 
-    private fun buildStubChapters(bookTitle: String, durationMs: Long): List<AudiobookChapter> {
-        val chapterCount = (durationMs / 2_700_000L).coerceAtLeast(1)
-        val chapterDuration = durationMs / chapterCount
-        return (0 until chapterCount.toInt()).map { i ->
-            val start = i * chapterDuration
-            val end = if (i == chapterCount.toInt() - 1) durationMs else (i + 1) * chapterDuration
-            AudiobookChapter(
-                index = i,
-                title = "Kapittel ${i + 1}",
-                startMs = start,
-                endMs = end
-            )
+    /** Fyll inn manglende endMs fra neste kapittel / varighet slik at klipping blir eksakt. */
+    private fun normalizeChapterEnds(list: List<AudiobookChapter>): List<AudiobookChapter> {
+        if (list.isEmpty()) return list
+        return list.mapIndexed { i, ch ->
+            val end = ch.endMs ?: list.getOrNull(i + 1)?.startMs?.takeIf { it > ch.startMs }
+            ch.copy(endMs = end)
         }
+    }
+
+    /**
+     * Ingen kapittelinformasjon i det hele tatt: ÉN kapittelpost med boktittelen.
+     * Aldri fabrikerte "Kapittel N"-stubber — spilleren viser boken som den er.
+     */
+    private fun buildStubChapters(bookTitle: String, durationMs: Long): List<AudiobookChapter> {
+        return listOf(
+            AudiobookChapter(
+                index = 0,
+                title = bookTitle.ifBlank { "Lydbok" },
+                startMs = 0L,
+                endMs = durationMs.takeIf { it > 0L }
+            )
+        )
     }
 
     suspend fun readDurationStub(book: BookEntity, uri: String?): Long {
