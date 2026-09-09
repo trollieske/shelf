@@ -1,22 +1,16 @@
 package com.shelf.reader.library.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -25,54 +19,58 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.shelf.reader.core.domain.model.LibraryViewType
-import com.shelf.reader.data.local.entity.BookEntity
-import com.shelf.reader.designsystem.components.*
-import com.shelf.reader.designsystem.theme.ShelfColors
+import com.shelf.reader.designsystem.components.BookCoverCard
+import com.shelf.reader.designsystem.components.BookVisual
 import com.shelf.reader.designsystem.theme.ShelfTypography
-import com.shelf.reader.core.di.AppDependenciesProvider
-import com.shelf.reader.library.gamification.ui.LeserytmeWidget
 import com.shelf.reader.library.gamification.ui.ReadingRhythmViewModel
 import com.shelf.reader.library.gamification.ui.SaluteEffectOverlay
 import com.shelf.reader.library.gamification.ui.SaluteTier
 import com.shelf.reader.library.gamification.ui.play
 import com.shelf.reader.library.gamification.ui.rememberSaluteEffectState
-import com.shelf.reader.library.viewmodel.LibraryFilter
-import com.shelf.reader.library.viewmodel.LibrarySort
+import com.shelf.reader.library.viewmodel.LibraryMode
 import com.shelf.reader.library.viewmodel.LibraryViewModel
+import com.shelf.reader.library.viewmodel.ResumeItem
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+// Omarchy-inspirert bibliotek-krom: Tokyo Night-base, én aksent, ingen hevede kort.
+// Delte tokens ligger i designsystem (OmarchyColors) slik at Innstillinger/Kilder matcher.
+private val LibBg = com.shelf.reader.designsystem.theme.OmarchyColors.Bg
+private val LibHeaderBg = com.shelf.reader.designsystem.theme.OmarchyColors.HeaderBg
+private val LibHairline = com.shelf.reader.designsystem.theme.OmarchyColors.Hairline
+private val LibAccent = com.shelf.reader.designsystem.theme.OmarchyColors.Accent
+private val LibDim = com.shelf.reader.designsystem.theme.OmarchyColors.Dim
+private val LibFg = com.shelf.reader.designsystem.theme.OmarchyColors.Fg
+private val LibFgBright = com.shelf.reader.designsystem.theme.OmarchyColors.FgBright
+private val LibPanel = com.shelf.reader.designsystem.theme.OmarchyColors.Panel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
-    initialFilter: LibraryFilter = LibraryFilter.ALL,
+    mode: LibraryMode,
     onBookClick: (Long) -> Unit,
     onBookLongClick: (Long) -> Unit,
     onImportClick: () -> Unit,
     onFtpClick: () -> Unit,
     onSettingsClick: () -> Unit = {},
+    onNavVisibilityChange: (Boolean) -> Unit = {},
     vmFactory: androidx.lifecycle.ViewModelProvider.Factory? = null,
     vm: LibraryViewModel = viewModel(factory = vmFactory ?: defaultLibraryVmFactory()),
     rhythmVmFactory: androidx.lifecycle.ViewModelProvider.Factory? = null,
     rhythmVm: ReadingRhythmViewModel = viewModel(factory = rhythmVmFactory ?: defaultRhythmVmFactory())
 ) {
     val ui by vm.state.collectAsStateWithLifecycle()
-    LaunchedEffect(initialFilter) { vm.setFilter(initialFilter) }
+    LaunchedEffect(mode) { vm.setMode(mode) }
     var search by rememberSaveable { mutableStateOf("") }
-    var bookActionTarget by rememberSaveable { mutableStateOf<Long?>(null) }
-    var showSortFilterSheet by rememberSaveable { mutableStateOf(false) }
-
     var showCreateShelf by rememberSaveable { mutableStateOf(false) }
     var createShelfName by rememberSaveable { mutableStateOf("") }
 
@@ -115,100 +113,101 @@ fun LibraryScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-    Scaffold(
-        contentWindowInsets = WindowInsets(0.dp),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            if (search.isBlank()) {
-                ExtendedFloatingActionButton(
-                    onClick = { createShelfName = ""; showCreateShelf = true },
-                    icon = { Icon(Icons.Default.Folder, null) },
-                    text = { Text("Ny hylle", fontWeight = FontWeight.SemiBold) },
-                    containerColor = Color(0xFFF59E0B),
-                    contentColor = Color(0xFF0F172A)
-                )
+    // Rulle-retning fra rutenettet: ned = skjul nav, opp = vis nav.
+    val gridState = rememberLazyGridState()
+    LaunchedEffect(gridState, onNavVisibilityChange) {
+        var lastIndex = 0
+        var lastOffset = 0
+        snapshotFlow { gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset }
+            .collect { (index, offset) ->
+                when {
+                    index > lastIndex || (index == lastIndex && offset > lastOffset) ->
+                        onNavVisibilityChange(false)
+                    index < lastIndex || (index == lastIndex && offset < lastOffset) ->
+                        onNavVisibilityChange(true)
+                }
+                lastIndex = index
+                lastOffset = offset
             }
-        }
-    ) { innerPadding ->
-        Column(
-            Modifier
-                .fillMaxSize()
-                .background(Color(0xFF0B1120))
-                .padding(innerPadding)
-        ) {
-            // Ultra-Streamlined Minimal Header Block
-            Surface(
-                color = Color(0xFF162032),
-                tonalElevation = 2.dp,
-                modifier = Modifier.fillMaxWidth()
+    }
+    val booksToDisplay = remember(ui.flatGridBooks) { ui.flatGridBooks.distinctBy { it.id } }
+    LaunchedEffect(booksToDisplay.isEmpty(), search, mode) {
+        if (booksToDisplay.isEmpty() || search.isNotBlank()) onNavVisibilityChange(true)
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            contentWindowInsets = WindowInsets(0.dp),
+            containerColor = LibBg,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            floatingActionButton = {
+                if (search.isBlank()) {
+                    ExtendedFloatingActionButton(
+                        onClick = { createShelfName = ""; showCreateShelf = true },
+                        icon = { Icon(Icons.Default.Folder, null, tint = LibAccent) },
+                        text = { Text("Ny hylle", color = LibFg, fontWeight = FontWeight.Medium) },
+                        containerColor = LibPanel,
+                        contentColor = LibFg,
+                        shape = RoundedCornerShape(4.dp),
+                        elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp)
+                    )
+                }
+            }
+        ) { innerPadding ->
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .background(LibBg)
+                    .padding(innerPadding)
             ) {
+                // Flat toppband: tittel + minimalt ikoner. Ingen heving, bare hårlinje.
                 Column(
                     Modifier
                         .fillMaxWidth()
+                        .background(LibHeaderBg)
                         .statusBarsPadding()
                         .padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
                     var showSearchField by rememberSaveable { mutableStateOf(false) }
 
-                    // Row 1: Header Title & Minimal Action Icons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            "Bibliotek",
+                            when (mode) {
+                                LibraryMode.Books -> "Bøker"
+                                LibraryMode.Audio -> "Lydbøker"
+                            },
                             style = ShelfTypography.TitleLarge,
-                            color = Color(0xFFF8FAFC),
+                            color = LibFgBright,
                             fontWeight = FontWeight.Bold
                         )
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { showSearchField = !showSearchField }, modifier = Modifier.size(36.dp)) {
-                                Icon(Icons.Default.Search, contentDescription = "Søk", tint = if (search.isNotEmpty() || showSearchField) Color(0xFFF59E0B) else Color(0xFF94A3B8), modifier = Modifier.size(20.dp))
-                            }
-                            IconButton(onClick = {
-                                val nextView = when (ui.viewType) {
-                                    LibraryViewType.SHELF -> LibraryViewType.GRID
-                                    LibraryViewType.GRID -> LibraryViewType.LIST
-                                    LibraryViewType.LIST -> LibraryViewType.SHELF
-                                }
-                                vm.setViewType(nextView)
-                            }, modifier = Modifier.size(36.dp)) {
-                                Icon(
-                                    when (ui.viewType) {
-                                        LibraryViewType.SHELF -> Icons.Default.ViewAgenda
-                                        LibraryViewType.GRID -> Icons.Default.GridView
-                                        LibraryViewType.LIST -> Icons.Default.FormatListBulleted
-                                    },
-                                    contentDescription = "Visning",
-                                    tint = Color(0xFFF59E0B),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            IconButton(onClick = { showSortFilterSheet = true }, modifier = Modifier.size(36.dp)) {
-                                Icon(Icons.Default.Tune, contentDescription = "Sorter & Filter", tint = Color(0xFF94A3B8), modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Search, contentDescription = "Søk", tint = if (search.isNotEmpty() || showSearchField) LibAccent else LibDim, modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = onFtpClick, modifier = Modifier.size(36.dp)) {
-                                Icon(Icons.Default.CloudSync, contentDescription = "FTP & Synk", tint = Color(0xFF94A3B8), modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.CloudSync, contentDescription = "FTP & Synk", tint = LibDim, modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = onImportClick, modifier = Modifier.size(36.dp)) {
-                                Icon(Icons.Default.Add, contentDescription = "Importer", tint = Color(0xFFF8FAFC), modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Add, contentDescription = "Importer", tint = LibFgBright, modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = onSettingsClick, modifier = Modifier.size(36.dp)) {
-                                Icon(Icons.Default.Settings, contentDescription = "Innstillinger", tint = Color(0xFF94A3B8), modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Settings, contentDescription = "Innstillinger", tint = LibDim, modifier = Modifier.size(20.dp))
                             }
                         }
                     }
 
-                    // Collapsible Search Bar
+                    // Søk: skjult ikon som ekspanderer. Skarpe hjørner, ingen chip-rad.
                     AnimatedVisibility(visible = showSearchField || search.isNotEmpty()) {
                         Column {
                             Spacer(Modifier.height(4.dp))
                             Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = Color(0x22FFFFFF),
+                                shape = RoundedCornerShape(4.dp),
+                                color = LibPanel,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(34.dp)
@@ -217,258 +216,114 @@ fun LibraryScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(horizontal = 10.dp)
                                 ) {
-                                    Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Search, contentDescription = null, tint = LibAccent, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(6.dp))
                                     Box(modifier = Modifier.weight(1f)) {
                                         if (search.isEmpty()) {
-                                            Text("Søk i biblioteket...", color = Color(0xFF94A3B8), fontSize = 12.sp, maxLines = 1)
+                                            Text("Søk i biblioteket...", color = LibDim, fontSize = 12.sp, maxLines = 1)
                                         }
                                         androidx.compose.foundation.text.BasicTextField(
                                             value = search,
                                             onValueChange = { search = it },
                                             singleLine = true,
-                                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = Color.White)
+                                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = LibFgBright)
                                         )
                                     }
                                     if (search.isNotEmpty()) {
                                         IconButton(onClick = { search = "" }, modifier = Modifier.size(20.dp)) {
-                                            Icon(Icons.Default.Close, contentDescription = "Tøm", tint = Color(0xFF94A3B8))
+                                            Icon(Icons.Default.Close, contentDescription = "Tøm", tint = LibDim)
                                         }
                                     }
                                 }
                             }
                         }
                     }
-
-                    Spacer(Modifier.height(6.dp))
-
-                    // Row 2: Subtle Filter Capsules
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        FilterCapsule(label = "Alt (${ui.totalBookCount})", isSelected = ui.filter == LibraryFilter.ALL, onClick = { vm.setFilter(LibraryFilter.ALL) })
-                        FilterCapsule(label = "Pågående (${ui.inProgressCount})", isSelected = ui.filter == LibraryFilter.IN_PROGRESS, onClick = { vm.setFilter(LibraryFilter.IN_PROGRESS) })
-                        FilterCapsule(label = "Ebøker (${ui.ebookCount})", isSelected = ui.filter == LibraryFilter.EBOOKS, onClick = { vm.setFilter(LibraryFilter.EBOOKS) })
-                        FilterCapsule(label = "Lydbøker (${ui.audiobookCount})", isSelected = ui.filter == LibraryFilter.AUDIOBOOKS, onClick = { vm.setFilter(LibraryFilter.AUDIOBOOKS) })
-                        FilterCapsule(label = "Favoritter", isSelected = ui.filter == LibraryFilter.FAVORITES, onClick = { vm.setFilter(LibraryFilter.FAVORITES) })
-                        FilterCapsule(label = "Fullførte (${ui.finishedCount})", isSelected = ui.filter == LibraryFilter.FINISHED, onClick = { vm.setFilter(LibraryFilter.FINISHED) })
-                    }
                 }
-            }
-
-            val booksToDisplay = remember(ui.flatGridBooks) { ui.flatGridBooks.distinctBy { it.id } }
-            val activeAudio by com.shelf.reader.data.repository.ActivePlaybackState.state.collectAsStateWithLifecycle()
-
-            Spacer(Modifier.height(10.dp))
-            LeserytmeWidget(
-                viewModel = rhythmVm,
-                modifier = Modifier.padding(horizontal = 14.dp)
-            )
-
-            // In-Progress Books Carousel (multiple books support)
-            val inProgressBooks = remember(booksToDisplay, activeAudio) {
-                booksToDisplay.filter { b ->
-                    (activeAudio != null && activeAudio!!.bookId == b.id) || (b.progress > 0f && b.progress < 0.99f)
-                }.sortedByDescending { b -> if (activeAudio?.bookId == b.id) 1f else b.progress }
-            }
-
-            if (inProgressBooks.isNotEmpty() && search.isBlank()) {
-                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Text(
-                        "PÅGÅENDE BØKER & LYDBØKER (${inProgressBooks.size})",
-                        style = ShelfTypography.LabelSmall,
-                        color = Color(0xFFF59E0B),
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        inProgressBooks.forEach { b ->
-                            val prog = activeAudio?.takeIf { it.bookId == b.id }?.progressPercent ?: b.progress
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFF162032),
-                                tonalElevation = 4.dp,
-                                modifier = Modifier
-                                    .width(180.dp)
-                                    .clickable { onBookClick(b.id) }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = Color(0xFF1E293B),
-                                        modifier = Modifier.size(38.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                if (b.format.isAudio) Icons.Default.Headphones else Icons.Default.MenuBook,
-                                                contentDescription = null,
-                                                tint = Color(0xFFF59E0B),
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    }
-                                    Spacer(Modifier.width(8.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text(b.title, style = ShelfTypography.LabelMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text("${(prog * 100).toInt()}% • ${if (b.format.isAudio) "Lyd" else "Ebok"}", style = ShelfTypography.LabelSmall, color = Color(0xFF94A3B8))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Box(modifier = Modifier.weight(1f)) {
-                if (ui.isLoading) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Color(0xFFD4AF37))
-                    }
-                } else if (booksToDisplay.isEmpty()) {
-                    CleanEmptyState(
-                        onImportClick = onImportClick,
-                        onFtpClick = onFtpClick
-                    )
-                } else {
-                    when (ui.viewType) {
-                        LibraryViewType.SHELF -> {
-                            val shelfItems = remember(booksToDisplay) {
-                                booksToDisplay.map { b ->
-                                    ShelfBookItem(
-                                        id = b.id,
-                                        title = b.title,
-                                        author = b.author,
-                                        coverPath = b.coverImagePath,
-                                        progressPercent = b.progress,
-                                        isCompleted = b.progress >= 0.99f,
-                                        isAudiobook = b.format.isAudio,
-                                        formatBadge = if (b.format.isAudio) "LYDBOK" else b.format.badge,
-                                        cloudSyncStatus = if (b.isDownloaded) "local" else "cloud"
-                                    )
-                                }
-                            }
-                            RealisticBookshelfView(
-                                books = shelfItems,
-                                onBookClick = { onBookClick(it) },
-                                onBookLongClick = { id -> bookActionTarget = id },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                        LibraryViewType.GRID -> {
-                            LazyVerticalGrid(
-                                columns = GridCells.Adaptive(minSize = 115.dp),
-                                contentPadding = PaddingValues(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(14.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                items(booksToDisplay, key = { it.id }) { b ->
-                                    BookCoverCard(
-                                        book = b,
-                                        onClick = { onBookClick(b.id) },
-                                        onLongClick = { bookActionTarget = b.id }
-                                    )
-                                }
-                            }
-                        }
-                        LibraryViewType.LIST -> {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                items(booksToDisplay, key = { it.id }) { b ->
-                                    CleanListBookRow(
-                                        book = b,
-                                        onClick = { onBookClick(b.id) },
-                                        onLongClick = { bookActionTarget = b.id }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Dialog: Create New Shelf
-            if (showCreateShelf) {
-                AlertDialog(
-                    onDismissRequest = { showCreateShelf = false },
-                    title = { Text("Ny hylle") },
-                    text = {
-                        OutlinedTextField(
-                            value = createShelfName,
-                            onValueChange = { createShelfName = it },
-                            label = { Text("Navn på samling") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                val name = createShelfName.trim()
-                                if (name.isNotBlank()) {
-                                    vm.createShelf(name)
-                                    scope.launch { snackbarHostState.showSnackbar("Hylle opprettet: $name") }
-                                    showCreateShelf = false
-                                }
-                            }
-                        ) { Text("Opprett") }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showCreateShelf = false }) { Text("Avbryt") }
-                    }
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(LibHairline)
                 )
-            }
 
-            // Sheet: Book Action Options
-            bookActionTarget?.let { bookId ->
-                val selectedBook = ui.flatListBooks.firstOrNull { it.id == bookId }
-                selectedBook?.let { b ->
-                    ModalBottomSheet(onDismissRequest = { bookActionTarget = null }) {
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(20.dp)
+                // Fortsett-linje: waybar/tmux-stil. Monospace, lavkontrast, full bredde, ikke kort.
+                val resume = when (mode) {
+                    LibraryMode.Books -> ui.resumeEbook
+                    LibraryMode.Audio -> ui.resumeAudio
+                }
+                resume?.let { item ->
+                    ResumeStrip(item = item, onClick = { onBookClick(item.bookId) })
+                }
+
+                Box(modifier = Modifier.weight(1f)) {
+                    if (ui.isLoading) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = LibDim)
+                        }
+                    } else if (booksToDisplay.isEmpty()) {
+                        CleanEmptyState(
+                            onImportClick = onImportClick,
+                            onFtpClick = onFtpClick
+                        )
+                    } else {
+                        LazyVerticalGrid(
+                            state = gridState,
+                            columns = GridCells.Adaptive(minSize = 115.dp),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(b.title, style = ShelfTypography.TitleMedium, fontWeight = FontWeight.Bold)
-                            Text(b.author, style = ShelfTypography.BodyMedium, color = Color.Gray)
-                            Spacer(Modifier.height(16.dp))
-
-                            ListItem(
-                                headlineContent = { Text(if (b.dateFinished != null) "Merk som ulest" else "Merk som ferdig") },
-                                leadingContent = { Icon(Icons.Default.Check, null) },
-                                modifier = Modifier.clickable {
-                                    vm.markFinished(b.id)
-                                    bookActionTarget = null
-                                }
-                            )
-                            ListItem(
-                                headlineContent = { Text("Slett fra bibliotek") },
-                                leadingContent = { Icon(Icons.Default.Delete, null, tint = Color(0xFFE53935)) },
-                                modifier = Modifier.clickable {
-                                    vm.delete(b.id)
-                                    bookActionTarget = null
-                                }
-                            )
+                            items(booksToDisplay, key = { it.id }) { b ->
+                                BookCoverCard(
+                                    book = b.copy(leanDegrees = 0f),
+                                    onClick = { onBookClick(b.id) },
+                                    onLongClick = { onBookLongClick(b.id) },
+                                    showFormatBadge = false,
+                                    showInlineProgress = false,
+                                    underCoverContent = {
+                                        if (b.progress > 0f) {
+                                            ThinProgressBar(progress = b.progress)
+                                        }
+                                    }
+                                )
+                            }
                         }
                     }
+                }
+
+                // Dialog: Create New Shelf
+                if (showCreateShelf) {
+                    AlertDialog(
+                        onDismissRequest = { showCreateShelf = false },
+                        title = { Text("Ny hylle") },
+                        text = {
+                            OutlinedTextField(
+                                value = createShelfName,
+                                onValueChange = { createShelfName = it },
+                                label = { Text("Navn på samling") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    val name = createShelfName.trim()
+                                    if (name.isNotBlank()) {
+                                        vm.createShelf(name)
+                                        scope.launch { snackbarHostState.showSnackbar("Hylle opprettet: $name") }
+                                        showCreateShelf = false
+                                    }
+                                }
+                            ) { Text("Opprett") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showCreateShelf = false }) { Text("Avbryt") }
+                        }
+                    )
                 }
             }
         }
-    }
         SaluteEffectOverlay(
             state = saluteState,
             tier = activeSaluteTier,
@@ -477,120 +332,49 @@ fun LibraryScreen(
     }
 }
 
+/** Fortsett-linje: liten monospace, lav kontrast, full bredde. 2px visuell vekt maks. */
 @Composable
-private fun FilterCapsule(
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        color = if (isSelected) Color(0xFFF59E0B) else Color(0x22FFFFFF),
-        contentColor = if (isSelected) Color(0xFF0F172A) else Color(0xFFCBD5E1)
+private fun ResumeStrip(item: ResumeItem, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = label,
-            fontSize = 12.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+            text = "▸",
+            color = LibAccent,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(end = 8.dp)
+        )
+        Text(
+            text = "${item.title} · ${item.detail}",
+            style = ShelfTypography.LabelSmall.copy(fontFamily = FontFamily.Monospace),
+            color = LibDim,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
 
+/** 2px fremdriftslinje under omslaget — aksent på LibHairline-spor. Ingen etiketter. */
 @Composable
-private fun ViewTypeButton(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(8.dp),
-        color = if (isSelected) Color(0xFFF59E0B) else Color.Transparent,
-        contentColor = if (isSelected) Color(0xFF0F172A) else Color(0xFF94A3B8)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-        ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(label, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-        }
-    }
-}
-
-@Composable
-private fun CleanListBookRow(
-    book: BookVisual,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit
-) {
-    Card(
-        onClick = onClick,
+private fun ThinProgressBar(progress: Float) {
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp)),
-        colors = CardDefaults.cardColors(containerColor = Color(0x1AFFFFFF))
+            .padding(top = 2.dp)
+            .height(2.dp)
+            .background(LibHairline)
     ) {
-        Row(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            BookCoverCard(
-                book = book,
-                onClick = onClick,
-                onLongClick = onLongClick,
-                modifier = Modifier
-                    .width(44.dp)
-                    .height(64.dp)
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    book.title,
-                    style = ShelfTypography.TitleSmall,
-                    color = Color(0xFFF7F2EC),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    book.author,
-                    style = ShelfTypography.BodySmall,
-                    color = Color(0xFFC0B2A6),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (book.progress > 0f) {
-                    Spacer(Modifier.height(4.dp))
-                    LinearProgressIndicator(
-                        progress = { book.progress },
-                        modifier = Modifier
-                            .fillMaxWidth(0.6f)
-                            .height(3.dp),
-                        color = Color(0xFFD4AF37),
-                        trackColor = Color(0x33FFFFFF)
-                    )
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = Color(0x33D4AF37)
-            ) {
-                Text(
-                    text = if (book.format.isAudio) "🎧 LYDBOK" else book.format.badge,
-                    fontSize = 10.sp,
-                    color = Color(0xFFD4AF37),
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
-        }
+                .fillMaxHeight()
+                .fillMaxWidth(progress.coerceIn(0.01f, 1f))
+                .background(LibAccent)
+        )
     }
 }
 
@@ -610,15 +394,15 @@ private fun CleanEmptyState(
             verticalArrangement = Arrangement.Center
         ) {
             Surface(
-                shape = CircleShape,
-                color = Color(0x22D4AF37),
+                shape = RoundedCornerShape(4.dp),
+                color = LibPanel,
                 modifier = Modifier.size(72.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Default.MenuBook,
                         contentDescription = null,
-                        tint = Color(0xFFD4AF37),
+                        tint = LibDim,
                         modifier = Modifier.size(36.dp)
                     )
                 }
@@ -629,7 +413,7 @@ private fun CleanEmptyState(
             Text(
                 "Biblioteket er tomt",
                 style = ShelfTypography.TitleLarge,
-                color = Color(0xFFF7F2EC),
+                color = LibFgBright,
                 fontWeight = FontWeight.Bold
             )
 
@@ -638,8 +422,8 @@ private fun CleanEmptyState(
             Text(
                 "Legg til e-bøker og lydbøker ved å importere filer fra enheten eller synkronisere fra FTP/Seedbox.",
                 style = ShelfTypography.BodyMedium,
-                color = Color(0xFFC0B2A6),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                color = LibDim,
+                textAlign = TextAlign.Center
             )
 
             Spacer(Modifier.height(24.dp))
@@ -647,22 +431,24 @@ private fun CleanEmptyState(
             Button(
                 onClick = onFtpClick,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFD4AF37),
-                    contentColor = Color(0xFF1E130D)
+                    containerColor = LibPanel,
+                    contentColor = LibFg
                 ),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(4.dp),
+                elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
                 modifier = Modifier.fillMaxWidth(0.8f)
             ) {
                 Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Synkroniser fra FTP / Seedbox", fontWeight = FontWeight.Bold)
+                Text("Synkroniser fra FTP / Seedbox", fontWeight = FontWeight.Medium)
             }
 
             Spacer(Modifier.height(10.dp))
 
             OutlinedButton(
                 onClick = onImportClick,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(4.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = LibFg),
                 modifier = Modifier.fillMaxWidth(0.8f)
             ) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -695,5 +481,5 @@ private fun defaultRhythmVmFactory(): androidx.lifecycle.ViewModelProvider.Facto
 }
 
 object SampleBooks {
-    val books: List<com.shelf.reader.designsystem.components.BookVisual> = emptyList()
+    val books: List<BookVisual> = emptyList()
 }

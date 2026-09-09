@@ -52,8 +52,21 @@ enum class LibraryFilter(val storage: String) {
     }
 }
 
+/** Locked per destination: Books = kun ebøker, Audio = kun lydbøker. Ingen kryssmodus-filter. */
+sealed class LibraryMode(val filter: LibraryFilter) {
+    data object Books : LibraryMode(LibraryFilter.EBOOKS)
+    data object Audio : LibraryMode(LibraryFilter.AUDIOBOOKS)
+}
+
+/** Tynn fortsett-linje: tittel + prosent (ebok) eller gjenstående tid (lydbok). */
+data class ResumeItem(
+    val bookId: Long,
+    val title: String,
+    val detail: String
+)
+
 data class LibraryUiState(
-    val viewType: LibraryViewType = LibraryViewType.SHELF,
+    val viewType: LibraryViewType = LibraryViewType.GRID,
     val darkMode: DarkModePref = DarkModePref.FOLLOW_SYSTEM,
     val dynamicColors: Boolean = false,
     val query: String = "",
@@ -70,8 +83,8 @@ data class LibraryUiState(
     val inProgressCount: Int = 0,
     val finishedCount: Int = 0,
     val audiobookCount: Int = 0,
-    val libraryFormatFilterEnabled: Boolean = true,
-    val libraryTabCountsEnabled: Boolean = true,
+    val resumeEbook: ResumeItem? = null,
+    val resumeAudio: ResumeItem? = null,
     val error: String? = null
 )
 
@@ -88,8 +101,7 @@ class LibraryViewModel(
     val searchQuery: StateFlow<String> = queryFlow.asStateFlow()
 
     private val sortFlow = MutableStateFlow(LibrarySort.DATE_ADDED)
-    private val filterFlow = MutableStateFlow(LibraryFilter.ALL)
-    private val overrideViewTypeFlow = MutableStateFlow<LibraryViewType?>(null)
+    private val modeFlow = MutableStateFlow<LibraryMode>(LibraryMode.Books)
 
     init {
         viewModelScope.launch(dispatchers.io) {
@@ -113,26 +125,16 @@ class LibraryViewModel(
     val state: StateFlow<LibraryUiState> = combine(
         queryFlow,
         sortFlow,
-        filterFlow,
-        prefs.libraryViewType,
-        overrideViewTypeFlow,
+        modeFlow,
         prefs.darkMode,
-        prefs.dynamicColors,
-        prefs.libraryFormatFilterEnabled,
-        prefs.libraryTabCountsEnabled
+        prefs.dynamicColors
     ) { args ->
-        @Suppress("UNCHECKED_CAST")
-        val prefView = args[3] as LibraryViewType
-        val overrideView = args[4] as LibraryViewType?
         Params(
             query = args[0] as String,
             sort = args[1] as LibrarySort,
-            filter = args[2] as LibraryFilter,
-            view = overrideView ?: prefView,
-            dark = args[5] as DarkModePref,
-            dynamic = args[6] as Boolean,
-            formatFilterEnabled = args[7] as Boolean,
-            tabCountsEnabled = args[8] as Boolean
+            mode = args[2] as LibraryMode,
+            dark = args[3] as DarkModePref,
+            dynamic = args[4] as Boolean
         )
     }
         .flatMapLatest { p -> buildStateFlow(p) }
@@ -143,15 +145,14 @@ class LibraryViewModel(
         )
 
     private data class Params(
-        val query: String, val sort: LibrarySort, val filter: LibraryFilter,
-        val view: LibraryViewType, val dark: DarkModePref, val dynamic: Boolean,
-        val formatFilterEnabled: Boolean, val tabCountsEnabled: Boolean
+        val query: String, val sort: LibrarySort, val mode: LibraryMode,
+        val dark: DarkModePref, val dynamic: Boolean
     )
 
     private fun buildStateFlow(p: Params): Flow<LibraryUiState> =
         combine(
-            booksMatching(p.query, p.sort, p.filter),
-            progressPercents(),
+            booksMatching(p.query, p.sort, p.mode.filter),
+            progressRows(),
             db.bookDao().observeInProgress(),
             db.bookDao().observeFinished(),
             db.bookDao().observeAudiobooks(),
@@ -161,7 +162,7 @@ class LibraryViewModel(
             @Suppress("UNCHECKED_CAST")
             val matching = args[0] as List<BookEntity>
             @Suppress("UNCHECKED_CAST")
-            val prog = args[1] as Map<Long, Float>
+            val rows = args[1] as Map<Long, com.shelf.reader.data.local.entity.ReadingProgressEntity>
             @Suppress("UNCHECKED_CAST")
             val inProg = args[2] as List<BookEntity>
             @Suppress("UNCHECKED_CAST")
@@ -173,7 +174,8 @@ class LibraryViewModel(
             @Suppress("UNCHECKED_CAST")
             val allUnfiltered = args[6] as List<BookEntity>
             val filesDir = getApplication<Application>().filesDir
-            val visual: (BookEntity) -> BookVisual = { toBookVisual(it, prog[it.id], filesDir) }
+            val pct: (Long) -> Float = { rows[it]?.progressPercent ?: 0f }
+            val visual: (BookEntity) -> BookVisual = { toBookVisual(it, pct(it.id), filesDir) }
 
             val totalActive = allUnfiltered.filter { !it.isDeleted }
             val audioActive = audio.filter { !it.isDeleted }
@@ -208,13 +210,33 @@ class LibraryViewModel(
                 }
             }
 
+            // Fortsett-linje: siste påbegynte ebok / lydbok (basert på eksisterende progresjonsdata)
+            val started: (BookEntity) -> Boolean = { b ->
+                val p1 = pct(b.id)
+                (p1 > 0f && p1 < 0.99f) || (rows[b.id]?.positionMs ?: 0L) > 0L
+            }
+            val resumeEbook = totalActive
+                .filter { it.type != BookTypeEntity.AUDIOBOOK && it.dateFinished == null && started(it) }
+                .maxByOrNull { it.lastOpenedAt ?: 0L }
+                ?.let { ResumeItem(it.id, it.title, "${(pct(it.id) * 100).toInt()}%") }
+            val resumeAudio = totalActive
+                .filter { it.type == BookTypeEntity.AUDIOBOOK && it.dateFinished == null && started(it) }
+                .maxByOrNull { rows[it.id]?.updatedAt ?: 0L }
+                ?.let { b ->
+                    val pos = rows[b.id]?.positionMs ?: 0L
+                    val dur = b.durationMs ?: 0L
+                    val remaining = (dur - pos).coerceAtLeast(0L)
+                    val detail = if (remaining > 0L) formatRemaining(remaining) else "${(pct(b.id) * 100).toInt()}%"
+                    ResumeItem(b.id, b.title, detail)
+                }
+
             LibraryUiState(
-                viewType = p.view,
+                viewType = LibraryViewType.GRID,
                 darkMode = p.dark,
                 dynamicColors = p.dynamic,
                 query = p.query,
                 sort = p.sort,
-                filter = p.filter,
+                filter = p.mode.filter,
                 isLoading = false,
                 autoShelves = auto,
                 userShelves = userSh.map { it.first },
@@ -226,8 +248,8 @@ class LibraryViewModel(
                 inProgressCount = inProg.size,
                 finishedCount = fin.size,
                 audiobookCount = abCount,
-                libraryFormatFilterEnabled = p.formatFilterEnabled,
-                libraryTabCountsEnabled = p.tabCountsEnabled
+                resumeEbook = resumeEbook,
+                resumeAudio = resumeAudio
             )
         }
             .catch { emit(LibraryUiState(error = it.message, isLoading = false)) }
@@ -238,9 +260,16 @@ class LibraryViewModel(
         books: List<BookEntity>, mapper: (BookEntity) -> BookVisual
     ) = ShelfRow(id = id, label = label, books = books.map(mapper))
 
-    private fun progressPercents(): Flow<Map<Long, Float>> =
+    private fun formatRemaining(ms: Long): String {
+        val totalMin = ((ms + 59_999) / 60_000).coerceAtLeast(1)
+        val h = totalMin / 60
+        val m = totalMin % 60
+        return if (h > 0) "${h}t ${m}min igjen" else "${m}min igjen"
+    }
+
+    private fun progressRows(): Flow<Map<Long, com.shelf.reader.data.local.entity.ReadingProgressEntity>> =
         db.progressDao().observeAll().map { rows ->
-            rows.associate { it.bookId to it.progressPercent }
+            rows.associate { it.bookId to it }
         }
 
     private fun booksMatching(
@@ -281,12 +310,7 @@ class LibraryViewModel(
 
     fun setQuery(q: String) { queryFlow.value = q.trim() }
     fun setSort(s: LibrarySort) { sortFlow.value = s }
-    fun setFilter(f: LibraryFilter) { filterFlow.value = f }
-
-    fun setViewType(v: LibraryViewType) {
-        overrideViewTypeFlow.value = v
-        viewModelScope.launch(dispatchers.io) { prefs.setLibraryViewType(v) }
-    }
+    fun setMode(m: LibraryMode) { modeFlow.value = m }
 
     fun clearAllBooks() {
         viewModelScope.launch(dispatchers.io) {
