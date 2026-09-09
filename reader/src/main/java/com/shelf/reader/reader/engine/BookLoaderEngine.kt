@@ -30,7 +30,7 @@ private const val TAG = "BookLoaderEngine"
 // (LZ77, charset, record-range, etc.). It is mixed into the cache hash so that
 // previously cached bad conversions are automatically invalidated and reconverted
 // on the next book open — no manual cache clearing needed.
-private const val MOBI_CONVERTER_CACHE_VERSION = 5
+private const val MOBI_CONVERTER_CACHE_VERSION = 6
 
 data class ReaderChapter(
     val index: Int,

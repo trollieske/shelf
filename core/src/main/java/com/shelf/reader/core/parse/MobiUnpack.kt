@@ -252,18 +252,27 @@ object MobiUnpack {
         val textEncoding = bb.int
         val uniqueId = bb.int.toLong() and 0xFFFFFFFFL
         val generatorVersion = bb.int
-        // skip 40 bytes (reserved / fields we don't need)
-        if (rec0.size < mobiIdPos + 92) return defaultMobiHeader()
-        bb.position(mobiIdPos + 4 + 4 + 24) // past: hdrLen, type, encoding, uid, version + 20 bytes
+        // ── FELT-OFFSETS — verifisert mot ekte MOBI-filer ──
+        // firstNonBookIndex @80, fullNameOffset @84, fullNameLength @88, locale @92,
+        // minHtmlVersion @104, huffIdx @112, huffCnt @116, datpIdx @120, datpCnt @124,
+        // exthFlags @128 (rec0-relative; MOBI-relativ = minus mobiIdPos=16).
+        // De gamle offsetene (48..84) pekte på reserverte 0xFFFFFFFF-felter →
+        // firstNonBookIndex ble -1 → tekstrekkevidden falt tilbake til ALLE poster
+        // (inkludert JPEG-bildene) → dekomprimerte bilder dekodet som tekst = GIBBERISH.
+        if (rec0.size < mobiIdPos + 132) return defaultMobiHeader()
+        bb.position(mobiIdPos + 64) // @80
         val firstNonBook = bb.int
-        val fno = bb.int
-        val fnl = bb.int
-        val locale = bb.int
+        val fno = bb.int            // @84
+        val fnl = bb.int            // @88
+        val locale = bb.int         // @92
+        bb.position(mobiIdPos + 88) // @104
         val minHtmlVer = bb.int
+        bb.position(mobiIdPos + 96) // @112
         val huffIdx = bb.int
-        val huffCnt = bb.int
-        val datpIdx = bb.int
-        val datpCnt = bb.int
+        val huffCnt = bb.int        // @116
+        val datpIdx = bb.int        // @120
+        val datpCnt = bb.int        // @124
+        bb.position(mobiIdPos + 112) // @128
         val exthFlags = bb.int
 
         var indxRec = -1
@@ -594,12 +603,32 @@ object MobiUnpack {
         // Count replacement characters quickly for a given string
         fun fffdCount(s: String): Int = s.count { it == '\uFFFD' }
 
+        // Strict UTF-8-dekoding (null erstattningstegn = innholdet ER gyldig UTF-8).
+        val strictUtf8: String? = runCatching {
+            utf8.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                .decode(java.nio.ByteBuffer.wrap(bytes))
+                .toString()
+        }.getOrNull()
+        val hasHighBytes = bytes.any { (it.toInt() and 0xFF) >= 0x80 }
+
         // --- Try declared codec first ---
         val declared = when (codec) {
             CODEC_UTF8    -> bytes.toString(utf8)
             CODEC_CP1252  -> bytes.toString(cp1252)
             CODEC_UTF16BE -> bytes.toString(utf16be)
             else          -> bytes.toString(utf8)
+        }
+
+        // Norsk særbokstav-vern: innhold deklarert som CP1252 som i realiteten ER
+        // gyldig UTF-8 gir mojibake (Ã¦Ã¸Ã¥) UTEN et eneste U+FFFD — FFFD-tellingen
+        // fanger ikke denne retningen. Strict-UTF-8-validering + fravær av C1-kontroll-
+        // tegn (0x80–0x9F, typisk CP1252-anropsrest) avgjør det trygt.
+        if (codec == CODEC_CP1252 && strictUtf8 != null && hasHighBytes &&
+            strictUtf8.none { it in '\u0080'..'\u009F' }
+        ) {
+            return strictUtf8
         }
 
         // If declared codec produced a sane output (no crazy FFFD rate), use it.

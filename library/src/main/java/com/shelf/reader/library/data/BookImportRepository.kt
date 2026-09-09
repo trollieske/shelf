@@ -94,7 +94,7 @@ class BookImportRepository(
     ): List<Long> = withContext(dispatchers.io) {
         val insertedIds = mutableListOf<Long>()
         val audioUris = mutableListOf<Pair<Uri, String>>()
-        val nonAudioUris = mutableListOf<Uri>()
+        val nonAudioUris = mutableListOf<Pair<Uri, String>>()
 
         for (uri in uris) {
             val path = filePathOverride ?: if (uri.scheme == "file") uri.path else null
@@ -113,7 +113,7 @@ class BookImportRepository(
             if (fmt.isAudio) {
                 audioUris.add(uri to name)
             } else {
-                nonAudioUris.add(uri)
+                nonAudioUris.add(uri to name)
             }
         }
 
@@ -136,9 +136,17 @@ class BookImportRepository(
             }
         }
 
-        for (uri in nonAudioUris) {
-            val singleId = importSingleUri(uri, source, serverId, remotePath, filePathOverride)
-            if (singleId > 0L) insertedIds.add(singleId)
+        // Deduplisering: samme bok i flere formater blant de valgte URI-ene —
+        // kun beste format importeres (gruppert per mappe for å unngå falske treff på tvers)
+        val nonAudioByFolder = nonAudioUris.groupBy { (uri, _) ->
+            val path = if (uri.scheme == "file") uri.path else uri.toString()
+            path?.substringBeforeLast('/') ?: "Valgte filer"
+        }
+        for ((_, group) in nonAudioByFolder) {
+            for ((uri, _) in dedupeByBestFormat(group)) {
+                val singleId = importSingleUri(uri, source, serverId, remotePath, filePathOverride)
+                if (singleId > 0L) insertedIds.add(singleId)
+            }
         }
 
         consolidateFragmentedAudiobooks()
@@ -154,8 +162,12 @@ class BookImportRepository(
         filePathOverride: String? = null
     ): Long = withContext(dispatchers.io) {
         try {
-            val (displayName, sizeBytes) = queryDisplayNameAndSize(uri)
-            val format = BookFormat.fromFilename(displayName)
+            val (displayNameRaw, sizeBytesRaw) = queryDisplayNameAndSize(uri)
+            var displayName = displayNameRaw
+            var sizeBytes = sizeBytesRaw
+            var format = BookFormat.fromFilename(displayName)
+            var effectiveUri = uri
+            var effectivePathOverride = filePathOverride
 
             if (format == BookFormat.UNKNOWN) {
                 Log.w(TAG, "Skipping import of '${displayName}' (format=UNKNOWN, not a recognised book/audio file)")
@@ -172,13 +184,32 @@ class BookImportRepository(
                 )
             }
 
-            val persistable = takePersistableUriPermissionSafely(uri)
+            // ── MOBI/AZW/AZW3 konverteres til EPUB VED IMPORT ──
+            // Biblioteket får dermed aldri MOBI-format-oppføringer (ingen formatforvirring),
+            // kapitler/TOC parses fra den konverterte EPUBen med korrekt æøå-tegnkode.
+            // Konvertering som feiler (f.eks. DRM) faller tilbake til originalen.
+            if (format == BookFormat.MOBI || format == BookFormat.AZW || format == BookFormat.AZW3) {
+                val converted = convertMobiToEpubAtImport(uri)
+                if (converted != null) {
+                    val (epubFile, epubSize) = converted
+                    displayName = displayNameRaw.substringBeforeLast('.') + ".epub"
+                    format = BookFormat.EPUB
+                    effectiveUri = Uri.fromFile(epubFile)
+                    effectivePathOverride = epubFile.absolutePath
+                    sizeBytes = epubSize
+                    Log.i(TAG, "[MOBI_IMPORT] Konvertert '$displayNameRaw' -> ${epubFile.name}")
+                } else {
+                    Log.w(TAG, "[MOBI_IMPORT] Konvertering feilet for '$displayNameRaw' — importerer originalen som MOBI")
+                }
+            }
+
+            val persistable = takePersistableUriPermissionSafely(effectiveUri)
             val streamProvider: (suspend () -> java.io.InputStream)? = {
-                ctx.contentResolver.openInputStream(uri)
-                    ?: error("Could not open input stream for $uri")
+                ctx.contentResolver.openInputStream(effectiveUri)
+                    ?: error("Could not open input stream for $effectiveUri")
             }
             val parser = getParserFor(format)
-            val meta = parser.parse(ctx, uri, displayName, sizeBytes, streamProvider)
+            val meta = parser.parse(ctx, effectiveUri, displayName, sizeBytes, streamProvider)
             val nameNoExt = filenameWithoutExtension(displayName)
             // Parse filename for author/title/series clues — many release groups tag filenames
             // better than the actual EPUB OPF metadata (e.g. "[Herbert, Dune 005, Messiah]" format).
@@ -204,7 +235,7 @@ class BookImportRepository(
             val series = (if (hasMetaSeries) meta!!.series else null) ?: parsed.series
             val seriesIndex = (if (hasMetaSeriesIndex) meta!!.seriesIndex else null) ?: parsed.seriesIndex
             val formatEntity = coreFormatToEntity(format)
-            val path = filePathOverride ?: if (uri.scheme == "file") uri.path else null
+            val path = effectivePathOverride ?: if (effectiveUri.scheme == "file") effectiveUri.path else null
 
             val chaptersJson = meta?.chapters?.let { list ->
                 val arr = JSONArray()
@@ -243,7 +274,7 @@ class BookImportRepository(
                 isbn = meta?.isbn,
                 type = BookTypeEntity.EBOOK,
                 format = formatEntity,
-                fileUri = uri.toString(),
+                fileUri = effectiveUri.toString(),
                 fileSizeBytes = sizeBytes,
                 persistableUriPermission = persistable,
                 importSource = source,
@@ -263,6 +294,29 @@ class BookImportRepository(
             val savedBook = unsaved.copy(id = bookId)
 
             Log.i(TAG, "[CREATE_EBOOK] id=$bookId title='$title' author='$author' format=$formatEntity path=$path")
+
+            // Konvertert MOBI → EPUB: fjern eventuell gammel MOBI-oppføring på samme
+            // opprinnelige filsti slik at ikke duplikatformatet blir liggende i listen.
+            val wasConvertedFromMobiFamily = formatEntity == com.shelf.reader.data.local.entity.FormatEntity.EPUB &&
+                displayNameRaw.substringAfterLast('.', "").lowercase() in setOf("mobi", "azw", "azw3")
+            if (wasConvertedFromMobiFamily) {
+                val originalPath = if (uri.scheme == "file") uri.path
+                    else filePathOverride
+                if (originalPath != null) {
+                    runCatching {
+                        db.bookDao().getByPath(originalPath)?.let { old ->
+                            if (old.id != bookId && old.format in listOf(
+                                    com.shelf.reader.data.local.entity.FormatEntity.MOBI,
+                                    com.shelf.reader.data.local.entity.FormatEntity.AZW,
+                                    com.shelf.reader.data.local.entity.FormatEntity.AZW3)
+                            ) {
+                                db.bookDao().softDelete(old.id)
+                                Log.i(TAG, "[MOBI_IMPORT] Gammel MOBI-oppføring id=${old.id} erstattet av EPUB id=$bookId")
+                            }
+                        }
+                    }
+                }
+            }
 
             val coverRepo = com.shelf.reader.library.cover.CoverRepository(ctx, db, dispatchers)
             coverRepo.coverFileFor(savedBook)
@@ -678,6 +732,64 @@ class BookImportRepository(
         successCount
     }
 
+    /**
+     * Konverterer en MOBI/AZW/AZW3-fil til EPUB ved import (MobiUnpack, korrekt
+     * tegnkode — æøå). Resultatet caches på innholdshash så re-import er billig.
+     * Returnerer null hvis konvertering ikke var mulig (DRM, ukjent kompresjon …).
+     */
+    private fun convertMobiToEpubAtImport(uri: Uri): Pair<java.io.File, Long>? = runCatching {
+        val bytes = ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            ?: return@runCatching null
+        if (bytes.size < 128) return@runCatching null
+        val hash = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(bytes).joinToString("") { "%02x".format(it) }.take(24)
+        val out = java.io.File(java.io.File(ctx.filesDir, "converted"), "mobi_$hash.epub")
+        if (!out.exists() || out.length() < 64L) {
+            out.parentFile?.mkdirs()
+            com.shelf.reader.core.parse.MobiUnpack.convertToEpub(bytes, out)
+        }
+        Pair(out, out.length())
+    }.getOrNull()
+
+    /**
+     * Bok-identitet for format-deduplisering innen samme mappe:
+     * filnavn uten utvidelse, uten parenteser/klammer (f.eks. "(v5.0)"),
+     * uten tegnsetting — slik at "Bok (v5.0).mobi" og "Bok.epub" grupperes sammen.
+     */
+    private fun bookIdentityKey(filename: String): String =
+        filename.substringBeforeLast('.')
+            .lowercase()
+            .replace(Regex("""\([^)]*\)"""), " ")
+            .replace(Regex("""\[[^\]]*\]"""), " ")
+            .replace(Regex("[^a-z0-9\u00E6\u00F8\u00E5]+"), " ")
+            .trim()
+
+    /** Import-prioritet: lavest vinner. EPUB > MOBI/AZW (konverteres) > FB2 > PDF > CBZ/CBR > DOCX/RTF/HTML > MD > TXT. */
+    private fun formatImportPriority(f: BookFormat): Int = when (f) {
+        BookFormat.EPUB -> 0
+        BookFormat.MOBI, BookFormat.AZW, BookFormat.AZW3 -> 1
+        BookFormat.FB2 -> 2
+        BookFormat.PDF -> 3
+        BookFormat.CBZ, BookFormat.CBR -> 4
+        BookFormat.DOCX, BookFormat.RTF, BookFormat.HTML -> 5
+        BookFormat.MD -> 6
+        BookFormat.TXT -> 7
+        else -> 9
+    }
+
+    /** Beholder kun beste format per bok-identitet i gruppen. */
+    private fun <T> dedupeByBestFormat(
+        files: List<Pair<T, String>>
+    ): List<Pair<T, String>> = files
+        .groupBy { (_, name) -> bookIdentityKey(name) }
+        .mapValues { (_, group) ->
+            group.minByOrNull { (_, name) ->
+                formatImportPriority(BookFormat.fromFilename(name)) * 10_000 + name.hashCode()
+            }!!
+        }
+        .values
+        .toList()
+
     suspend fun importFolderTree(treeUri: Uri): Int = withContext(dispatchers.io) {
         var totalImported = 0
         try {
@@ -751,8 +863,9 @@ class BookImportRepository(
             if (abId > 0L) count++
         }
 
-        // Import each ebook individually
-        for ((uri, _) in ebooksHere) {
+        // Import each ebook individually — samme bok i flere formater: kun beste format
+        // (EPUB > MOBI/AZW > FB2 > PDF > CBZ/CBR > DOCX/RTF > TXT)
+        for ((uri, _) in dedupeByBestFormat(ebooksHere)) {
             val id = importSingleUri(uri, ImportSourceEntity.FOLDER_IMPORT)
             if (id > 0L) count++
         }
@@ -816,9 +929,12 @@ class BookImportRepository(
             }
         }
 
-        for (f in nonAudioFiles) {
-            val fmt = BookFormat.fromFilename(f.name)
-            if (fmt != BookFormat.UNKNOWN && fmt != BookFormat.ZIP) {
+        // Ebøker grupperes per mappe og dedupliseres på format (kun beste format per bok)
+        val ebooksByFolder = nonAudioFiles
+            .filter { BookFormat.fromFilename(it.name) != BookFormat.UNKNOWN && BookFormat.fromFilename(it.name) != BookFormat.ZIP }
+            .groupBy { it.parentFile?.absolutePath ?: "" }
+        for ((_, folderFiles) in ebooksByFolder) {
+            for (f in dedupeByBestFormat(folderFiles.map { it to it.name }).map { it.first }) {
                 val uri = Uri.fromFile(f)
                 val id = importSingleUri(uri, source, serverId, remotePath, f.absolutePath)
                 if (id > 0L) insertedIds.add(id)
