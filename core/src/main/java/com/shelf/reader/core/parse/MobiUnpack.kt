@@ -728,7 +728,7 @@ object MobiUnpack {
                 prev = s
             } else if (chunks.isNotEmpty()) {
                 // Merge small split into previous chunk (expand previous end to s)
-                val last = chunks.removeLast()
+                val last = chunks.removeAt(chunks.size - 1)
                 chunks.add(last.first to s)
                 prev = s
             }
