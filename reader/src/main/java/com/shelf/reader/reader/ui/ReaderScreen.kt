@@ -71,6 +71,7 @@ import com.shelf.reader.reader.engine.ReaderBookState
 import com.shelf.reader.reader.pageturn.*
 import com.shelf.reader.reader.viewmodel.ReaderViewModel
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 
@@ -831,11 +832,27 @@ private fun RealBookSlideReader(
         }
     }
 
+    /** Forhåndsrender side [page] i kapittel [ch] hvis den ikke allerede er cachet. */
+    suspend fun renderAhead(ch: Int, page: Int) {
+        val key = cacheKey(ch, page)
+        if (cache.getSync(key) != null) return
+        val bmp = runCatching { rendererFor(ch).renderPage(page) }.getOrNull() ?: return
+        if (isUsableBitmap(bmp)) {
+            cache.put(key, bmp!!)
+            cacheGeneration.intValue++
+        }
+    }
+
     // ── ÉN hovedløkke: siderapportering, prefetch og kant-commits ────────────
     LaunchedEffect(chapIdx, chapterPages, hasNext, hasPrev) {
         var lastReported = -1
         var armed = false
         snapshotFlow { Triple(curlState.current, cacheGeneration.value, leadingExtra) }.collect { (cur, _, shift) ->
+            // Instance-guard: denne collector-forekomsten er kun autoritativ for KAPITTELET
+            // den ble armet med. Etter et kapittelhopp kan en gammel instans få en emisjon
+            // (curl posisjonssnappet av reset-effekten) før den kanselleres — uten denne
+            // vernet firedobler den hoppen (frem → tilbake → frem) og gir kapittelflimmer.
+            if (updatedUi.currentChapterIndex != chapIdx) return@collect
             curlDiag("cur=$cur ch=$chapIdx P=$chapterPages count=${chapterPages + (if (trailingExtra) 1 else 0) + (if (leadingExtra) 1 else 0)} trail=$trailingExtra lead=$leadingExtra commit=$committing")
             val real = cur - if (shift) 1 else 0
             val onForwardSentinel = trailingExtra && cur == chapterPages
@@ -864,6 +881,9 @@ private fun RealBookSlideReader(
                     if (hasPrev && real <= 1) {
                         scope.launch { runCatching { prefetchNeighbor(chapIdx - 1, null) } }
                     }
+                    // Render de neste to sidene foran — hindrer spinner-glitch ved rask blading.
+                    if (real + 1 < chapterPages) scope.launch { runCatching { renderAhead(chapIdx, real + 1) } }
+                    if (real + 2 < chapterPages) scope.launch { runCatching { renderAhead(chapIdx, real + 2) } }
                 }
                 onForwardSentinel && !committing -> {
                     if (nextEdgeReady()) {
@@ -920,10 +940,21 @@ private fun RealBookSlideReader(
         }
     }
 
-    // ── Posisjonssynk: VM-side → curl-indeks (ingen leadingOffset-kamp) ──────
+    // ── Posisjonssynk: VM-side → curl-indeks ─────────────────────────────────
+    // Krøllen er autoritativ ved normal lesing: curlState ligger typisk ±1 foran
+    // VM (VM oppdateres fra curl-collectoren). Snap KUN ved ekte hopp (≥2 siders
+    // avvik, f.eks. innholdsfortegnelse/gjenoppretting) og aldri midt i en gest —
+    // ellers snapper synken tilbake til en gammel VM-verdi og dreier krøllen
+    // (sidehopp/glitch ved rask blading).
     LaunchedEffect(ui.currentPage, curlCount, leadingExtra) {
         val target = ui.currentPage.coerceAtLeast(0) + if (leadingExtra) 1 else 0
-        if (curlCount > 0 && curlState.current != target) {
+        if (curlCount <= 0) return@LaunchedEffect
+        if (curlState.current == target) return@LaunchedEffect
+        delay(300) // la pågående krøll/drag fullføre og colatoren rapportere
+        val now = curlState.current
+        if (now == target) return@LaunchedEffect
+        if (kotlin.math.abs(now - target) > 1) {
+            curlDiag("SYNC snap cur=$now -> target=$target (ekte hopp)")
             curlState.snapTo(target.coerceIn(0, curlCount - 1))
         }
     }
