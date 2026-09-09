@@ -1,6 +1,7 @@
 package com.shelf.reader.reader.ui
 
 import android.app.Activity
+import android.util.Log
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.animation.*
@@ -40,17 +41,11 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.animation.core.InfiniteTransition
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalConfiguration
@@ -78,6 +73,10 @@ import com.shelf.reader.reader.viewmodel.ReaderViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
+
+// Fokusert diagnostikk for kant-krøllen (slås AV i endelig kode).
+private const val CURL_DIAG = false
+private fun curlDiag(msg: String) { if (CURL_DIAG) Log.d("CurlDiag", msg) }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -706,6 +705,10 @@ private fun RealBookSlideReader(
         committing = false
         leadingExtra = false
         trailingExtra = false
+        // Synk curl til VM-siden FØR hovedløkken armer — forhindrer at forrige
+        // kapittels curl-indeks tolkes med det nye kapittelets sidetall.
+        curlState.snapTo(ui.currentPage.coerceAtLeast(0))
+        curlDiag("CHAP ch=$chapIdx side=${ui.currentPage + 1}/${chapterPages.coerceAtLeast(1)}")
     }
 
     val curlCount = chapterPages + (if (trailingExtra) 1 else 0) + (if (leadingExtra) 1 else 0)
@@ -747,7 +750,11 @@ private fun RealBookSlideReader(
         val key = cacheKey(chapter, p)
         if (cache.getSync(key) != null) return
         val bmp = runCatching { rendererFor(chapter).renderPage(p) }.getOrNull()
-        if (isUsableBitmap(bmp)) cache.put(key, bmp!!)
+        if (isUsableBitmap(bmp)) {
+            cache.put(key, bmp!!)
+            cacheGeneration.intValue++
+            curlDiag("PREFETCH put key=$key gen=${cacheGeneration.intValue} (ch=$chapter page=$p pages=$count)")
+        }
     }
 
     // Klargjør nåværende kapittel. NB: ingen cache.clear() her — den hører hjemme
@@ -755,6 +762,7 @@ private fun RealBookSlideReader(
     LaunchedEffect(chapIdx, fontKey, sizeKey) {
         if (chapterCount == 0) return@LaunchedEffect
         val count = prepareChapter(chapIdx)
+        curlDiag("PREPARE ch=$chapIdx pages=$count")
         if (count > 0 && chapIdx == updatedUi.currentChapterIndex) onTotalPages(count)
     }
 
@@ -794,6 +802,8 @@ private fun RealBookSlideReader(
                 val bmp = runCatching { rendererFor(target.first).renderPage(target.second) }.getOrNull()
                 if (isUsableBitmap(bmp)) {
                     cache.put(key, bmp!!)
+                    cacheGeneration.intValue++
+                    curlDiag("RENDER put key=$key gen=${cacheGeneration.intValue}")
                     bitmap = bmp
                 }
             }
@@ -824,10 +834,22 @@ private fun RealBookSlideReader(
     // ── ÉN hovedløkke: siderapportering, prefetch og kant-commits ────────────
     LaunchedEffect(chapIdx, chapterPages, hasNext, hasPrev) {
         var lastReported = -1
+        var armed = false
         snapshotFlow { Triple(curlState.current, cacheGeneration.value, leadingExtra) }.collect { (cur, _, shift) ->
+            curlDiag("cur=$cur ch=$chapIdx P=$chapterPages count=${chapterPages + (if (trailingExtra) 1 else 0) + (if (leadingExtra) 1 else 0)} trail=$trailingExtra lead=$leadingExtra commit=$committing")
             val real = cur - if (shift) 1 else 0
             val onForwardSentinel = trailingExtra && cur == chapterPages
             val onBackwardSentinel = leadingExtra && cur == 0
+
+            // Etter et kapittelhopp: ignorér én emisjon av gammel curl-indeks til
+            // posisjonssynken har landet på VM-siden (hindrer tolkning med gammel P).
+            if (!armed) {
+                if (real == updatedUi.currentPage && cur <= chapterPages) {
+                    armed = true
+                    lastReported = real
+                }
+                return@collect
+            }
 
             when {
                 !onForwardSentinel && !onBackwardSentinel && real in 0 until chapterPages -> {
@@ -846,20 +868,20 @@ private fun RealBookSlideReader(
                 onForwardSentinel && !committing -> {
                     if (nextEdgeReady()) {
                         committing = true
+                        curlDiag("JUMP frem -> ch=${chapIdx + 1} page=0 (landet på sentinelindeks $cur)")
                         updatedJump(chapIdx + 1, 0, 0f)
-                    } else {
-                        // Bitmap forsvant (LRU-eviction): bli på reell siste side.
-                        curlState.snapTo((chapterPages - 1).coerceAtLeast(0))
                     }
+                    // Ikke klar → ingen hopp, ingen flash: count krymper (extra fjernes)
+                    // og brukeren står igjen på reell siste side.
                 }
                 onBackwardSentinel && !committing -> {
                     if (prevEdgeReady()) {
                         val pc = prepared[chapIdx - 1] ?: 0
                         committing = true
+                        curlDiag("JUMP tilbake -> ch=${chapIdx - 1} page=${pc - 1}")
                         updatedJump(chapIdx - 1, (pc - 1).coerceAtLeast(0), 1f)
-                    } else {
-                        curlState.snapTo(0)
                     }
+                    // Ikke klar → skift-effekten fjerner ekstrasiden; brukeren står på side 1.
                 }
             }
         }
@@ -870,7 +892,7 @@ private fun RealBookSlideReader(
     LaunchedEffect(hasPrev, chapIdx) {
         snapshotFlow { Pair(curlState.current, cacheGeneration.value) }.collect { (cur, _) ->
             if (!hasPrev || !prevEdgeReady()) {
-                if (leadingExtra && cur == 1) {
+                if (leadingExtra) {
                     leadingExtra = false
                     curlState.snapTo(0)
                 }
@@ -888,10 +910,13 @@ private fun RealBookSlideReader(
     }
 
     // Fremover-ekstraside: på plass bare når vi står på siste reelle side og neste kant er klar.
-    LaunchedEffect(chapterPages) {
+    LaunchedEffect(chapIdx, chapterPages) {
         snapshotFlow { Pair(curlState.current, cacheGeneration.value) }.collect { (cur, _) ->
             val want = hasNext && nextEdgeReady() && cur >= chapterPages - 1 && cur <= chapterPages
-            if (trailingExtra != want) trailingExtra = want
+            if (trailingExtra != want) {
+                trailingExtra = want
+                curlDiag("EDGE trailingExtra=$want count=${chapterPages + (if (want) 1 else 0)} (next kant ${if (nextEdgeReady()) "klar" else "ikke klar"})")
+            }
         }
     }
 
@@ -902,12 +927,6 @@ private fun RealBookSlideReader(
             curlState.snapTo(target.coerceIn(0, curlCount - 1))
         }
     }
-
-    val infinitePulse: InfiniteTransition = rememberInfiniteTransition(label = "edge-pulse")
-    val pulseAlpha by infinitePulse.animateFloat(
-        initialValue = 0.12f, targetValue = 0.5f,
-        animationSpec = infiniteRepeatable(tween(1400), RepeatMode.Reverse), label = "pulse-alpha"
-    )
 
     val pageCurlConfig = rememberPageCurlConfig(
         backPageColor = paperColor,
@@ -929,8 +948,6 @@ private fun RealBookSlideReader(
             false
         }
     )
-
-    val realNow = curlState.current - if (leadingExtra) 1 else 0
 
     Box(Modifier.fillMaxSize().background(paperColor)) {
         // lastGood under PageCurl: bakgrunnen er ALLITID papir med innhold — aldri svart.
@@ -958,40 +975,6 @@ private fun RealBookSlideReader(
                 modifier = Modifier.fillMaxSize()
             ) { pageIdx ->
                 CurlPageContent(pageIdx)
-            }
-
-            // ── Kapittelkant indikator (puls ved kanten, 65dp) ─
-            if (realNow == 0 && hasPrev) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .drawWithContent {
-                            drawContent()
-                            drawRect(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(Color.Black.copy(alpha = pulseAlpha), Color.Transparent),
-                                    startX = 0f,
-                                    endX = with(density) { 65.dp.toPx() }
-                                )
-                            )
-                        }
-                )
-            }
-            if (realNow == chapterPages - 1 && hasNext) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .drawWithContent {
-                            drawContent()
-                            drawRect(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = pulseAlpha)),
-                                    startX = size.width - with(density) { 65.dp.toPx() },
-                                    endX = size.width
-                                )
-                            )
-                        }
-                )
             }
 
             if (showControls) {
