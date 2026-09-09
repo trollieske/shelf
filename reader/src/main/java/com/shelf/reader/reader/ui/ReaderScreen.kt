@@ -66,11 +66,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.shelf.reader.reader.engine.HtmlPageRenderer
+import com.shelf.reader.reader.engine.RenderCoordinator
 import com.shelf.reader.reader.engine.PageBitmapCache
 import com.shelf.reader.reader.engine.ReaderBookState
 import com.shelf.reader.reader.pageturn.*
 import com.shelf.reader.reader.viewmodel.ReaderViewModel
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
@@ -105,6 +109,11 @@ fun ReaderScreen(
     val tracker = remember {
         (context.applicationContext as com.shelf.reader.core.di.AppDependenciesProvider).readingTracker
     }
+
+    // Navigasjons-epoke: økes KUN ved eksterne navigasjonshendelser (TOC-valg,
+    // gjenoppretting etter klargjøring, font/tema-endring). Vanlige sidevendinger
+    // endrer den aldri — CurlState forblir autoritativ under lesing.
+    var navEpoch by remember { mutableStateOf(0) }
 
     LaunchedEffect(bookId) {
         tracker.startSession(bookId.toString(), com.shelf.reader.core.gamification.model.SessionSource.READER)
@@ -151,14 +160,11 @@ fun ReaderScreen(
                 Box(Modifier.fillMaxSize().background(bgC)) {
                     RealBookSlideReader(
                         ui = ui,
+                        navEpoch = navEpoch,
                         showControls = showControls,
                         onToggleControls = { showControls = !showControls; if (!showControls) showContentsSheet = false; tracker.onUserInteraction() },
                         onPageTurned = { vm.onPageTurned(it); tracker.onUserInteraction() },
-                        onTotalPages = { vm.onPageCountKnown(it) },
-                        onJumpToChapterPage = { ch, page, pct ->
-                            vm.jumpToChapterPage(ch, page, pct)
-                            tracker.onUserInteraction()
-                        },
+                        onTotalPages = { vm.onPageCountKnown(it); navEpoch++ },
                         onHighlight = { hl -> vm.saveHighlight(hl.text, hl.colorInt, hl.pageIndex, hl.startPageOffset, hl.endPageOffset) }
                     )
                 }
@@ -452,9 +458,9 @@ fun ReaderScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         Text("Font Size", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            FilledTonalIconButton(onClick = { vm.setFontSize(ui.fontSizeSp - 1) }, modifier = Modifier.size(42.dp)) { Text("A-", fontSize = 11.sp) }
+                            FilledTonalIconButton(onClick = { vm.setFontSize(ui.fontSizeSp - 1); navEpoch++ }, modifier = Modifier.size(42.dp)) { Text("A-", fontSize = 11.sp) }
                             Text("${ui.fontSizeSp} sp", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-                            FilledTonalIconButton(onClick = { vm.setFontSize(ui.fontSizeSp + 1) }, modifier = Modifier.size(42.dp)) { Text("A+", fontSize = 14.sp) }
+                            FilledTonalIconButton(onClick = { vm.setFontSize(ui.fontSizeSp + 1); navEpoch++ }, modifier = Modifier.size(42.dp)) { Text("A+", fontSize = 14.sp) }
                         }
                         Spacer(Modifier.height(6.dp))
                         Text("Theme", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -462,7 +468,7 @@ fun ReaderScreen(
                             listOf("Light", "Sepia", "Dark", "Black").forEach { theme ->
                                 val isSelected = ui.readerTheme.equals(theme, ignoreCase = true)
                                 Surface(
-                                    onClick = { vm.setTheme(theme.lowercase()) },
+                                    onClick = { vm.setTheme(theme.lowercase()); navEpoch++ },
                                     shape = RoundedCornerShape(14.dp),
                                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                                     modifier = Modifier.height(40.dp).weight(1f)
@@ -530,6 +536,7 @@ fun ReaderScreen(
                         Surface(
                             onClick = {
                                 vm.setCurrentChapter(idx)
+                                navEpoch++
                                 scope.launch { sheetState.hide(); showContentsSheet = false }
                             },
                             color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
@@ -615,15 +622,33 @@ fun ReaderScreen(
     }
 }
 
+/** Avvis gjenvunnet, feil størrelse, gjennomsiktig eller ellers ugyldig bitmap. */
+private fun isUsableRenderBitmap(b: Bitmap): Boolean {
+    if (b.isRecycled || b.width < 2 || b.height < 2) return false
+    val w = b.width
+    val h = b.height
+    val samples = listOf(
+        intArrayOf(1, 1), intArrayOf(w / 2, h / 2), intArrayOf(w - 2, h - 2), intArrayOf(w / 2, 1)
+    )
+    var first = 0
+    var transparent = 0
+    samples.forEachIndexed { i, pt ->
+        val c = runCatching { b.getPixel(pt[0], pt[1]) }.getOrElse { return false }
+        if (i == 0) first = c else if (c != first) return true
+        if ((c ushr 24) == 0) transparent++
+    }
+    return transparent != samples.size
+}
+
 @OptIn(ExperimentalPageCurlApi::class)
 @Composable
 private fun RealBookSlideReader(
     ui: ReaderBookState,
+    navEpoch: Int,
     showControls: Boolean,
     onToggleControls: () -> Unit,
     onPageTurned: (Int) -> Unit,
     onTotalPages: (Int) -> Unit,
-    onJumpToChapterPage: (Int, Int, Float) -> Unit,
     onHighlight: (com.shelf.reader.reader.engine.HighlightData) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -633,24 +658,20 @@ private fun RealBookSlideReader(
     val shPx = with(density) { configuration.screenHeightDp.dp.toPx() }.toInt()
 
     val effectiveWidthPx = swPx - with(density) { 32.dp.toPx() }.toInt() * 2
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // INDEKSMODELL (norm):
-    //   curlCount == P   (P = reelle sider i DETTE kapittelet, indeks 0 = side 1)
-    //   Ekstraside (indeks P) finnes KUN når brukeren står på siste side OG neste
-    //   kapittels side 1 allerede ligger i cachen. Bakover-kant: speilvendt skift
-    //   (+1) KUN når brukeren står på side 1 OG forrige kapittels siste side er
-    //   cachet. Ingen fantomsider, ingen tom indeks 0.
-    // ─────────────────────────────────────────────────────────────────────────
     val sizeKey = "$effectiveWidthPx-$shPx"
     val fontKey = "${ui.fontSizeSp}-${ui.readerTheme}"
+    val configKey = "$fontKey-$sizeKey"
 
-    // Én WebView-renderer per kapittel (hovedkapittel + naboer til kant-forhåndstegning).
+    val chapters = ui.chapters
+    val chapterCount = chapters.size
+    val chapIdx = ui.currentChapterIndex.coerceIn(0, (chapterCount - 1).coerceAtLeast(0))
+
+    // Én WebView-renderer per kapittel — eierskap håndheves av RenderCoordinator.
     val renderers = remember(effectiveWidthPx, shPx) {
         java.util.concurrent.ConcurrentHashMap<Int, HtmlPageRenderer>()
     }
-    fun rendererFor(chapter: Int): HtmlPageRenderer =
-        renderers.getOrPut(chapter) { HtmlPageRenderer(context, effectiveWidthPx, shPx, onHighlight) }
+    fun rendererFor(ch: Int): HtmlPageRenderer =
+        renderers.getOrPut(ch) { HtmlPageRenderer(context, effectiveWidthPx, shPx, onHighlight) }
     DisposableEffect(effectiveWidthPx, shPx) {
         onDispose {
             renderers.values.forEach { it.release() }
@@ -658,304 +679,119 @@ private fun RealBookSlideReader(
         }
     }
 
-    // Kapittelnøklet bitmap-cache ("c<kap>p<side>"). Tømmes KUN ved font/tema/størrelse —
-    // ALDRI ved kapittelbytte (kant-bitmaps og neste kapittels side 1 skal overleve).
+    // Bitmap-cache: nøkler "c<kap>p<side>". Tømmes kun ved font/tema/størrelse.
     val cache = remember(effectiveWidthPx, shPx) { PageBitmapCache(maxSize = 14) }
-
-    // Kapittel → kjent sidetall. observable slik at count følger med under kapittelbytte.
-    val prepared = remember(effectiveWidthPx, shPx) { mutableStateMapOf<Int, Int>() }
     val lastKnownPages = remember(effectiveWidthPx, shPx) { mutableIntStateOf(1) }
+    val prepared = remember(effectiveWidthPx, shPx) { mutableStateMapOf<Int, Int>() }
 
-    val chapters = ui.chapters
-    val chapterCount = chapters.size
-    val chapIdx = ui.currentChapterIndex.coerceIn(0, (chapterCount - 1).coerceAtLeast(0))
-    val hasPrev = chapIdx > 0
-    val hasNext = chapIdx < chapterCount - 1
+    // ── Render-koordinator: enkelt-eierskap, dedup på nøkkel, spesulativ lav prio ──
+    val coordinatorScope = remember(effectiveWidthPx, shPx) {
+        CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    }
+    DisposableEffect(effectiveWidthPx, shPx) {
+        onDispose { coordinatorScope.cancel() }
+    }
+    val coordinator = remember(effectiveWidthPx, shPx) {
+        RenderCoordinator<Bitmap>(
+            scope = coordinatorScope,
+            isUsable = ::isUsableRenderBitmap,
+            onRendered = { _, key, bmp ->
+                cache.put(key, bmp)
+            },
+        )
+    }
 
-    // Sidetall for dette kapittelet: kjent fra klargjøring (også nabokapitler),
-    // ellers VM-verdien, ellers sist kjente. Gir korrekt count umiddelbart etter hopp.
+    // Sidetall for dette kapittelet: kjent fra klargjøring vinner (aldri forrige
+    // kapittels stale totalPages), ellers VM, ellers sist kjente.
+    if (ui.totalPages > 0) lastKnownPages.intValue = ui.totalPages
     val chapterPages = prepared[chapIdx]
         ?: ui.totalPages.takeIf { it > 0 }
         ?: lastKnownPages.intValue
-    if (ui.totalPages > 0) lastKnownPages.intValue = ui.totalPages
+    val curlCount = chapterPages.coerceAtLeast(0)
 
     fun cacheKey(ch: Int, page: Int) = "c${ch}p${page}"
-
-    // Bumpes når en kant-bitmap legges i cachen — gjør kant-klarhet observerbar.
-    val cacheGeneration = remember { mutableIntStateOf(0) }
-    fun nextEdgeReady(): Boolean = cacheGeneration.value >= 0 &&
-        cache.getSync(cacheKey(chapIdx + 1, 0)) != null
-    fun prevEdgeReady(): Boolean {
-        cacheGeneration.value
-        val pc = prepared[chapIdx - 1]
-        return pc != null && pc > 0 && cache.getSync(cacheKey(chapIdx - 1, pc - 1)) != null
-    }
+    fun coordKey(ch: Int, page: Int) = "$ch|$page|$configKey"
 
     val curlState = rememberPageCurlState(initialCurrent = 0)
-    val scope = rememberCoroutineScope()
     val updatedUi by rememberUpdatedState(ui)
-    val updatedJump by rememberUpdatedState(onJumpToChapterPage)
     val updatedToggleControls by rememberUpdatedState(onToggleControls)
 
-    // Bakover-skift: +1-forskyvning KUN mens vi står på reell side 1 med forrige kant klar.
-    var leadingExtra by remember { mutableStateOf(false) }
-    // Fremover-ekstraside: +1 på slutten KUN mens vi står på siste side med neste kant klar.
-    var trailingExtra by remember { mutableStateOf(false) }
-    var committing by remember { mutableStateOf(false) }
-    LaunchedEffect(chapIdx) {
-        committing = false
-        leadingExtra = false
-        trailingExtra = false
-        // Synk curl til VM-siden FØR hovedløkken armer — forhindrer at forrige
-        // kapittels curl-indeks tolkes med det nye kapittelets sidetall.
-        curlState.snapTo(ui.currentPage.coerceAtLeast(0))
-        curlDiag("CHAP ch=$chapIdx side=${ui.currentPage + 1}/${chapterPages.coerceAtLeast(1)}")
-    }
-
-    val curlCount = chapterPages + (if (trailingExtra) 1 else 0) + (if (leadingExtra) 1 else 0)
-
-    fun realPageOf(curlIdx: Int): Int = curlIdx - if (leadingExtra) 1 else 0
-
-    /** Avvis tomme/gjennomsiktige bitmapmer (renderer-timeout gir ARGB-0). */
-    fun isUsableBitmap(b: Bitmap?): Boolean {
-        if (b == null || b.isRecycled || b.width < 2 || b.height < 2) return false
-        val w = b.width; val h = b.height
-        val samples = listOf(intArrayOf(1, 1), intArrayOf(w / 2, h / 2), intArrayOf(w - 2, h - 2), intArrayOf(w / 2, 1))
-        var first = 0
-        var transparent = 0
-        samples.forEachIndexed { i, pt ->
-            val c = runCatching { b.getPixel(pt[0], pt[1]) }.getOrElse { return false }
-            if (i == 0) first = c else if (c != first) return true
-            if ((c ushr 24) == 0) transparent++
-        }
-        return transparent != samples.size
-    }
-
-    // Klargjør et kapittel i sin egen renderer (idempotent, observert via prepared).
+    /** Klargjør kapittel i sin renderer — gjennom koordinatorens eier-lås. */
     suspend fun prepareChapter(ch: Int): Int {
         prepared[ch]?.let { return it }
         if (ch < 0 || ch >= chapterCount) return 0
-        val r = rendererFor(ch)
-        val count = runCatching {
-            r.prepare(chapters[ch].htmlContent, updatedUi.fontSizeSp, readerThemeColors(updatedUi.readerTheme))
-        }.getOrDefault(0)
-        if (count > 0) prepared[ch] = count
-        return count
-    }
-
-    /** Forhåndstegn kant-siden til naborapittelet. Avviser tomme bitmapmer. */
-    suspend fun prefetchNeighbor(chapter: Int, page: Int?) {
-        val count = prepareChapter(chapter)
-        if (count <= 0) return
-        val p = (page ?: count - 1).coerceIn(0, count - 1)
-        val key = cacheKey(chapter, p)
-        if (cache.getSync(key) != null) return
-        val bmp = runCatching { rendererFor(chapter).renderPage(p) }.getOrNull()
-        if (isUsableBitmap(bmp)) {
-            cache.put(key, bmp!!)
-            cacheGeneration.intValue++
-            curlDiag("PREFETCH put key=$key gen=${cacheGeneration.intValue} (ch=$chapter page=$p pages=$count)")
+        return coordinator.withOwner(ch) {
+            val count = runCatching {
+                rendererFor(ch).prepare(chapters[ch].htmlContent, updatedUi.fontSizeSp, readerThemeColors(updatedUi.readerTheme))
+            }.getOrDefault(0)
+            if (count > 0) prepared[ch] = count
+            count
         }
     }
 
-    // Klargjør nåværende kapittel. NB: ingen cache.clear() her — den hører hjemme
-    // hos font/tema/størrelse ALENE (kapittelbytte skal aldri tømme cachen).
+    // Klargjør nåværende kapittel (font/tema/størrelse re-klargjør).
     LaunchedEffect(chapIdx, fontKey, sizeKey) {
         if (chapterCount == 0) return@LaunchedEffect
+        coordinator.cancelSpeculative()
         val count = prepareChapter(chapIdx)
         curlDiag("PREPARE ch=$chapIdx pages=$count")
         if (count > 0 && chapIdx == updatedUi.currentChapterIndex) onTotalPages(count)
     }
 
-    // Full re-render KUN ved font/tema/størrelse — aldri ved kapittelbytte.
+    // Full re-render kun ved font/tema/størrelse.
     LaunchedEffect(fontKey, sizeKey) {
         cache.clear()
         prepared.clear()
-        leadingExtra = false
-        trailingExtra = false
     }
 
-    // Siste viste reelle side — males UNDER PageCurl slik at bakgrunnen aldri er svart.
     val lastGood = remember(effectiveWidthPx, shPx) { mutableStateOf<Bitmap?>(null) }
-
     val themeColors = readerThemeColors(ui.readerTheme)
     val paperColor = Color(themeColors.paperColorInt)
 
-    /** Hvem eier denne curl-indeksen? (kapittel, side) eller null. */
-    fun pageOwner(pageIdx: Int): Pair<Int, Int>? {
-        if (leadingExtra && pageIdx == 0) {
-            val pc = prepared[chapIdx - 1] ?: return null
-            return if (pc > 0) Pair(chapIdx - 1, pc - 1) else null
-        }
-        if (trailingExtra && pageIdx == chapterPages) return Pair(chapIdx + 1, 0)
-        return if (pageIdx in 0 until chapterPages) Pair(chapIdx, pageIdx) else null
-    }
-
-    @Composable
-    fun CurlPageContent(pageIdx: Int) {
-        val target = pageOwner(pageIdx)
-        val key = target?.let { cacheKey(it.first, it.second) } ?: ""
-        var bitmap by remember(key, fontKey, sizeKey) {
-            mutableStateOf<Bitmap?>(if (key.isEmpty()) null else cache.getSync(key))
-        }
-        LaunchedEffect(key, fontKey, sizeKey) {
-            if (bitmap == null && target != null) {
-                val bmp = runCatching { rendererFor(target.first).renderPage(target.second) }.getOrNull()
-                if (isUsableBitmap(bmp)) {
-                    cache.put(key, bmp!!)
-                    cacheGeneration.intValue++
-                    curlDiag("RENDER put key=$key gen=${cacheGeneration.intValue}")
-                    bitmap = bmp
-                }
-            }
-            if (target != null && target.first == chapIdx) {
-                cache.getSync(key)?.let { lastGood.value = it }
-            }
-        }
-        // Kant-side uten ferdig bitmap: hold sist viste reelle side (aldri svart/tom).
-        val shown = bitmap
-            ?: if (target == null || target.first != chapIdx) lastGood.value else null
-        Box(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 48.dp)) {
-            val b = shown
-            if (b != null) {
-                Canvas(Modifier.fillMaxSize()) {
-                    drawIntoCanvas {
-                        val native = it.nativeCanvas
-                        if (!b.isRecycled) {
-                            native.drawBitmap(b, null, android.graphics.RectF(0f, 0f, size.width, size.height), null)
-                        }
-                    }
-                }
-            } else if (target != null && target.first == chapIdx) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            }
-        }
-    }
-
-    /** Forhåndsrender side [page] i kapittel [ch] hvis den ikke allerede er cachet. */
-    suspend fun renderAhead(ch: Int, page: Int) {
-        val key = cacheKey(ch, page)
-        if (cache.getSync(key) != null) return
-        val bmp = runCatching { rendererFor(ch).renderPage(page) }.getOrNull() ?: return
-        if (isUsableBitmap(bmp)) {
-            cache.put(key, bmp!!)
-            cacheGeneration.intValue++
-        }
-    }
-
-    // ── ÉN hovedløkke: siderapportering, prefetch og kant-commits ────────────
-    LaunchedEffect(chapIdx, chapterPages, hasNext, hasPrev) {
+    // ── Page-turn-rapportering. CurlState er autoritativ: ingen snap her. ──
+    LaunchedEffect(chapIdx, chapterPages) {
         var lastReported = -1
         var armed = false
-        snapshotFlow { Triple(curlState.current, cacheGeneration.value, leadingExtra) }.collect { (cur, _, shift) ->
-            // Instance-guard: denne collector-forekomsten er kun autoritativ for KAPITTELET
-            // den ble armet med. Etter et kapittelhopp kan en gammel instans få en emisjon
-            // (curl posisjonssnappet av reset-effekten) før den kanselleres — uten denne
-            // vernet firedobler den hoppen (frem → tilbake → frem) og gir kapittelflimmer.
+        snapshotFlow { curlState.current }.collect { cur ->
             if (updatedUi.currentChapterIndex != chapIdx) return@collect
-            curlDiag("cur=$cur ch=$chapIdx P=$chapterPages count=${chapterPages + (if (trailingExtra) 1 else 0) + (if (leadingExtra) 1 else 0)} trail=$trailingExtra lead=$leadingExtra commit=$committing")
-            val real = cur - if (shift) 1 else 0
-            val onForwardSentinel = trailingExtra && cur == chapterPages
-            val onBackwardSentinel = leadingExtra && cur == 0
-
-            // Etter et kapittelhopp: ignorér én emisjon av gammel curl-indeks til
-            // posisjonssynken har landet på VM-siden (hindrer tolkning med gammel P).
             if (!armed) {
-                if (real == updatedUi.currentPage && cur <= chapterPages) {
+                if (cur == updatedUi.currentPage && cur <= chapterPages) {
                     armed = true
-                    lastReported = real
+                    lastReported = cur
                 }
                 return@collect
             }
-
-            when {
-                !onForwardSentinel && !onBackwardSentinel && real in 0 until chapterPages -> {
-                    if (real != lastReported) {
-                        lastReported = real
-                        onPageTurned(real)
-                    }
-                    // Prefetch nabo-kanten når vi er innen 1–2 reelle sider fra kanten.
-                    if (hasNext && chapterPages - real <= 2) {
-                        scope.launch { runCatching { prefetchNeighbor(chapIdx + 1, 0) } }
-                    }
-                    if (hasPrev && real <= 1) {
-                        scope.launch { runCatching { prefetchNeighbor(chapIdx - 1, null) } }
-                    }
-                    // Render de neste to sidene foran — hindrer spinner-glitch ved rask blading.
-                    if (real + 1 < chapterPages) scope.launch { runCatching { renderAhead(chapIdx, real + 1) } }
-                    if (real + 2 < chapterPages) scope.launch { runCatching { renderAhead(chapIdx, real + 2) } }
-                }
-                onForwardSentinel && !committing -> {
-                    if (nextEdgeReady()) {
-                        committing = true
-                        curlDiag("JUMP frem -> ch=${chapIdx + 1} page=0 (landet på sentinelindeks $cur)")
-                        updatedJump(chapIdx + 1, 0, 0f)
-                    }
-                    // Ikke klar → ingen hopp, ingen flash: count krymper (extra fjernes)
-                    // og brukeren står igjen på reell siste side.
-                }
-                onBackwardSentinel && !committing -> {
-                    if (prevEdgeReady()) {
-                        val pc = prepared[chapIdx - 1] ?: 0
-                        committing = true
-                        curlDiag("JUMP tilbake -> ch=${chapIdx - 1} page=${pc - 1}")
-                        updatedJump(chapIdx - 1, (pc - 1).coerceAtLeast(0), 1f)
-                    }
-                    // Ikke klar → skift-effekten fjerner ekstrasiden; brukeren står på side 1.
-                }
+            if (cur != lastReported && cur in 0 until chapterPages) {
+                lastReported = cur
+                onPageTurned(cur)
             }
         }
     }
 
-    // Parkér på reell side 1 med forrige kant klar → skift på (indeks 0 = forrige kant).
-    // Forlat side 1 → skift av (indeksen går tilbake til reell sidetelling, samme piksler).
-    LaunchedEffect(hasPrev, chapIdx) {
-        snapshotFlow { Pair(curlState.current, cacheGeneration.value) }.collect { (cur, _) ->
-            if (!hasPrev || !prevEdgeReady()) {
-                if (leadingExtra) {
-                    leadingExtra = false
-                    curlState.snapTo(0)
-                }
-            } else when {
-                !leadingExtra && cur == 0 -> {
-                    leadingExtra = true
-                    curlState.snapTo(1)
-                }
-                leadingExtra && cur >= 2 -> {
-                    leadingExtra = false
-                    curlState.snapTo(cur - 1)
-                }
-            }
+    // ── Eksplisitt navigasjon (TOC, gjenoppretting, font-endring) ──
+    // navEpoch økes KUN av eksterne navigasjonshendelser; vanlige sidevendinger
+    // endrer den aldri, så CurlState forblir autoritativ under lesing.
+    var lastNavHandled by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(navEpoch, ui.currentPage, curlCount) {
+        if (navEpoch == lastNavHandled) return@LaunchedEffect
+        val target = ui.currentPage.coerceAtLeast(0).coerceIn(0, (curlCount - 1).coerceAtLeast(0))
+        if (curlCount > 0 && curlState.current != target) {
+            curlState.snapTo(target)
         }
+        lastNavHandled = navEpoch
     }
 
-    // Fremover-ekstraside: på plass bare når vi står på siste reelle side og neste kant er klar.
-    LaunchedEffect(chapIdx, chapterPages) {
-        snapshotFlow { Pair(curlState.current, cacheGeneration.value) }.collect { (cur, _) ->
-            val want = hasNext && nextEdgeReady() && cur >= chapterPages - 1 && cur <= chapterPages
-            if (trailingExtra != want) {
-                trailingExtra = want
-                curlDiag("EDGE trailingExtra=$want count=${chapterPages + (if (want) 1 else 0)} (next kant ${if (nextEdgeReady()) "klar" else "ikke klar"})")
-            }
-        }
-    }
-
-    // ── Posisjonssynk: VM-side → curl-indeks ─────────────────────────────────
-    // Krøllen er autoritativ ved normal lesing: curlState ligger typisk ±1 foran
-    // VM (VM oppdateres fra curl-collectoren). Snap KUN ved ekte hopp (≥2 siders
-    // avvik, f.eks. innholdsfortegnelse/gjenoppretting) og aldri midt i en gest —
-    // ellers snapper synken tilbake til en gammel VM-verdi og dreier krøllen
-    // (sidehopp/glitch ved rask blading).
-    LaunchedEffect(ui.currentPage, curlCount, leadingExtra) {
-        val target = ui.currentPage.coerceAtLeast(0) + if (leadingExtra) 1 else 0
-        if (curlCount <= 0) return@LaunchedEffect
-        if (curlState.current == target) return@LaunchedEffect
-        delay(300) // la pågående krøll/drag fullføre og colatoren rapportere
-        val now = curlState.current
-        if (now == target) return@LaunchedEffect
-        if (kotlin.math.abs(now - target) > 1) {
-            curlDiag("SYNC snap cur=$now -> target=$target (ekte hopp)")
-            curlState.snapTo(target.coerceIn(0, curlCount - 1))
+    // ── Maks ÉN spesulativ prefetch: neste side, bare når koordinatoren er ledig ──
+    LaunchedEffect(chapIdx, ui.currentPage, chapterPages, fontKey, sizeKey) {
+        coordinator.cancelSpeculative()
+        if (chapterPages <= 0 || !coordinator.isIdle()) return@LaunchedEffect
+        val next = ui.currentPage.coerceAtLeast(0) + 1
+        if (next < chapterPages) {
+            coordinator.requestSpeculative(
+                ownerKey = chapIdx,
+                pageKey = coordKey(chapIdx, next),
+                page = next,
+            ) { p -> rendererFor(chapIdx).renderPage(p) }
         }
     }
 
@@ -968,7 +804,7 @@ private fun RealBookSlideReader(
         tapForwardEnabled = true,
         tapBackwardEnabled = true,
         tapCustomEnabled = true,
-        // Kun midt-tapp = kontroller. Kant-tapp er normal krøll inn i/ut av kant-siden.
+        // Kun midt-tapp = kontroller. Kant-tapp er normal krøll.
         onCustomTap = customTapHandler@{ size, offset ->
             val width = size.width.toFloat().coerceAtLeast(1f)
             val xFrac = offset.x.toFloat().coerceIn(0f, width) / width
@@ -980,8 +816,47 @@ private fun RealBookSlideReader(
         }
     )
 
+    @Composable
+    fun CurlPageContent(pageIdx: Int) {
+        val target = if (pageIdx in 0 until chapterPages) Pair(chapIdx, pageIdx) else null
+        val cacheK = target?.let { cacheKey(it.first, it.second) } ?: ""
+        var bitmap by remember(cacheK, fontKey, sizeKey) {
+            mutableStateOf<Bitmap?>(if (cacheK.isEmpty()) null else cache.getSync(cacheK))
+        }
+        LaunchedEffect(cacheK, fontKey, sizeKey) {
+            if (bitmap == null && target != null) {
+                val bmp = coordinator.renderCurrent(
+                    ownerKey = target.first,
+                    pageKey = coordKey(target.first, target.second),
+                    page = target.second,
+                ) { p -> rendererFor(target.first).renderPage(p) }
+                if (bmp != null) bitmap = bmp
+            }
+            if (target != null && target.first == chapIdx) {
+                cache.getSync(cacheK)?.let { lastGood.value = it }
+            }
+        }
+        // Synlig side uten ferdig bitmap → spinner. Klaff/annet uten bitmap → papir.
+        val isVisiblePage = pageIdx == curlState.current
+        Box(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 48.dp)) {
+            val b = bitmap
+            if (b != null) {
+                Canvas(Modifier.fillMaxSize()) {
+                    drawIntoCanvas {
+                        val native = it.nativeCanvas
+                        if (!b.isRecycled) {
+                            native.drawBitmap(b, null, android.graphics.RectF(0f, 0f, size.width, size.height), null)
+                        }
+                    }
+                }
+            } else if (isVisiblePage && target != null) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            }
+        }
+    }
+
     Box(Modifier.fillMaxSize().background(paperColor)) {
-        // lastGood under PageCurl: bakgrunnen er ALLITID papir med innhold — aldri svart.
+        // lastGood under PageCurl: papir + sist viste side, aldri svart.
         lastGood.value?.let { b ->
             Canvas(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 48.dp)) {
                 drawIntoCanvas {
@@ -999,7 +874,7 @@ private fun RealBookSlideReader(
                 state = curlState,
                 config = pageCurlConfig,
                 interactionsEnabled = true,
-                // Kamigura-forken: vis den ANKOMMENDE siden på krøllklaffen.
+                // Kamigura-forken: den ankommande siden på krøllklaffen.
                 backContent = { cur, forward ->
                     CurlPageContent(if (forward) cur + 1 else cur - 1)
                 },

@@ -29,7 +29,7 @@ class PageBitmapCache(private val maxSize: Int = 14) {
     suspend fun get(page: String): Bitmap? = synchronized(lru) { lru[page] }
 
     /** Stores a rendered [bitmap] under [page]. */
-    suspend fun put(page: String, bitmap: Bitmap) = synchronized(lru) {
+    fun put(page: String, bitmap: Bitmap) = synchronized(lru) {
         lru[page] = bitmap
         if (lru.size > maxSize) {
             val it = lru.keys.iterator()
@@ -44,7 +44,7 @@ class PageBitmapCache(private val maxSize: Int = 14) {
     suspend fun contains(page: String): Boolean = synchronized(lru) { lru.containsKey(page) }
 
     /** Clears the cache. Call when the font size or theme changes (full re-render). */
-    suspend fun clear() = synchronized(lru) {
+    fun clear() = synchronized(lru) {
         lru.clear()
     }
 }
