@@ -216,6 +216,23 @@ class AudioMetadataParser : FormatMetadataParser {
         // 1. Try embedded MP4/M4B chapter extraction (uses binary container atoms, works offline
         //    and doesn't require ExoPlayer initialization or playback licensing).
         val lower = filename.lowercase()
+        if (lower.endsWith(".mp3")) {
+            // 0. ID3v2 CHAP-rammer (MP3-lydbøker med innebygde kapitler)
+            try {
+                val stream = when {
+                    sourceStreamProvider != null -> sourceStreamProvider()
+                    uri != null -> ctx.contentResolver.openInputStream(uri)
+                    else -> null
+                }
+                if (stream != null) {
+                    stream.use { s ->
+                        val ch = parseId3Chapters(s)
+                        embeddedChapters = ch.first
+                        if (streamDurMs == null) streamDurMs = ch.second
+                    }
+                }
+            } catch (_: Exception) {}
+        }
         if (lower.endsWith(".m4b") || lower.endsWith(".m4a") || lower.endsWith(".mp4")) {
             try {
                 val stream = when {
@@ -438,6 +455,130 @@ private fun parseMp4Chapters(stream: InputStream, size: Long): Pair<List<Chapter
         chapters[chapters.lastIndex] = chapters.last().copy(endMs = end)
     }
     return Pair(chapters, totalDurMs ?: chapters.lastOrNull()?.endMs?.takeIf { it > 0 })
+}
+
+/**
+ * Lettvekts ID3v2-kapittelparser for MP3-lydbøker.
+ * Leser CHAP-rammer (element-id, start/end ms) med TIT2-underramme som tittel.
+ * Rent strukturell parsing — ingen dekoding av lyd.
+ */
+private fun parseId3Chapters(stream: InputStream): Pair<List<ChapterInfo>, Long?> {
+    val head = ByteArray(10)
+    var read = 0
+    while (read < 10) {
+        val n = stream.read(head, read, 10 - read)
+        if (n < 0) return Pair(emptyList(), null)
+        read += n
+    }
+    if (!(head[0] == 'I'.code.toByte() && head[1] == 'D'.code.toByte() && head[2] == '3'.code.toByte())) {
+        return Pair(emptyList(), null)
+    }
+    val major = (head[3].toInt() and 0xFF)
+    if (major < 3 || major > 4) return Pair(emptyList(), null)
+    val flags = head[5].toInt() and 0xFF
+
+    fun syncsafe(b: ByteArray, off: Int): Int =
+        ((b[off].toInt() and 0x7F) shl 21) or ((b[off + 1].toInt() and 0x7F) shl 14) or
+            ((b[off + 2].toInt() and 0x7F) shl 7) or (b[off + 3].toInt() and 0x7F)
+
+    fun plain32(b: ByteArray, off: Int): Int =
+        ((b[off].toInt() and 0xFF) shl 24) or ((b[off + 1].toInt() and 0xFF) shl 16) or
+            ((b[off + 2].toInt() and 0xFF) shl 8) or (b[off + 3].toInt() and 0xFF)
+
+    val tagSize = syncsafe(head, 6)
+    val tagBytes = ByteArray(tagSize)
+    var read2 = 0
+    while (read2 < tagSize) {
+        val n = stream.read(tagBytes, read2, tagSize - read2)
+        if (n < 0) break
+        read2 += n
+    }
+    var off = 0
+    if (flags and 0x40 != 0 && off + 4 <= tagBytes.size) {
+        // Extended header: størrelsen er syncsafe i v2.4, plain i v2.3
+        val extSize = if (major >= 4) syncsafe(tagBytes, off) else plain32(tagBytes, off)
+        off += if (extSize > 0) extSize else 6
+    }
+
+    data class Chap(val elementId: String, val startMs: Long, val endMs: Long?, val title: String?)
+
+    val chaptersRaw = mutableListOf<Chap>()
+    var totalDurMs: Long? = null
+
+    fun decodeText(body: ByteArray): String? {
+        if (body.isEmpty()) return null
+        val enc = body[0].toInt() and 0xFF
+        val raw = body.copyOfRange(1, body.size)
+        return try {
+            when (enc) {
+                0 -> String(raw, Charsets.ISO_8859_1)
+                1 -> String(raw, Charsets.UTF_16).trimStart('\uFEFF')
+                2 -> String(raw, Charsets.UTF_16BE)
+                else -> String(raw, Charsets.UTF_8)
+            }.trim('\u0000').trim().takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    try {
+        while (off + 10 <= tagBytes.size) {
+            val id = String(tagBytes, off, 4, Charsets.ISO_8859_1)
+            if (id.isBlank() || !id.all { it in 'A'..'Z' || it in '0'..'9' }) break
+            val size = if (major >= 4) syncsafe(tagBytes, off + 4) else plain32(tagBytes, off + 4)
+            if (size <= 0 || off + 10 + size > tagBytes.size) break
+            val body = tagBytes.copyOfRange(off + 10, off + 10 + size)
+            when (id) {
+                "CHAP" -> {
+                    // element-id (nullterminert), start/end ms (u32 BE), start/end byte-offset (u32)
+                    var p = 0
+                    while (p < body.size && body[p] != 0.toByte()) p++
+                    p++ // null
+                    if (p + 16 <= body.size) {
+                        val startMs = plain32(body, p).toLong() and 0xFFFFFFFFL
+                        val endMs = plain32(body, p + 4).toLong() and 0xFFFFFFFFL
+                        val sub = body.copyOfRange(p + 16, body.size)
+                        // Finn TIT2-underramme
+                        var title: String? = null
+                        var sp = 0
+                        while (sp + 10 <= sub.size) {
+                            val sid = String(sub, sp, 4, Charsets.ISO_8859_1)
+                            if (!sid.all { it in 'A'..'Z' || it in '0'..'9' }) break
+                            val ssize = if (major >= 4) syncsafe(sub, sp + 4) else plain32(sub, sp + 4)
+                            if (ssize <= 0 || sp + 10 + ssize > sub.size) break
+                            if (sid == "TIT2") {
+                                title = decodeText(sub.copyOfRange(sp + 10, sp + 10 + ssize))
+                                break
+                            }
+                            sp += 10 + ssize
+                        }
+                        chaptersRaw.add(Chap(id, startMs, endMs.takeIf { it > startMs }, title))
+                    }
+                }
+                "TLEN" -> decodeText(body)?.toLongOrNull()?.let { if (it > 0) totalDurMs = it }
+            }
+            off += 10 + size
+        }
+    } catch (_: Exception) {
+        // Best effort: returner det vi har funnet så langt
+    }
+
+    if (chaptersRaw.isEmpty()) return Pair(emptyList(), totalDurMs)
+    val sorted = chaptersRaw.sortedBy { it.startMs }
+    val chapters = sorted.mapIndexed { idx, c ->
+        ChapterInfo(
+            title = c.title ?: "Kapittel ${idx + 1}",
+            startMs = c.startMs,
+            endMs = c.endMs,
+            index = idx
+        )
+    }.toMutableList()
+    for (i in 0 until chapters.size - 1) {
+        if (chapters[i].endMs == null || chapters[i].endMs!! <= chapters[i].startMs) {
+            chapters[i] = chapters[i].copy(endMs = chapters[i + 1].startMs)
+        }
+    }
+    return Pair(chapters, totalDurMs)
 }
 
 fun getParserFor(format: BookFormat): FormatMetadataParser = when (format) {

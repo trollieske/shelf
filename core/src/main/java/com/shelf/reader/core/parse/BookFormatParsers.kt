@@ -33,7 +33,7 @@ data class ParsedChapter(
     val byteLength: Int
 )
 
-data class ManifestItem(val id: String, val href: String, val mediaType: String)
+data class ManifestItem(val id: String, val href: String, val mediaType: String, val properties: String = "")
 data class NavPoint(val title: String, val srcHref: String, val playOrder: Int)
 
 fun materializeToTemp(ctx: Context, filePath: String?, input: InputStream?): File? = when {
@@ -264,15 +264,17 @@ class EpubRealParser {
                                 var id = ""
                                 var href = ""
                                 var mediaType = ""
+                                var properties = ""
                                 for (i in 0 until parser.attributeCount) {
                                     when (parser.getAttributeName(i).lowercase()) {
                                         "id" -> id = parser.getAttributeValue(i)
                                         "href" -> href = parser.getAttributeValue(i)
                                         "media-type" -> mediaType = parser.getAttributeValue(i)
+                                        "properties" -> properties = parser.getAttributeValue(i)
                                     }
                                 }
                                 if (id.isNotEmpty()) {
-                                    manifest[id] = ManifestItem(id, href, mediaType)
+                                    manifest[id] = ManifestItem(id, href, mediaType, properties)
                                 }
                             }
                             localName.equals("itemref", ignoreCase = true) && inSpine -> {
@@ -356,6 +358,31 @@ class EpubRealParser {
             Log.w(TAG, "Error parsing NCX table of contents", t)
         }
 
+        // 3b. Parse EPUB3 nav-toc (XHTML <nav epub:type="toc">) — prioriteres over NCX
+        val epub3NavPoints = mutableListOf<NavPoint>()
+        try {
+            val navItem = manifest.values.firstOrNull { item ->
+                item.properties.split(Regex("\\s+")).contains("nav")
+            } ?: manifest.values.firstOrNull { item ->
+                item.mediaType.contains("xhtml", ignoreCase = true) &&
+                    (item.href.contains("nav", ignoreCase = true) || item.href.contains("toc", ignoreCase = true))
+            }
+            if (navItem != null) {
+                val resolvedNav = resolveZipPath(opfPath, navItem.href)
+                val navEntry = zip.getEntry(resolvedNav) ?: zip.getEntry(resolvedNav.trimStart('/'))
+                    ?: zip.entries().asSequence().firstOrNull {
+                        it.name.equals(resolvedNav, ignoreCase = true) || it.name.equals(resolvedNav.trimStart('/'), ignoreCase = true)
+                    }
+                if (navEntry != null) {
+                    val navContent = zip.getInputStream(navEntry).bufferedReader().use { it.readText() }
+                    epub3NavPoints.addAll(parseEpub3Nav(navContent))
+                    Log.d(TAG, "Parsed ${epub3NavPoints.size} navPoints from EPUB3 nav at $resolvedNav")
+                }
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "Error parsing EPUB3 nav toc", t)
+        }
+
         // 4. Assemble chapters
         val chapters = mutableListOf<ParsedChapter>()
         var cumulativeStart = 0
@@ -391,18 +418,25 @@ class EpubRealParser {
             }
 
             val byteLength = cleanedHtml.toByteArray().size
-            val ncxMatch = navPoints.firstOrNull { np ->
-                val npSrc = np.srcHref.substringBefore('#').replace('\\', '/').trimStart('/').lowercase()
+            fun matchNav(points: List<NavPoint>): NavPoint? {
                 val mHref = manifestItem?.href?.substringBefore('#')?.replace('\\', '/')?.trimStart('/')?.lowercase()
-                npSrc.isNotEmpty() && mHref != null && (npSrc == mHref || npSrc.endsWith("/$mHref") || mHref.endsWith("/$npSrc"))
+                    ?: return null
+                return points.firstOrNull { np ->
+                    val npSrc = np.srcHref.substringBefore('#').replace('\\', '/').trimStart('/').lowercase()
+                    npSrc.isNotEmpty() && (npSrc == mHref || npSrc.endsWith("/$mHref") || mHref.endsWith("/$npSrc"))
+                }
             }
             val inHtmlTitle = extractTitleFromHtml(cleanedHtml)
-            val chapterTitle = ncxMatch?.title
+            // Semantiske filnavn (cover/titlepage/copyright/…) får fornuftige etiketter;
+            // rå filnavn som "chapter_01" vises aldri — da heller "Kapittel N".
+            val semanticLabel = manifestItem?.href?.let { h ->
+                val f = h.substringAfterLast('/').substringBeforeLast('.')
+                if (isSemanticFallbackName(f)) formatFallbackTitle(f) else null
+            }
+            val chapterTitle = matchNav(epub3NavPoints)?.title?.takeIf { it.isNotBlank() }
+                ?: matchNav(navPoints)?.title?.takeIf { it.isNotBlank() }
                 ?: inHtmlTitle
-                ?: manifestItem?.href?.let { h ->
-                    val f = h.substringAfterLast('/').substringBeforeLast('.')
-                    formatFallbackTitle(f)
-                }
+                ?: semanticLabel
                 ?: "Kapittel ${i + 1}"
 
             chapters.add(
@@ -574,14 +608,50 @@ class EpubRealParser {
     }
 
     private fun extractTitleFromHtml(html: String): String? {
-        val hMatch = Regex("<h[1-3][^>]*>(.*?)</h[1-3]>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)).find(html)
-        if (hMatch != null) {
-            val rawText = hMatch.groupValues[1].replace(Regex("<[^>]*>"), "").trim()
-            if (rawText.isNotBlank() && rawText.length < 80) {
-                return rawText
+        val candidates = Regex("<h[1-3][^>]*>(.*?)</h[1-3]>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            .findAll(html)
+            .map { it.groupValues[1].replace(Regex("<[^>]*>"), " ").replace(Regex("\\s+"), " ").trim() }
+            .filter { it.isNotBlank() && it.length < 80 }
+            .toList()
+        if (candidates.isEmpty()) return null
+        // "Kapittel 3"/"Chapter 3"-lignende overskrifter er svake — foretrekk en
+        // reell tittel lenger ut i samme fil hvis den finnes.
+        val generic = Regex("""^(chapter|kapittel|del|part)\\s*([0-9ivxlc]+)\\b""", RegexOption.IGNORE_CASE)
+        val first = candidates.first()
+        return if (generic.containsMatchIn(first)) {
+            candidates.firstOrNull { !generic.containsMatchIn(it) } ?: first
+        } else first
+    }
+
+    private fun isSemanticFallbackName(raw: String): Boolean {
+        val lower = raw.lowercase().replace(Regex("[-_]+"), "")
+        return lower in setOf("metadata", "copyright", "titlepage", "title_page", "title", "cover", "colophon", "nav", "toc", "tocncx", "ncx", "imprint", "dedication", "acknowledgments", "acknowledgements", "foreword", "preface", "introduction", "epilogue", "afterword", "abouttheauthor")
+    }
+
+    private fun parseEpub3Nav(html: String): List<NavPoint> {
+        val result = mutableListOf<NavPoint>()
+        try {
+            val navRegex = Regex("""<nav[^>]*>.*?</nav>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            val navBlock = navRegex.findAll(html).firstOrNull { block ->
+                block.value.contains("epub:type", ignoreCase = true) && block.value.contains("toc", ignoreCase = true)
+            } ?: navRegex.findAll(html).firstOrNull() ?: return result
+            val anchorRegex = Regex("""<a[^>]*href\s*=\s*["']([^"']+)["'][^>]*>(.*?)</a>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            anchorRegex.findAll(navBlock.value).forEach { m ->
+                val href = m.groupValues[1].replace('\\', '/').trim()
+                val text = m.groupValues[2]
+                    .replace(Regex("<[^>]*>"), " ")
+                    .replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+                    .replace("&quot;", "\"").replace("&#39;", "'").replace("&nbsp;", " ")
+                    .replace(Regex("\\s+"), " ")
+                    .trim()
+                if (href.isNotBlank() && text.isNotBlank()) {
+                    result.add(NavPoint(title = text, srcHref = href, playOrder = result.size + 1))
+                }
             }
+        } catch (t: Throwable) {
+            Log.w(TAG, "EPUB3 nav toc parser error", t)
         }
-        return null
+        return result
     }
 
     private fun formatFallbackTitle(raw: String): String {
@@ -624,8 +694,7 @@ class EpubRealParser {
             val cleanedHtml = "<section>$bodyContent</section>"
             val byteLength = cleanedHtml.toByteArray().size
 
-            val fallbackTitle = entry.name.substringAfterLast('/').substringBeforeLast('.')
-                .ifBlank { "Kapittel ${i + 1}" }
+            val fallbackTitle = extractTitleFromHtml(cleanedHtml) ?: "Kapittel ${i + 1}"
 
             chapters.add(
                 ParsedChapter(
