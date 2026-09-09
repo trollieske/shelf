@@ -195,8 +195,9 @@
     <string name="settings_dark_on">På</string>
     <string name="settings_true_black">Svart (AMOLED)</string>
     <string name="settings_true_black_sub">Ekte svart bakgrunn for AMOLED-skjermer</string>
-    <string name="settings_dynamic_colors">Dynamiske Material You-farger</string>
-    <string name="settings_dynamic_colors_sub">Fargepalett fra bakgrunnsbilde</string>
+    <string name="onboarding_title">Velkommen til Shelf</string>
+    <string name="onboarding_body">Les og lytt. Lokalt. Uten støy.</string>
+    <string name="onboarding_cta">Åpne hylla</string>
     <string name="settings_library_view_title">Bibliotekvisning</string>
     <string name="settings_default_view">Standard visning i biblioteket</string>
     <string name="settings_reader">Leser</string>

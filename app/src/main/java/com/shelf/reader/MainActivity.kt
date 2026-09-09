@@ -4,9 +4,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -33,15 +38,16 @@ import androidx.navigation.compose.rememberNavController
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
+import com.shelf.reader.designsystem.theme.OmarchyColors
 import com.shelf.reader.designsystem.theme.ShelfColors
 import com.shelf.reader.app.ShelfDestinations
-import com.shelf.reader.core.domain.model.DarkModePref
 import com.shelf.reader.core.net.CalibreContentServerClient
 import com.shelf.reader.core.net.DiscoveredSourceCandidate
 import com.shelf.reader.core.net.LanSourceDiscovery
 import com.shelf.reader.data.prefs.UserPreferencesRepository
 import com.shelf.reader.designsystem.theme.ShelfTheme
 import com.shelf.reader.library.ui.LibraryScreen
+import com.shelf.reader.library.viewmodel.LibraryMode
 import com.shelf.reader.library.ui.SampleBooks
 import com.shelf.reader.reader.ui.ReaderScreen
 import com.shelf.reader.player.ui.PlayerScreen
@@ -66,20 +72,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         prefs = UserPreferencesRepository(this)
         setContent {
-            val darkMode by prefs.darkMode.collectAsStateWithLifecycle(initialValue = DarkModePref.FOLLOW_SYSTEM)
-            val dynamicColors by prefs.dynamicColors.collectAsStateWithLifecycle(initialValue = false)
-            val trueBlack by prefs.trueBlack.collectAsStateWithLifecycle(initialValue = false)
-            val useDarkTheme = when (darkMode) {
-                DarkModePref.FOLLOW_SYSTEM -> isSystemInDarkTheme()
-                DarkModePref.LIGHT -> false
-                DarkModePref.DARK -> true
-                DarkModePref.TRUE_BLACK -> true
-            }
-            ShelfTheme(
-                darkTheme = useDarkTheme,
-                dynamicColor = dynamicColors,
-                trueBlack = trueBlack
-            ) {
+            // Tema låst: HUD-mørkt. Ingen dynamicColor / Material You.
+            ShelfTheme(darkTheme = true) {
                 val targetRoute = intent?.getStringExtra("target_route")
                 ShelfRoot(prefs = prefs, initialRoute = targetRoute)
             }
@@ -104,7 +98,7 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
     val hasSeenOnboardingState by prefs.hasSeenOnboarding.collectAsStateWithLifecycle(initialValue = null)
 
     if (hasSeenOnboardingState == null) {
-        Surface(color = androidx.compose.ui.graphics.Color(0xFF1E130D), modifier = Modifier.fillMaxSize()) {}
+        Surface(color = OmarchyColors.Bg, modifier = Modifier.fillMaxSize()) {}
         return
     }
 
@@ -116,6 +110,10 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
         ShelfDestinations.Audiobooks.route,
         ShelfDestinations.Settings.route
     )
+
+    // Bibliotek-rutenettet styrer denne via onNavVisibilityChange: skjul ved rulling ned,
+    // vis ved rulling opp. Tilbakestilles ved fanebytte.
+    var libraryNavVisible by remember { mutableStateOf(true) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -131,7 +129,7 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
                     Surface(
                         tonalElevation = 8.dp,
                         shadowElevation = 12.dp,
-                        color = Color(0xFF162032),
+                        color = com.shelf.reader.designsystem.theme.OmarchyColors.Panel,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
@@ -142,7 +140,7 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
                             LinearProgressIndicator(
                                 progress = { active.progressPercent },
                                 modifier = Modifier.fillMaxWidth().height(3.dp),
-                                color = Color(0xFFF59E0B),
+                                color = com.shelf.reader.designsystem.theme.OmarchyColors.Accent,
                                 trackColor = Color(0x33FFFFFF)
                             )
                             Row(
@@ -153,11 +151,11 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
                             ) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFF1E293B),
+                                    color = com.shelf.reader.designsystem.theme.OmarchyColors.Hairline,
                                     modifier = Modifier.size(38.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.Headphones, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
+                                        Icon(Icons.Default.Headphones, contentDescription = null, tint = com.shelf.reader.designsystem.theme.OmarchyColors.Accent, modifier = Modifier.size(20.dp))
                                     }
                                 }
                                 Spacer(Modifier.width(12.dp))
@@ -178,7 +176,7 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
                                     Text(
                                         subLabel,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFF94A3B8),
+                                        color = com.shelf.reader.designsystem.theme.OmarchyColors.Dim,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -186,7 +184,7 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
                                 IconButton(onClick = {
                                     com.shelf.reader.data.repository.ActivePlaybackState.clear()
                                 }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Lukk", tint = Color(0xFF94A3B8))
+                                    Icon(Icons.Default.Close, contentDescription = "Lukk", tint = com.shelf.reader.designsystem.theme.OmarchyColors.Dim)
                                 }
                             }
                         }
@@ -194,25 +192,40 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
                 }
 
                 if (currentDestination?.route in showBottomRoutes) {
-                    NavigationBar(
-                        tonalElevation = 4.dp,
-                        containerColor = MaterialTheme.colorScheme.surface
+                    LaunchedEffect(currentDestination?.route) { libraryNavVisible = true }
+                    AnimatedVisibility(
+                        visible = libraryNavVisible,
+                        enter = fadeIn() + slideInVertically { it },
+                        exit = fadeOut() + slideOutVertically { it }
                     ) {
-                        items.forEach { item ->
-                            NavigationBarItem(
-                                icon = { Icon(item.icon, contentDescription = item.label) },
-                                label = { Text(item.label) },
-                                selected = currentDestination?.hierarchy?.any { it.route == item.route } == true,
-                                onClick = {
-                                    navController.navigate(item.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
+                        NavigationBar(
+                            tonalElevation = 0.dp,
+                            containerColor = OmarchyColors.Bg
+                        ) {
+                            items.forEach { item ->
+                                val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
+                                NavigationBarItem(
+                                    icon = { Icon(item.icon, contentDescription = item.label) },
+                                    label = if (selected) { { Text(item.label, style = com.shelf.reader.designsystem.theme.ShelfTypography.LabelMedium) } } else null,
+                                    selected = selected,
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = OmarchyColors.Accent,
+                                        selectedTextColor = OmarchyColors.Accent,
+                                        unselectedIconColor = OmarchyColors.Dim,
+                                        unselectedTextColor = OmarchyColors.Dim,
+                                        indicatorColor = Color.Transparent
+                                    ),
+                                    onClick = {
+                                        navController.navigate(item.route) {
+                                            popUpTo(navController.graph.findStartDestination().id) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
                                         }
-                                        launchSingleTop = true
-                                        restoreState = true
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
@@ -226,32 +239,35 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
         ) {
             composable(ShelfDestinations.Library.route) {
                 LibraryScreen(
-                    initialFilter = com.shelf.reader.library.viewmodel.LibraryFilter.ALL,
-                    onBookClick = { id -> navController.navigate(ShelfDestinations.BookDetails.routeFor(id)) },
-                    onBookLongClick = {},
+                    mode = LibraryMode.Books,
+                    onBookClick = { id -> navController.navigate(ShelfDestinations.Reader.routeFor(id)) },
+                    onBookLongClick = { id -> navController.navigate(ShelfDestinations.BookDetails.routeFor(id)) },
                     onImportClick = { navController.navigate(ShelfDestinations.Import.route) },
                     onFtpClick = { navController.navigate(ShelfDestinations.Sources.route) },
-                    onSettingsClick = { navController.navigate(ShelfDestinations.Settings.route) }
+                    onSettingsClick = { navController.navigate(ShelfDestinations.Settings.route) },
+                    onNavVisibilityChange = { libraryNavVisible = it }
                 )
             }
             composable(ShelfDestinations.Books.route) {
                 LibraryScreen(
-                    initialFilter = com.shelf.reader.library.viewmodel.LibraryFilter.EBOOKS,
-                    onBookClick = { id -> navController.navigate(ShelfDestinations.BookDetails.routeFor(id)) },
-                    onBookLongClick = {},
+                    mode = LibraryMode.Books,
+                    onBookClick = { id -> navController.navigate(ShelfDestinations.Reader.routeFor(id)) },
+                    onBookLongClick = { id -> navController.navigate(ShelfDestinations.BookDetails.routeFor(id)) },
                     onImportClick = { navController.navigate(ShelfDestinations.Import.route) },
                     onFtpClick = { navController.navigate(ShelfDestinations.Sources.route) },
-                    onSettingsClick = { navController.navigate(ShelfDestinations.Settings.route) }
+                    onSettingsClick = { navController.navigate(ShelfDestinations.Settings.route) },
+                    onNavVisibilityChange = { libraryNavVisible = it }
                 )
             }
             composable(ShelfDestinations.Audiobooks.route) {
                 LibraryScreen(
-                    initialFilter = com.shelf.reader.library.viewmodel.LibraryFilter.AUDIOBOOKS,
-                    onBookClick = { id -> navController.navigate(ShelfDestinations.BookDetails.routeFor(id)) },
-                    onBookLongClick = {},
+                    mode = LibraryMode.Audio,
+                    onBookClick = { id -> navController.navigate(ShelfDestinations.Player.routeFor(id)) },
+                    onBookLongClick = { id -> navController.navigate(ShelfDestinations.BookDetails.routeFor(id)) },
                     onImportClick = { navController.navigate(ShelfDestinations.Import.route) },
                     onFtpClick = { navController.navigate(ShelfDestinations.Sources.route) },
-                    onSettingsClick = { navController.navigate(ShelfDestinations.Settings.route) }
+                    onSettingsClick = { navController.navigate(ShelfDestinations.Settings.route) },
+                    onNavVisibilityChange = { libraryNavVisible = it }
                 )
             }
             composable(ShelfDestinations.Sources.route) {
@@ -346,16 +362,10 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
             }
             composable(ShelfDestinations.Onboarding.route) {
                 OnboardingScreen(
-                    onDone = { name ->
-                        navController.navigate(ShelfDestinations.Library.route) {
+                    onDone = {
+                        navController.navigate(ShelfDestinations.Books.route) {
                             popUpTo(0) { inclusive = true }
                         }
-                    },
-                    onNavigateImport = {
-                        navController.navigate(ShelfDestinations.Import.route)
-                    },
-                    onNavigateFtp = {
-                        navController.navigate(ShelfDestinations.Sources.route)
                     }
                 )
             }
@@ -409,10 +419,12 @@ private fun SourcesOverviewScreen(
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     Scaffold(
+        containerColor = OmarchyColors.Bg,
         topBar = {
             TopAppBar(
-                title = { Text("Kilder & synkronisering", style = ShelfTypography.HeadlineSmall, fontWeight = FontWeight.Bold) },
-                navigationIcon = {}
+                title = { Text("Kilder & synkronisering", style = ShelfTypography.HeadlineSmall, fontWeight = FontWeight.Bold, color = OmarchyColors.FgBright) },
+                navigationIcon = {},
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = OmarchyColors.Bg)
             )
         }
     ) { pad ->
@@ -420,72 +432,61 @@ private fun SourcesOverviewScreen(
             Text(
                 "Koble biblioteket ditt til",
                 style = ShelfTypography.TitleMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                color = OmarchyColors.FgBright
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 "Importer bøker fra eksterne kilder. FTP, SMB og WebDAV støtter automatisk synk.",
                 style = ShelfTypography.BodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = OmarchyColors.Dim
             )
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(16.dp))
 
-            val cardModifier = Modifier.fillMaxWidth()
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Enkel liste over kilder — ikke dashbord
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SourceCard(
-                    modifier = Modifier.weight(1f),
                     title = "FTP / SFTP",
                     subtitle = "Vanlig filoverføring",
                     icon = Icons.Default.CloudSync,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = OmarchyColors.Fg,
                     onClick = onFtpClick
                 )
                 SourceCard(
-                    modifier = Modifier.weight(1f),
                     title = "SMB",
                     subtitle = "Windows / NAS",
                     icon = Icons.Default.Dns,
-                    tint = MaterialTheme.colorScheme.tertiary,
+                    tint = OmarchyColors.Fg,
                     onClick = onSmbClick
                 )
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 SourceCard(
-                    modifier = Modifier.weight(1f),
                     title = "WebDAV",
                     subtitle = "Nextcloud / Owncloud",
                     icon = Icons.Default.Cloud,
-                    tint = MaterialTheme.colorScheme.secondary,
+                    tint = OmarchyColors.Fg,
                     onClick = onWebdavClick
                 )
                 SourceCard(
-                    modifier = Modifier.weight(1f),
                     title = "Torrent",
                     subtitle = "Peer-to-peer",
                     icon = Icons.Default.SwapHoriz,
-                    tint = androidx.compose.ui.graphics.Color(0xFF8B5CF6),
+                    tint = OmarchyColors.Fg,
                     onClick = onTorrentClick
                 )
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 SourceCard(
-                    modifier = Modifier.weight(1f),
                     title = "Calibre",
                     subtitle = "Innholdstjener / OPDS",
                     icon = Icons.Default.LocalLibrary,
-                    tint = androidx.compose.ui.graphics.Color(0xFFF97316),
+                    tint = OmarchyColors.Fg,
                     onClick = {
                         android.widget.Toast.makeText(ctx, "Skann nettverket ditt eller legg inn Calibre-URL manuelt nedenfor", android.widget.Toast.LENGTH_LONG).show()
                     }
                 )
                 SourceCard(
-                    modifier = Modifier.weight(1f),
                     title = "OPDS-katalog",
                     subtitle = "Standard bokkataloger",
                     icon = Icons.Default.MenuBook,
-                    tint = androidx.compose.ui.graphics.Color(0xFF10B981),
+                    tint = OmarchyColors.Fg,
                     onClick = {
                         android.widget.Toast.makeText(ctx, "Velg en kjent katalog nedenfor, eller lim inn din egen OPDS-URL", android.widget.Toast.LENGTH_LONG).show()
                     }
@@ -493,35 +494,34 @@ private fun SourcesOverviewScreen(
             }
 
             Spacer(Modifier.height(24.dp))
-            HorizontalDivider()
+            HorizontalDivider(color = OmarchyColors.Hairline)
             Spacer(Modifier.height(16.dp))
 
             LanDiscoverySection()
 
             Spacer(Modifier.height(24.dp))
-            HorizontalDivider()
+            HorizontalDivider(color = OmarchyColors.Hairline)
             Spacer(Modifier.height(16.dp))
             Text(
                 "Verktøy",
                 style = ShelfTypography.TitleMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                color = OmarchyColors.FgBright
             )
             Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SourceCard(
-                    modifier = Modifier.weight(1f),
                     title = "Importer",
                     subtitle = "Fra filer / mapper",
                     icon = Icons.Default.FileUpload,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = OmarchyColors.Fg,
                     onClick = onImportClick
                 )
                 SourceCard(
-                    modifier = Modifier.weight(1f),
                     title = "Nedlastinger",
                     subtitle = "Status og feil",
                     icon = Icons.Default.DownloadDone,
-                    tint = MaterialTheme.colorScheme.tertiary,
+                    tint = OmarchyColors.Fg,
                     onClick = onImportProgressClick
                 )
             }
@@ -530,27 +530,29 @@ private fun SourcesOverviewScreen(
             WellKnownCatalogsSection()
 
             Spacer(Modifier.height(20.dp))
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.width(10.dp))
-                        Column {
-                            Text("Tips", fontWeight = FontWeight.SemiBold, style = ShelfTypography.BodyLarge)
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                "Alle nedlastede bøker lastes automatisk inn i biblioteket ditt hvis tillegget er støttet (EPUB, PDF, MP3, M4B, etc.)",
-                                style = ShelfTypography.BodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(OmarchyColors.Panel, RoundedCornerShape(4.dp))
+                    .padding(14.dp)
+            ) {
+                Icon(Icons.Default.Info, null, tint = OmarchyColors.Dim)
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text("Tips", fontWeight = FontWeight.SemiBold, style = ShelfTypography.BodyLarge, color = OmarchyColors.FgBright)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "Alle nedlastede bøker lastes automatisk inn i biblioteket ditt hvis tillegget er støttet (EPUB, PDF, MP3, M4B, etc.)",
+                        style = ShelfTypography.BodySmall,
+                        color = OmarchyColors.Dim
+                    )
                 }
             }
         }
     }
 }
 
+/** Flat kilderekke: panel, 4dp hjørner, ingen heving — enkel liste, ikke dashbord. */
 @Composable
 private fun SourceCard(
     modifier: Modifier = Modifier,
@@ -560,27 +562,22 @@ private fun SourceCard(
     tint: androidx.compose.ui.graphics.Color,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = modifier,
-        onClick = onClick,
-        shape = MaterialTheme.shapes.large
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(OmarchyColors.Panel, RoundedCornerShape(4.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(Modifier.padding(16.dp)) {
-            Icon(
-                icon,
-                contentDescription = title,
-                tint = tint,
-                modifier = Modifier.size(32.dp)
-            )
-            Spacer(Modifier.height(10.dp))
-            Text(title, style = ShelfTypography.BodyLarge, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(2.dp))
-            Text(
-                subtitle,
-                style = ShelfTypography.BodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        Icon(icon, contentDescription = title, tint = OmarchyColors.Fg, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = ShelfTypography.BodyLarge, fontWeight = FontWeight.Medium, color = OmarchyColors.FgBright)
+            Spacer(Modifier.height(1.dp))
+            Text(subtitle, style = ShelfTypography.BodySmall, color = OmarchyColors.Dim)
         }
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = OmarchyColors.Dim, modifier = Modifier.size(18.dp))
     }
 }
 
@@ -701,7 +698,7 @@ private fun LanDiscoverySection() {
                                         com.shelf.reader.core.net.DiscoveredSourceType.FTP -> MaterialTheme.colorScheme.primary
                                         com.shelf.reader.core.net.DiscoveredSourceType.SMB -> MaterialTheme.colorScheme.tertiary
                                         com.shelf.reader.core.net.DiscoveredSourceType.WEBDAV -> MaterialTheme.colorScheme.secondary
-                                        com.shelf.reader.core.net.DiscoveredSourceType.CALIBRE -> androidx.compose.ui.graphics.Color(0xFFF97316)
+                                        com.shelf.reader.core.net.DiscoveredSourceType.CALIBRE -> com.shelf.reader.designsystem.theme.OmarchyColors.Dim
                                         com.shelf.reader.core.net.DiscoveredSourceType.HTTP_CANDIDATE -> MaterialTheme.colorScheme.onSurfaceVariant
                                     }
                                     Icon(
@@ -741,10 +738,10 @@ private fun WellKnownCatalogsSection() {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val catalogs = remember {
         listOf(
-            CatalogSuggestion("Standard Ebooks", "https://standardebooks.org/opds", "Høykvalitet, fritt og offentlig", Icons.Default.AutoStories, androidx.compose.ui.graphics.Color(0xFF0EA5E9)),
-            CatalogSuggestion("Feedbooks", "https://www.feedbooks.com/catalog.atom", "Ny og klassisk litteratur", Icons.Default.MenuBook, androidx.compose.ui.graphics.Color(0xFFEF4444)),
-            CatalogSuggestion("Project Gutenberg", "https://www.gutenberg.org/ebooks/opds", "Offentlig eiendom, 70 000+ bøker", Icons.Default.LibraryBooks, androidx.compose.ui.graphics.Color(0xFF8B5CF6)),
-            CatalogSuggestion("LibriVox (lydbøker)", "https://librivox.org/api/feed/audiobooks/?format=opds", "Fritt lydbøker, frivillige", Icons.Default.Audiotrack, androidx.compose.ui.graphics.Color(0xFF10B981))
+            CatalogSuggestion("Standard Ebooks", "https://standardebooks.org/opds", "Høykvalitet, fritt og offentlig", Icons.Default.AutoStories, com.shelf.reader.designsystem.theme.OmarchyColors.Dim),
+            CatalogSuggestion("Feedbooks", "https://www.feedbooks.com/catalog.atom", "Ny og klassisk litteratur", Icons.Default.MenuBook, com.shelf.reader.designsystem.theme.OmarchyColors.Dim),
+            CatalogSuggestion("Project Gutenberg", "https://www.gutenberg.org/ebooks/opds", "Offentlig eiendom, 70 000+ bøker", Icons.Default.LibraryBooks, com.shelf.reader.designsystem.theme.OmarchyColors.Dim),
+            CatalogSuggestion("LibriVox (lydbøker)", "https://librivox.org/api/feed/audiobooks/?format=opds", "Fritt lydbøker, frivillige", Icons.Default.Audiotrack, com.shelf.reader.designsystem.theme.OmarchyColors.Dim)
         )
     }
 

@@ -195,8 +195,10 @@
     <string name="settings_dark_on">On</string>
     <string name="settings_true_black">Black (AMOLED)</string>
     <string name="settings_true_black_sub">True black background for AMOLED screens</string>
-    <string name="settings_dynamic_colors">Dynamic Material You colors</string>
     <string name="settings_dynamic_colors_sub">Color palette from wallpaper</string>
+    <string name="onboarding_title">Welcome to Shelf</string>
+    <string name="onboarding_body">Read and listen. Local. No noise.</string>
+    <string name="onboarding_cta">Open the shelf</string>
     <string name="settings_library_view_title">Library view</string>
     <string name="settings_default_view">Default library view</string>
     <string name="settings_reader">Reader</string>

@@ -7,7 +7,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,11 +32,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.shelf.reader.R
 import com.shelf.reader.data.prefs.UserPreferencesRepository
 import androidx.work.WorkManager
 import com.shelf.reader.app.workers.ImportWorker
@@ -352,7 +356,7 @@ fun BookDetailsScreen(
                     Text(
                         metaCleaned.author,
                         style = ShelfTypography.TitleMedium,
-                        color = Color(0xFFD4AF37),
+                        color = com.shelf.reader.designsystem.theme.OmarchyColors.Accent,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
@@ -537,7 +541,7 @@ fun BookDetailsScreen(
                             ) {
                                 Text(
                                     if (isDescriptionExpanded) "Vis mindre" else "Les mer",
-                                    color = Color(0xFFD4AF37),
+                                    color = com.shelf.reader.designsystem.theme.OmarchyColors.Accent,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -657,7 +661,7 @@ fun BookDetailsScreen(
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Bookmark, null, tint = Color(0xFFB8860B))
+                        Icon(Icons.Default.Bookmark, null, tint = com.shelf.reader.designsystem.theme.OmarchyColors.Accent)
                         Spacer(Modifier.width(10.dp))
                         Text(
                             "Bokmerker",
@@ -778,7 +782,7 @@ fun BookDetailsScreen(
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.BorderColor, null, tint = Color(0xFF2D5C3A))
+                        Icon(Icons.Default.BorderColor, null, tint = com.shelf.reader.designsystem.theme.OmarchyColors.Accent)
                         Spacer(Modifier.width(10.dp))
                         Text(
                             "Uthevelser",
@@ -1098,7 +1102,7 @@ fun ImportScreen(
                 title = "Velg filer",
                 subtitle = "En eller flere ebøker eller lydbøker fra enheten.",
                 icon = Icons.AutoMirrored.Filled.InsertDriveFile,
-                color = Color(0xFF2D5C3A),
+                color = com.shelf.reader.designsystem.theme.OmarchyColors.Accent,
                 onClick = {
                     // #region debug-point UI:file-picker-launch
                     dbgUi(
@@ -1115,7 +1119,7 @@ fun ImportScreen(
                 title = "Importer mappe",
                 subtitle = "Importer alle bøker i en mappe. Kan overvåkes for nye filer.",
                 icon = Icons.Default.Folder,
-                color = Color(0xFF8B6F47),
+                color = com.shelf.reader.designsystem.theme.OmarchyColors.Accent,
                 onClick = {
                     // #region debug-point UI:folder-picker-launch
                     dbgUi(
@@ -1132,7 +1136,7 @@ fun ImportScreen(
                 title = "Last inn prøvebøker",
                 subtitle = "Offentlige klassikere som medfølger appen.",
                 icon = Icons.Default.AutoAwesome,
-                color = Color(0xFF6B2D3A),
+                color = com.shelf.reader.designsystem.theme.OmarchyColors.Accent,
                 onClick = {
                     // #region debug-point UI:samples-launch
                     dbgUi(
@@ -1149,7 +1153,7 @@ fun ImportScreen(
                 title = "Fra FTP-server",
                 subtitle = "Hent bøker fra NAS, hjemmeserver eller nettlagring.",
                 icon = Icons.Default.CloudDownload,
-                color = Color(0xFF2D3A5C),
+                color = com.shelf.reader.designsystem.theme.OmarchyColors.Accent,
                 onClick = {
                     // #region debug-point UI:ftp-launch
                     dbgUi(
@@ -1277,438 +1281,81 @@ private fun ImportCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+
 @Composable
 fun OnboardingScreen(
-    onDone: (String) -> Unit,
-    onNavigateImport: () -> Unit = {},
-    onNavigateFtp: () -> Unit = {}
+    onDone: () -> Unit
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    var step by remember { mutableIntStateOf(0) }
-    var userNameInput by remember { mutableStateOf("") }
-    val pages = listOf("Velkommen", "Navn", "Tilganger", "Kom i gang")
+    val prefs = remember { com.shelf.reader.data.prefs.UserPreferencesRepository(ctx) }
 
-    var permissionFolder by remember { mutableStateOf(false) }
-    var permissionMedia by remember { mutableStateOf(false) }
-
-    val folderPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { tree: Uri? ->
-        if (tree != null) {
-            runCatching {
-                ctx.contentResolver.takePersistableUriPermission(
-                    tree,
-                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            }
-            permissionFolder = true
-            android.widget.Toast.makeText(ctx, "Bibliotekmappe lagret", android.widget.Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    val mediaPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { perms ->
-        val anyGranted = perms.values.any { it }
-        permissionMedia = anyGranted || permissionMedia
-        android.widget.Toast.makeText(
-            ctx,
-            if (anyGranted) "Medietilgang: OK" else "Kan endres senere i Innstillinger",
-            android.widget.Toast.LENGTH_SHORT
-        ).show()
-    }
-
-    fun requestMediaPermissions() {
-        val perms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            arrayOf(
-                android.Manifest.permission.READ_MEDIA_IMAGES,
-                android.Manifest.permission.READ_MEDIA_AUDIO,
-                android.Manifest.permission.READ_MEDIA_VIDEO
-            )
-        } else {
-            arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
-        mediaPermissionLauncher.launch(perms)
-    }
-
-    fun launchSamples() {
-        ImportWorker.enqueueSamples(WorkManager.getInstance(ctx))
-        android.widget.Toast.makeText(ctx, "Laster inn prøvebøker i bakgrunnen…", android.widget.Toast.LENGTH_LONG).show()
-    }
-
-    Surface(
-        color = Color(0xFF1E130D),
-        modifier = Modifier.fillMaxSize()
-    ) {
+    Surface(color = com.shelf.reader.designsystem.theme.OmarchyColors.Bg, modifier = Modifier.fillMaxSize()) {
         Column(
             Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(28.dp)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            // Page Progress Indicators
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // 1px CRT-bezel-ramme rundt innholdet
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, com.shelf.reader.designsystem.theme.OmarchyColors.Hairline)
+                    .padding(horizontal = 24.dp, vertical = 48.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                pages.forEachIndexed { i, _ ->
-                    Spacer(
-                        Modifier
-                            .weight(1f)
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(
-                                if (i <= step) Color(0xFFD4AF37)
-                                else Color(0x33FFFFFF)
-                            )
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(40.dp))
-
-            when (step) {
-                0 -> {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                        Spacer(Modifier.height(20.dp))
-                        Surface(
-                            shape = RoundedCornerShape(28.dp),
-                            color = Color(0x22FFFFFF),
-                            modifier = Modifier.size(110.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Default.AutoStories,
-                                    null,
-                                    tint = Color(0xFFD4AF37),
-                                    modifier = Modifier.size(54.dp)
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(32.dp))
-                        Text(
-                            "Velkommen til Shelf",
-                            style = ShelfTypography.DisplaySmall,
-                            color = Color(0xFFFFF8F2),
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            "Din personlige, elegante 3D-bokhylle for e-bøker og lydbøker. Alt du eier, på ett sted.",
-                            style = ShelfTypography.BodyLarge,
-                            color = Color(0xFFC0B2A6),
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
-                    }
-                }
-                1 -> {
-                    Column(horizontalAlignment = Alignment.Start, modifier = Modifier.weight(1f)) {
-                        Spacer(Modifier.height(10.dp))
-                        Text(
-                            "Hva heter du?",
-                            style = ShelfTypography.HeadlineLarge,
-                            color = Color(0xFFFFF8F2),
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Serif
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "Skriv inn navnet ditt slik at vi kan gjøre biblioteket og hilsenen din personlig.",
-                            style = ShelfTypography.BodyMedium,
-                            color = Color(0xFFC0B2A6)
-                        )
-                        Spacer(Modifier.height(32.dp))
-
-                        OutlinedTextField(
-                            value = userNameInput,
-                            onValueChange = { userNameInput = it },
-                            label = { Text("Ditt navn", color = Color(0xFFC0B2A6)) },
-                            placeholder = { Text("f.eks. Karoline", color = Color(0x66FFF8F2)) },
-                            singleLine = true,
-                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 18.sp, color = Color.White),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFFD4AF37),
-                                unfocusedBorderColor = Color(0x44FFFFFF),
-                                cursorColor = Color(0xFFD4AF37)
-                            ),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-                2 -> {
-                    Column(
-                        horizontalAlignment = Alignment.Start,
-                        modifier = Modifier
-                            .weight(1f)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        Spacer(Modifier.height(8.dp))
-                        PermissionStep(
-                            onPickLibraryFolder = { folderPickerLauncher.launch(null) },
-                            onRequestMediaAccess = { requestMediaPermissions() }
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (permissionFolder) {
-                                Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF22C55E), modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Bibliotekmappe valgt", style = ShelfTypography.BodySmall, color = Color(0xFF22C55E))
-                            }
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (permissionMedia) {
-                                Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF22C55E), modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Medietilgang gitt", style = ShelfTypography.BodySmall, color = Color(0xFF22C55E))
-                            }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "Du kan også gjøre dette senere via Innstillinger eller Import-skjerm.",
-                            style = ShelfTypography.BodySmall,
-                            color = Color(0xFF80776C)
-                        )
-                    }
-                }
-                3 -> {
-                    Column(
-                        horizontalAlignment = Alignment.Start,
-                        modifier = Modifier
-                            .weight(1f)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        Spacer(Modifier.height(8.dp))
-                        if (userNameInput.isNotBlank()) {
-                            Text(
-                                "Klar, ${userNameInput.trim()}!",
-                                style = ShelfTypography.HeadlineMedium,
-                                color = Color(0xFFFFF8F2),
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Serif
-                            )
-                            Spacer(Modifier.height(4.dp))
-                        }
-                        GetStartedStep(
-                            onTrySampleBooks = { launchSamples() },
-                            onAddFtpServer = { onNavigateFtp() },
-                            onImportFromDevice = { onNavigateImport() }
-                        )
-                    }
-                }
-            }
-
-            // Bottom Navigation Buttons
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (step > 0) {
-                    OutlinedButton(
-                        onClick = { step-- },
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x44FFFFFF)),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE8D7C8)),
-                        shape = RoundedCornerShape(20.dp)
-                    ) {
-                        Text("Tilbake")
-                    }
-                    Spacer(Modifier.width(16.dp))
-                }
-
-                Button(
+                // Wordmark
+                Text(
+                    "SHELF",
+                    style = ShelfTypography.TitleLarge.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 28.sp,
+                    letterSpacing = 8.sp,
+                    color = com.shelf.reader.designsystem.theme.OmarchyColors.Accent
+                )
+                Spacer(Modifier.height(32.dp))
+                Text(
+                    stringResource(R.string.onboarding_title),
+                    style = ShelfTypography.TitleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = com.shelf.reader.designsystem.theme.OmarchyColors.FgBright,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    stringResource(R.string.onboarding_body),
+                    style = ShelfTypography.BodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                    color = com.shelf.reader.designsystem.theme.OmarchyColors.Dim,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(Modifier.height(48.dp))
+                OutlinedButton(
                     onClick = {
-                        if (step < pages.lastIndex) {
-                            step++
-                        } else {
-                            val finalName = userNameInput.trim().ifEmpty { "Karoline" }
-                            val prefs = UserPreferencesRepository(ctx)
-                            scope.launch {
-                                prefs.setUserName(finalName)
-                                prefs.setHasSeenOnboarding(true)
-                                onDone(finalName)
-                            }
+                        scope.launch {
+                            prefs.setHasSeenOnboarding(true)
+                            onDone()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFD4AF37),
-                        contentColor = Color(0xFF1F130D)
+                    shape = RoundedCornerShape(0.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, com.shelf.reader.designsystem.theme.OmarchyColors.Accent),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                        contentColor = com.shelf.reader.designsystem.theme.OmarchyColors.Accent
                     ),
-                    shape = RoundedCornerShape(20.dp),
-                    modifier = Modifier.weight(1f).height(48.dp)
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
                 ) {
                     Text(
-                        if (step < pages.lastIndex) "Neste" else "Åpne biblioteket",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
+                        stringResource(R.string.onboarding_cta),
+                        style = ShelfTypography.LabelLarge.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 2.sp
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun WelcomeStep() {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            Modifier
-                .size(120.dp)
-                .clip(RoundedCornerShape(32.dp))
-                .background(
-                    Brush.linearGradient(
-                        listOf(ShelfColors.SpineBurgundy, ShelfColors.SpineNavy)
-                    )
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Default.AutoStories,
-                null,
-                tint = Color.White,
-                modifier = Modifier.size(60.dp)
-            )
-        }
-        Spacer(Modifier.height(28.dp))
-        Text("Shelf", style = ShelfTypography.DisplayMedium, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Din bibliotekhylle — elegant for ebøker, lydbøker og alt imellom.",
-            style = ShelfTypography.HeadlineSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PermissionStep(
-    onPickLibraryFolder: () -> Unit,
-    onRequestMediaAccess: () -> Unit
-) {
-    Column {
-        Text("Gi Shelf tilgang", style = ShelfTypography.HeadlineMedium, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Vi bruker kun tilgangen til å åpne bokfilene dine og lagre dem sikkert. Alt skjer lokalt på enheten din.",
-            style = ShelfTypography.BodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(20.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            PermissionRow(
-                icon = Icons.Default.FolderOpen,
-                title = "Velg bibliotekmappe",
-                subtitle = "Trykk for å velge hvor bøker skal lagres",
-                onClick = onPickLibraryFolder
-            )
-            PermissionRow(
-                icon = Icons.Default.PermMedia,
-                title = "Medie- og filtilgang",
-                subtitle = "Trykk for å gi tilgang via systemvelger",
-                onClick = onRequestMediaAccess
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun GetStartedStep(
-    onTrySampleBooks: () -> Unit,
-    onAddFtpServer: () -> Unit,
-    onImportFromDevice: () -> Unit
-) {
-    Column {
-        Text("Kom i gang", style = ShelfTypography.HeadlineMedium, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Last ned bøker via FTP, importer fra enheten, eller prøv noen klassikere først.",
-            style = ShelfTypography.BodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(20.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ElevatedCard(
-                onClick = onTrySampleBooks,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.AutoAwesome, null, tint = Color(0xFFB8860B))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Prøv prøvebøker", style = ShelfTypography.TitleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("Laste inn noen offentlige klassikere umiddelbart.", style = ShelfTypography.BodySmall)
-                    }
-                    Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            ElevatedCard(
-                onClick = onAddFtpServer,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CloudSync, null, tint = Color(0xFF2D3A5C))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Legg til FTP-server", style = ShelfTypography.TitleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("Koble til NAS eller hjemmeserver for å synkronisere.", style = ShelfTypography.BodySmall)
-                    }
-                    Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            ElevatedCard(
-                onClick = onImportFromDevice,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.UploadFile, null, tint = Color(0xFF2D5C3A))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Importer fra enheten", style = ShelfTypography.TitleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("Åpne ebøker eller lydbøker som allerede ligger på telefonen.", style = ShelfTypography.BodySmall)
-                    }
-                    Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PermissionRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit
-) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large
-    ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, null, tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(28.dp))
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, style = ShelfTypography.TitleMedium, fontWeight = FontWeight.SemiBold)
-                Text(subtitle, style = ShelfTypography.BodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

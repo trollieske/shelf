@@ -352,7 +352,10 @@ fun BookCoverCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
-    aspectRatio: Float = 1.55f
+    aspectRatio: Float = 1.55f,
+    showFormatBadge: Boolean = true,
+    showInlineProgress: Boolean = true,
+    underCoverContent: (@Composable () -> Unit)? = null
 ) {
     var pressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -365,7 +368,7 @@ fun BookCoverCard(
         animationSpec = spring(dampingRatio = 0.8f, stiffness = 300f),
         label = "coverLean"
     )
-    val cornerShape = RoundedCornerShape(6.dp)
+    val cornerShape = RoundedCornerShape(4.dp)
     val cleanedTitle = remember(book.title) { cleanBookTitle(book.title) }
     val cleanedAuthor = remember(book.author) { cleanBookAuthor(book.author) }
 
@@ -381,9 +384,9 @@ fun BookCoverCard(
                     rotationZ = rotation
                     scaleX = scale
                     scaleY = scale
-                    shadowElevation = if (pressed) 1.dp.toPx() else 5.dp.toPx()
+                    shadowElevation = if (pressed) 0.5.dp.toPx() else 2.dp.toPx()
                 }
-                .shadow(5.dp, cornerShape, ambientColor = Color(0x33000000), spotColor = Color(0x22000000))
+                .shadow(2.dp, cornerShape, ambientColor = Color(0x33000000), spotColor = Color(0x22000000))
                 .clip(cornerShape)
                 .pointerInput(Unit) {
                     detectTapGestures(
@@ -462,28 +465,30 @@ fun BookCoverCard(
                 )
             }
 
-            androidx.compose.animation.AnimatedVisibility(
-                visible = book.progress > 0f,
-                enter = scaleIn(tween(220, easing = FastOutSlowInEasing)),
-                exit = scaleOut(tween(180, easing = FastOutLinearInEasing)),
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .height(3.dp)
-            ) {
-                Row(Modifier.fillMaxSize()) {
-                    Box(
-                        Modifier
-                            .fillMaxHeight()
-                            .weight(book.progress.coerceIn(0.0001f, 1f))
-                            .background(ShelfColors.ProgressFill)
-                    )
-                    Box(
-                        Modifier
-                            .fillMaxHeight()
-                            .weight((1f - book.progress.coerceIn(0f, 1f)).coerceAtLeast(0.0001f))
-                            .background(ShelfColors.ProgressTrack)
-                    )
+            if (showInlineProgress) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = book.progress > 0f,
+                    enter = scaleIn(tween(220, easing = FastOutSlowInEasing)),
+                    exit = scaleOut(tween(180, easing = FastOutLinearInEasing)),
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .height(3.dp)
+                ) {
+                    Row(Modifier.fillMaxSize()) {
+                        Box(
+                            Modifier
+                                .fillMaxHeight()
+                                .weight(book.progress.coerceIn(0.0001f, 1f))
+                                .background(ShelfColors.ProgressFill)
+                        )
+                        Box(
+                            Modifier
+                                .fillMaxHeight()
+                                .weight((1f - book.progress.coerceIn(0f, 1f)).coerceAtLeast(0.0001f))
+                                .background(ShelfColors.ProgressTrack)
+                        )
+                    }
                 }
             }
 
@@ -499,31 +504,34 @@ fun BookCoverCard(
                 )
             }
 
-            Box(
-                Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(4.dp)
-                    .background(
-                        Color(0xFF121212).copy(alpha = 0.65f),
-                        RoundedCornerShape(percent = 40)
+            if (showFormatBadge) {
+                Box(
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp)
+                        .background(
+                            Color(0xFF121212).copy(alpha = 0.65f),
+                            RoundedCornerShape(percent = 40)
+                        )
+                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        book.format.badge,
+                        style = ShelfTypography.LabelSmall,
+                        color = Color.White,
+                        fontSize = 10.sp
                     )
-                    .padding(horizontal = 5.dp, vertical = 1.dp)
-            ) {
-                Text(
-                    book.format.badge,
-                    style = ShelfTypography.LabelSmall,
-                    color = Color.White,
-                    fontSize = 10.sp
-                )
+                }
             }
         }
 
+        underCoverContent?.invoke()
         Spacer(Modifier.height(4.dp))
         Text(
             cleanedTitle,
             style = ShelfTypography.LabelSmall,
             fontWeight = FontWeight.Medium,
-            color = Color(0xFFF7F2EC),
+            color = Color(0xFFA9B1D6),
             fontSize = 11.sp,
             lineHeight = 13.sp,
             maxLines = 2,

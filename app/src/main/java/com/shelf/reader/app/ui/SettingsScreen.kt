@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -413,12 +414,16 @@ private fun SettingsSection(
         Text(
             title.uppercase(),
             style = ShelfTypography.LabelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+            color = com.shelf.reader.designsystem.theme.OmarchyColors.Dim,
             modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 6.dp)
         )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.large
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    com.shelf.reader.designsystem.theme.OmarchyColors.Panel,
+                    RoundedCornerShape(4.dp)
+                )
         ) {
             Column(content = content)
         }
@@ -635,6 +640,7 @@ fun SettingsScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
+            containerColor = com.shelf.reader.designsystem.theme.OmarchyColors.Bg,
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
             TopAppBar(
@@ -642,16 +648,17 @@ fun SettingsScreen(
                     Text(
                         "Innstillinger",
                         style = ShelfTypography.HeadlineSmall,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = com.shelf.reader.designsystem.theme.OmarchyColors.FgBright
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Tilbake")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Tilbake", tint = com.shelf.reader.designsystem.theme.OmarchyColors.Fg)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                    containerColor = com.shelf.reader.designsystem.theme.OmarchyColors.Bg
                 )
             )
         }
@@ -666,55 +673,44 @@ fun SettingsScreen(
         ) {
 
             Spacer(Modifier.height(4.dp))
-            Card(
-                onClick = onSourcesClick,
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                ),
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        com.shelf.reader.designsystem.theme.OmarchyColors.Panel,
+                        RoundedCornerShape(4.dp)
+                    )
+                    .clickable(onClick = onSourcesClick)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        modifier = Modifier.size(44.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Default.CloudSync,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "Kilder & synkronisering",
-                            style = ShelfTypography.TitleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            "FTP, SMB, WebDAV, Torrent, Calibre, OPDS",
-                            style = ShelfTypography.BodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                        )
-                    }
-                    Icon(
-                        Icons.Default.ChevronRight,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
+                Icon(
+                    Icons.Default.CloudSync,
+                    contentDescription = null,
+                    tint = com.shelf.reader.designsystem.theme.OmarchyColors.Fg,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Kilder & synkronisering",
+                        style = ShelfTypography.BodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = com.shelf.reader.designsystem.theme.OmarchyColors.FgBright
+                    )
+                    Spacer(Modifier.height(1.dp))
+                    Text(
+                        "FTP, SMB, WebDAV, Torrent, Calibre, OPDS",
+                        style = ShelfTypography.BodySmall,
+                        color = com.shelf.reader.designsystem.theme.OmarchyColors.Dim
                     )
                 }
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = com.shelf.reader.designsystem.theme.OmarchyColors.Dim
+                )
             }
 
             SettingsSection("Utsende") {
@@ -768,133 +764,6 @@ fun SettingsScreen(
                         }
                     }
 
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Mørk modus",
-                        style = ShelfTypography.TitleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .background(
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                RoundedCornerShape(12.dp)
-                            )
-                            .padding(2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        listOf(
-                            DarkModePref.FOLLOW_SYSTEM to "Følg system",
-                            DarkModePref.LIGHT to "Av",
-                            DarkModePref.DARK to "På"
-                        ).forEach { (pref, label) ->
-                            val isSel = pref == state.darkMode ||
-                                (pref == DarkModePref.DARK && state.darkMode == DarkModePref.TRUE_BLACK)
-                            FilterChip(
-                                selected = isSel,
-                                onClick = { vm.setDarkMode(pref) },
-                                label = {
-                                    Text(label, style = ShelfTypography.LabelMedium)
-                                },
-                                modifier = Modifier
-                                    .padding(horizontal = 2.dp)
-                                    .weight(1f)
-                            )
-                        }
-                    }
-
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "Svart (AMOLED)",
-                                style = ShelfTypography.BodyLarge
-                            )
-                            Text(
-                                "Ekte svart bakgrunn for AMOLED-skjermer",
-                                style = ShelfTypography.BodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Switch(
-                            checked = state.trueBlack,
-                            onCheckedChange = { vm.setTrueBlack(it) }
-                        )
-                    }
-
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "Dynamiske Material You-farger",
-                                style = ShelfTypography.BodyLarge
-                            )
-                            Text(
-                                "Fargepalett fra bakgrunnsbilde",
-                                style = ShelfTypography.BodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Switch(
-                            checked = state.dynamicColors,
-                            onCheckedChange = { vm.setDynamicColors(it) }
-                        )
-                    }
-
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "Formatfilter i biblioteket",
-                                style = ShelfTypography.BodyLarge
-                            )
-                            Text(
-                                "Vis knapper for EPUB, PDF, lydbøker osv. over listen",
-                                style = ShelfTypography.BodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Switch(
-                            checked = state.libraryFormatFilterEnabled,
-                            onCheckedChange = { vm.setLibraryFormatFilter(it) }
-                        )
-                    }
-
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "Antall bøker i faner",
-                                style = ShelfTypography.BodyLarge
-                            )
-                            Text(
-                                "Vis (N) ved siden av Alle, Ebøker og Lydbøker",
-                                style = ShelfTypography.BodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Switch(
-                            checked = state.libraryTabCountsEnabled,
-                            onCheckedChange = { vm.setLibraryTabCounts(it) }
-                        )
-                    }
                 }
             }
 
@@ -1545,7 +1414,7 @@ fun SettingsScreen(
                                 Icon(
                                     Icons.Default.AutoAwesome,
                                     contentDescription = null,
-                                    tint = androidx.compose.ui.graphics.Color(0xFFF59E0B),
+                                    tint = androidx.compose.ui.graphics.Color(0xFFC8F542),
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -1650,7 +1519,7 @@ fun SettingsScreen(
                         },
                         style = ShelfTypography.BodySmall,
                         color = if (rhythmState.currentStreak >= state.rhythmStreakGoalDays)
-                            androidx.compose.ui.graphics.Color(0xFFF59E0B)
+                            androidx.compose.ui.graphics.Color(0xFFC8F542)
                         else MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
@@ -1675,13 +1544,13 @@ fun SettingsScreen(
                             "${(rhythmState.weeklyProgressFraction * 100).toInt()}%",
                             style = ShelfTypography.TitleMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = androidx.compose.ui.graphics.Color(0xFFF59E0B)
+                            color = androidx.compose.ui.graphics.Color(0xFFC8F542)
                         )
                     }
                     LinearProgressIndicator(
                         progress = { rhythmState.weeklyProgressFraction },
                         modifier = Modifier.fillMaxWidth(),
-                        color = androidx.compose.ui.graphics.Color(0xFFF59E0B),
+                        color = androidx.compose.ui.graphics.Color(0xFFC8F542),
                         trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                     )
 

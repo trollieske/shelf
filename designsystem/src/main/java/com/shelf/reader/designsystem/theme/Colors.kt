@@ -86,3 +86,19 @@ val DarkWoodPalette = WoodPalette(
     shelfBoardEdge = Color(0xFF1A1A1A),
     shelfBoardShadow = Color(0x66000000)
 )
+
+/**
+ * Delte HUD-tokens (8-bit / futuristisk, låst mørkt tema).
+ * Bakgrunn #000000, tekst #F5F5F5, dim #8C8C8C, én aksent #C8F542.
+ * Brukes av bibliotek, innstillinger, kilder, velkomst og bunnmeny.
+ */
+object OmarchyColors {
+    val Bg = Color(0xFF000000)        // ekte svart
+    val HeaderBg = Color(0xFF000000)  // flat toppband
+    val Hairline = Color(0xFF262626)  // 1px hårlinjerammer / spor
+    val Accent = Color(0xFFC8F542)    // éneste aksent (rammer, valgt, 2px progresjon, wordmark)
+    val Dim = Color(0xFF8C8C8C)       // lavkontrast / uvalgt / meta
+    val Fg = Color(0xFFF5F5F5)        // primærtekst
+    val FgBright = Color(0xFFF5F5F5)  // primærtekst (overskrifter)
+    val Panel = Color(0xFF0D0D0D)     // flate paneler (søk, FAB, rader)
+}
