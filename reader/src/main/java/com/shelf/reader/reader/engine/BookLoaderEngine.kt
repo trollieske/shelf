@@ -139,7 +139,15 @@ class BookLoaderEngine(
             val readerChapters = parsed.chapters.map {
                 ReaderChapter(it.index, it.title, it.htmlContent, it.startByte, it.startByte + it.byteLength)
             }
-            if (book.chaptersJson.isNullOrBlank() || book.chapterCount != parsed.chapters.size) {
+            // Oppdater chaptersJson når titlene har endret seg (bedre TOC-navn fra
+            // nav/NCX/h1 etter parserforbedring) — gamle importerer får navn ved neste
+            // åpning uten reimport.
+            val newTitles = parsed.chapters.map { it.title }
+            val oldTitles = runCatching {
+                val arr = org.json.JSONArray(book.chaptersJson ?: "[]")
+                (0 until arr.length()).map { arr.optString(it) }
+            }.getOrElse { emptyList() }
+            if (book.chaptersJson.isNullOrBlank() || oldTitles != newTitles) {
                 runCatching {
                     val jsonArray = org.json.JSONArray()
                     parsed.chapters.forEach { jsonArray.put(it.title) }
@@ -493,7 +501,15 @@ class BookLoaderEngine(
             val readerChapters = parsed.chapters.map {
                 ReaderChapter(it.index, it.title, it.htmlContent, it.startByte, it.startByte + it.byteLength)
             }
-            if (book.chaptersJson.isNullOrBlank() || book.chapterCount != parsed.chapters.size) {
+            // Oppdater chaptersJson når titlene har endret seg (bedre TOC-navn fra
+            // nav/NCX/h1 etter parserforbedring) — gamle importerer får navn ved neste
+            // åpning uten reimport.
+            val newTitles = parsed.chapters.map { it.title }
+            val oldTitles = runCatching {
+                val arr = org.json.JSONArray(book.chaptersJson ?: "[]")
+                (0 until arr.length()).map { arr.optString(it) }
+            }.getOrElse { emptyList() }
+            if (book.chaptersJson.isNullOrBlank() || oldTitles != newTitles) {
                 runCatching {
                     val jsonArray = org.json.JSONArray()
                     parsed.chapters.forEach { jsonArray.put(it.title) }

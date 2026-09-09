@@ -158,6 +158,24 @@ class ReaderViewModel(
         }
     }
 
+    /**
+     * Kapittelbytte utløst av en fullført sidekrøll over kapittelgrensen.
+     * Siden krøllen allerede viser målsidens piksler (sentinel), settes siden
+     * direkte uten pendingRepositionPct — ingen re-mount, ingen svart blink.
+     */
+    fun jumpToChapterPage(index: Int, page: Int, chapterPct: Float) {
+        if (index < 0 || index >= _state.value.chapters.size) return
+        if (index == _state.value.currentChapterIndex) return
+        val safePage = page.coerceAtLeast(0)
+        _state.value = _state.value.copy(
+            currentChapterIndex = index,
+            currentPage = safePage,
+            percent = chapterPct.coerceIn(0f, 1f),
+            pendingRepositionPct = null,
+        )
+        persistProgress(chapterPct.coerceIn(0f, 1f), safePage, index)
+    }
+
     fun previousChapter() {
         val prev = _state.value.currentChapterIndex - 1
         if (prev >= 0) {
