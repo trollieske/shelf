@@ -9,7 +9,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.shelf.reader.core.domain.model.DarkModePref
+import com.shelf.reader.core.domain.model.LibrarySortMode
 import com.shelf.reader.core.domain.model.LibraryViewType
+import com.shelf.reader.core.domain.model.SortDirection
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -84,10 +86,13 @@ class UserPreferencesRepository(private val context: Context) {
     val onlineCoverLookup: Flow<Boolean> = store.map { it[Keys.ONLINE_COVER_LOOKUP] ?: false }
     val hasSeenOnboarding: Flow<Boolean> = store.map { it[Keys.SEEN_ONBOARDING] ?: false }
 
-    // ---- Leserytme / Reading Goals ----
-    val rhythmStreakGoalDays: Flow<Int> = store.map { it[Keys.RHYTHM_STREAK_GOAL] ?: 7 }
-    val rhythmCelebrationsEnabled: Flow<Boolean> = store.map { it[Keys.RHYTHM_CELEBRATIONS] ?: true }
-    val rhythmDebugAutoTriggerOnLogin: Flow<Boolean> = store.map { it[Keys.RHYTHM_DEBUG_AUTO_TRIGGER] ?: true }
+    // ---- Sort rail (persisted per media tab; default HYLLE / mode-default direction) ----
+    val booksSortMode: Flow<LibrarySortMode> = store.map { LibrarySortMode.from(it[Keys.SORT_MODE_BOOKS]) }
+    val audioSortMode: Flow<LibrarySortMode> = store.map { LibrarySortMode.from(it[Keys.SORT_MODE_AUDIO]) }
+    val booksSortDirection: Flow<SortDirection> = store.map { SortDirection.from(it[Keys.SORT_DIR_BOOKS]) }
+    val audioSortDirection: Flow<SortDirection> = store.map { SortDirection.from(it[Keys.SORT_DIR_AUDIO]) }
+
+    // ---- (Legacy Leserytme/goal keys remain dormant in the DataStore file) ----
 
     // ---- Writes ----
 
@@ -134,6 +139,11 @@ class UserPreferencesRepository(private val context: Context) {
     suspend fun setHandoffToast(enabled: Boolean) = edit(Keys.HANDOFF_TOAST, enabled)
     suspend fun setOnlineCoverLookup(enabled: Boolean) = edit(Keys.ONLINE_COVER_LOOKUP, enabled)
     suspend fun markOnboardingSeen() = edit(Keys.SEEN_ONBOARDING, true)
+
+    suspend fun setBooksSortMode(mode: LibrarySortMode) = edit(Keys.SORT_MODE_BOOKS, mode.storage)
+    suspend fun setAudioSortMode(mode: LibrarySortMode) = edit(Keys.SORT_MODE_AUDIO, mode.storage)
+    suspend fun setBooksSortDirection(d: SortDirection) = edit(Keys.SORT_DIR_BOOKS, d.storage)
+    suspend fun setAudioSortDirection(d: SortDirection) = edit(Keys.SORT_DIR_AUDIO, d.storage)
 
     private suspend inline fun <reified T : Any> edit(key: Preferences.Key<T>, value: T) {
         context.dataStore.edit { it[key] = value }
@@ -189,17 +199,14 @@ class UserPreferencesRepository(private val context: Context) {
         val SEEN_ONBOARDING = booleanPreferencesKey("seen_onboarding_v1")
         val USER_NAME = stringPreferencesKey("user_name")
 
-        val RHYTHM_STREAK_GOAL = intPreferencesKey("rhythm_streak_goal_days")
-        val RHYTHM_CELEBRATIONS = booleanPreferencesKey("rhythm_celebrations_enabled")
-        val RHYTHM_DEBUG_AUTO_TRIGGER = booleanPreferencesKey("rhythm_debug_auto_trigger")
+        val SORT_MODE_BOOKS = stringPreferencesKey("sort_mode_books")
+        val SORT_MODE_AUDIO = stringPreferencesKey("sort_mode_audio")
+        val SORT_DIR_BOOKS = stringPreferencesKey("sort_dir_books")
+        val SORT_DIR_AUDIO = stringPreferencesKey("sort_dir_audio")
     }
 
     val userName: Flow<String> = store.map { it[Keys.USER_NAME] ?: "Karoline" }
 
     suspend fun setUserName(name: String) = edit(Keys.USER_NAME, name)
     suspend fun setHasSeenOnboarding(seen: Boolean) = edit(Keys.SEEN_ONBOARDING, seen)
-
-    suspend fun setRhythmStreakGoalDays(days: Int) = edit(Keys.RHYTHM_STREAK_GOAL, days.coerceIn(1, 365))
-    suspend fun setRhythmCelebrationsEnabled(enabled: Boolean) = edit(Keys.RHYTHM_CELEBRATIONS, enabled)
-    suspend fun setRhythmDebugAutoTrigger(enabled: Boolean) = edit(Keys.RHYTHM_DEBUG_AUTO_TRIGGER, enabled)
 }

@@ -3,88 +3,54 @@ package com.shelf.reader.library.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.shelf.reader.core.domain.model.AutoShelf
 import com.shelf.reader.core.domain.model.DarkModePref
-import com.shelf.reader.core.domain.model.LibraryViewType
+import com.shelf.reader.core.domain.model.LibrarySortMode
+import com.shelf.reader.core.domain.model.SortDirection
 import com.shelf.reader.core.dispatchers.DefaultDispatcherProvider
 import com.shelf.reader.core.dispatchers.DispatcherProvider
 import com.shelf.reader.library.cover.CoverRepository
-import com.shelf.reader.library.data.BookImportRepository
 import com.shelf.reader.library.mapper.DomainMappers.toBookVisual
+import com.shelf.reader.library.sort.LibrarySorter
+import com.shelf.reader.library.sort.ResumeSelector
 import com.shelf.reader.data.local.ShelfDatabase
 import com.shelf.reader.data.local.entity.BookEntity
 import com.shelf.reader.data.local.entity.BookTypeEntity
-import com.shelf.reader.data.local.entity.ShelfBookCrossRef
-import com.shelf.reader.data.local.entity.ShelfEntity
-import com.shelf.reader.data.local.entity.ShelfTypeEntity
 import com.shelf.reader.data.prefs.UserPreferencesRepository
 import com.shelf.reader.designsystem.components.BookVisual
-import com.shelf.reader.designsystem.components.ShelfRow
-import android.database.sqlite.SQLiteConstraintException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-enum class LibrarySort(val storage: String) {
-    DATE_ADDED("date_added"),
-    TITLE("title"),
-    TITLE_ASC("title_asc"),
-    TITLE_DESC("title_desc"),
-    AUTHOR("author"),
-    PROGRESS("progress");
-
-    companion object {
-        fun from(s: String?) = entries.firstOrNull { it.storage == s } ?: DATE_ADDED
-    }
-}
-
-enum class LibraryFilter(val storage: String) {
-    ALL("all"),
-    IN_PROGRESS("in_progress"),
-    UNREAD("unread"),
-    FINISHED("finished"),
-    EBOOKS("ebooks"),
-    AUDIOBOOKS("audiobooks"),
-    FAVORITES("favorites");
-
-    companion object {
-        fun from(s: String?) = entries.firstOrNull { it.storage == s } ?: ALL
-    }
-}
-
 /** Locked per destination: Books = kun ebøker, Audio = kun lydbøker. Ingen kryssmodus-filter. */
-sealed class LibraryMode(val filter: LibraryFilter) {
-    data object Books : LibraryMode(LibraryFilter.EBOOKS)
-    data object Audio : LibraryMode(LibraryFilter.AUDIOBOOKS)
+sealed class LibraryMode {
+    data object Books : LibraryMode()
+    data object Audio : LibraryMode()
 }
 
 /** Tynn fortsett-linje: tittel + prosent (ebok) eller gjenstående tid (lydbok). */
 data class ResumeItem(
     val bookId: Long,
     val title: String,
-    val detail: String
+    val author: String,
+    val detail: String,
+    val coverPath: String? = null
 )
 
+/** Rutenett-oppføringer: full-bredde seksjonsetikett (kun HYLLE) eller bokomslag. */
+sealed interface GridEntry {
+    data class SectionLabel(val text: String) : GridEntry
+    data class BookEntry(val book: BookVisual) : GridEntry
+}
+
 data class LibraryUiState(
-    val viewType: LibraryViewType = LibraryViewType.GRID,
-    val darkMode: DarkModePref = DarkModePref.FOLLOW_SYSTEM,
-    val dynamicColors: Boolean = false,
     val query: String = "",
-    val sort: LibrarySort = LibrarySort.DATE_ADDED,
-    val filter: LibraryFilter = LibraryFilter.ALL,
+    val sortMode: LibrarySortMode = LibrarySortMode.HYLLE,
+    val direction: SortDirection = SortDirection.ASC,
     val isLoading: Boolean = true,
-    val autoShelves: List<ShelfRow> = emptyList(),
-    val userShelves: List<ShelfEntity> = emptyList(),
-    val shelvesForBook: Map<Long, List<ShelfEntity>> = emptyMap(),
+    val gridEntries: List<GridEntry> = emptyList(),
     val flatGridBooks: List<BookVisual> = emptyList(),
-    val flatListBooks: List<BookEntity> = emptyList(),
-    val totalBookCount: Int = 0,
-    val ebookCount: Int = 0,
-    val inProgressCount: Int = 0,
-    val finishedCount: Int = 0,
-    val audiobookCount: Int = 0,
-    val resumeEbook: ResumeItem? = null,
-    val resumeAudio: ResumeItem? = null,
+    val resumeEbooks: List<ResumeItem> = emptyList(),
+    val resumeAudios: List<ResumeItem> = emptyList(),
     val error: String? = null
 )
 
@@ -98,9 +64,6 @@ class LibraryViewModel(
     private val db = ShelfDatabase.getInstance(application.applicationContext)
 
     private val queryFlow = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = queryFlow.asStateFlow()
-
-    private val sortFlow = MutableStateFlow(LibrarySort.DATE_ADDED)
     private val modeFlow = MutableStateFlow<LibraryMode>(LibraryMode.Books)
 
     init {
@@ -124,17 +87,19 @@ class LibraryViewModel(
 
     val state: StateFlow<LibraryUiState> = combine(
         queryFlow,
-        sortFlow,
         modeFlow,
-        prefs.darkMode,
-        prefs.dynamicColors
+        prefs.booksSortMode,
+        prefs.audioSortMode,
+        prefs.booksSortDirection,
+        prefs.audioSortDirection
     ) { args ->
+        @Suppress("UNCHECKED_CAST")
+        val mode = args[1] as LibraryMode
         Params(
             query = args[0] as String,
-            sort = args[1] as LibrarySort,
-            mode = args[2] as LibraryMode,
-            dark = args[3] as DarkModePref,
-            dynamic = args[4] as Boolean
+            mode = mode,
+            sortMode = if (mode == LibraryMode.Books) args[2] as LibrarySortMode else args[3] as LibrarySortMode,
+            direction = if (mode == LibraryMode.Books) args[4] as SortDirection else args[5] as SortDirection
         )
     }
         .flatMapLatest { p -> buildStateFlow(p) }
@@ -145,127 +110,101 @@ class LibraryViewModel(
         )
 
     private data class Params(
-        val query: String, val sort: LibrarySort, val mode: LibraryMode,
-        val dark: DarkModePref, val dynamic: Boolean
+        val query: String,
+        val mode: LibraryMode,
+        val sortMode: LibrarySortMode,
+        val direction: SortDirection
     )
 
     private fun buildStateFlow(p: Params): Flow<LibraryUiState> =
         combine(
-            booksMatching(p.query, p.sort, p.mode.filter),
+            booksMatching(p.query, p.mode),
             progressRows(),
-            db.bookDao().observeInProgress(),
-            db.bookDao().observeFinished(),
-            db.bookDao().observeAudiobooks(),
-            userShelves(),
             db.bookDao().observeAll()
-        ) { args ->
-            @Suppress("UNCHECKED_CAST")
-            val matching = args[0] as List<BookEntity>
-            @Suppress("UNCHECKED_CAST")
-            val rows = args[1] as Map<Long, com.shelf.reader.data.local.entity.ReadingProgressEntity>
-            @Suppress("UNCHECKED_CAST")
-            val inProg = args[2] as List<BookEntity>
-            @Suppress("UNCHECKED_CAST")
-            val fin = args[3] as List<BookEntity>
-            @Suppress("UNCHECKED_CAST")
-            val audio = args[4] as List<BookEntity>
-            @Suppress("UNCHECKED_CAST")
-            val userSh = args[5] as List<Pair<com.shelf.reader.data.local.entity.ShelfEntity, List<BookEntity>>>
-            @Suppress("UNCHECKED_CAST")
-            val allUnfiltered = args[6] as List<BookEntity>
+        ) { matching, rows, all ->
             val filesDir = getApplication<Application>().filesDir
             val pct: (Long) -> Float = { rows[it]?.progressPercent ?: 0f }
             val visual: (BookEntity) -> BookVisual = { toBookVisual(it, pct(it.id), filesDir) }
 
-            val totalActive = allUnfiltered.filter { !it.isDeleted }
-            val audioActive = audio.filter { !it.isDeleted }
-            val totalCount = totalActive.size
-            val abCount = audioActive.size
-            val ebCount = (totalCount - abCount).coerceAtLeast(0)
+            val totalActive = all.filter { !it.isDeleted }
 
-            val showSearch = p.query.isNotBlank()
-            val auto = listOfNotNull(
-                if (!showSearch) shelfRow(AutoShelf.RECENTLY_ADDED.id, "Nylig lagt til",
-                    matching.take(8), visual) else null,
-                if (!showSearch) shelfRow(AutoShelf.IN_PROGRESS.id, "Pågår",
-                    inProg.take(7), visual) else null,
-                if (!showSearch) shelfRow(AutoShelf.FINISHED.id, "Ferdig",
-                    fin, visual) else null,
-                if (!showSearch) shelfRow(AutoShelf.AUDIOBOOKS.id, "Lydbøker",
-                    audioActive.take(12), visual) else null,
-                if (!showSearch) shelfRow(AutoShelf.EBOOKS.id, "Ebøker",
-                    totalActive.filter { it.type != BookTypeEntity.AUDIOBOOK }.take(12), visual) else null
-            ) + userSh.map { (shelf, booksInShelf) ->
-                ShelfRow(
-                    id = "user_${shelf.id}",
-                    label = shelf.name,
-                    books = booksInShelf.map(visual)
+            // ── Sorting: single source of truth (LibrarySorter) ──
+            val sortBooks = matching.map { b ->
+                com.shelf.reader.library.sort.SortBook(
+                    id = b.id,
+                    title = b.title,
+                    sortTitle = b.sortTitle,
+                    author = b.author,
+                    sortAuthor = b.sortAuthor,
+                    series = b.series,
+                    seriesIndex = b.seriesIndex,
+                    seriesIndexResolved = b.seriesIndex ?: LibrarySorter.parseSeriesIndex(b.series),
+                    dateAdded = b.dateAdded,
+                    lastActivity = rows[b.id]?.updatedAt ?: b.lastOpenedAt ?: 0L,
+                    updatedAt = rows[b.id]?.updatedAt ?: b.lastModifiedAt,
+                    isAudio = b.type == BookTypeEntity.AUDIOBOOK
                 )
             }
+            val sorted = LibrarySorter.sort(sortBooks, p.sortMode, p.direction)
+            val byId = matching.associateBy { it.id }
+            val sortedEntities = sorted.mapNotNull { byId[it.id] }
 
-            val bookShelves = mutableMapOf<Long, MutableList<com.shelf.reader.data.local.entity.ShelfEntity>>()
-            userSh.forEach { (shelf, booksInShelf) ->
-                booksInShelf.forEach { book ->
-                    bookShelves.getOrPut(book.id) { mutableListOf() }.add(shelf)
+            val showLabels = p.sortMode == LibrarySortMode.HYLLE && p.query.isBlank()
+            val labels = if (showLabels) LibrarySorter.sectionLabels(sorted) else List(sorted.size) { null }
+
+            val gridEntries = buildList {
+                sortedEntities.forEachIndexed { i, entity ->
+                    labels[i]?.let { add(GridEntry.SectionLabel(it)) }
+                    add(GridEntry.BookEntry(visual(entity)))
                 }
             }
+            val flatGridBooks = sortedEntities.map(visual).distinctBy { it.id }
 
-            // Fortsett-linje: siste påbegynte ebok / lydbok (basert på eksisterende progresjonsdata)
-            val started: (BookEntity) -> Boolean = { b ->
-                val p1 = pct(b.id)
-                (p1 > 0f && p1 < 0.99f) || (rows[b.id]?.positionMs ?: 0L) > 0L
+            // ── Fortsett-linje: smart multi-bok kandidater per fane ──
+            val resumeInputs = totalActive.map { b ->
+                ResumeSelector.ResumeBook(
+                    id = b.id,
+                    title = b.title,
+                    author = b.author,
+                    progressPercent = pct(b.id),
+                    positionMs = rows[b.id]?.positionMs ?: 0L,
+                    durationMs = b.durationMs ?: 0L,
+                    isAudio = b.type == BookTypeEntity.AUDIOBOOK,
+                    lastActivity = rows[b.id]?.updatedAt ?: b.lastOpenedAt ?: 0L,
+                    updatedAt = rows[b.id]?.updatedAt ?: b.lastModifiedAt,
+                    dateFinished = b.dateFinished,
+                    isDeleted = b.isDeleted
+                )
             }
-            val resumeEbook = totalActive
-                .filter { it.type != BookTypeEntity.AUDIOBOOK && it.dateFinished == null && started(it) }
-                .maxByOrNull { it.lastOpenedAt ?: 0L }
-                ?.let { ResumeItem(it.id, it.title, "${(pct(it.id) * 100).toInt()}%") }
-            val resumeAudio = totalActive
-                .filter { it.type == BookTypeEntity.AUDIOBOOK && it.dateFinished == null && started(it) }
-                .maxByOrNull { rows[it.id]?.updatedAt ?: 0L }
-                ?.let { b ->
-                    val pos = rows[b.id]?.positionMs ?: 0L
-                    val dur = b.durationMs ?: 0L
-                    val remaining = (dur - pos).coerceAtLeast(0L)
-                    val detail = if (remaining > 0L) formatRemaining(remaining) else "${(pct(b.id) * 100).toInt()}%"
-                    ResumeItem(b.id, b.title, detail)
-                }
+            val ebookResume = ResumeSelector.select(resumeInputs, wantAudio = false)
+            val audioResume = ResumeSelector.select(resumeInputs, wantAudio = true)
+
+            val allActiveById = totalActive.associateBy { it.id }
+            fun resolvedCover(bookId: Long): String? {
+                val b = allActiveById[bookId] ?: return null
+                val direct = b.coverPath?.takeIf { java.io.File(it).exists() }
+                return direct ?: java.io.File(filesDir, "covers/book_${b.id}.webp")
+                    .takeIf { it.exists() }?.absolutePath
+            }
 
             LibraryUiState(
-                viewType = LibraryViewType.GRID,
-                darkMode = p.dark,
-                dynamicColors = p.dynamic,
                 query = p.query,
-                sort = p.sort,
-                filter = p.mode.filter,
+                sortMode = p.sortMode,
+                direction = p.direction,
                 isLoading = false,
-                autoShelves = auto,
-                userShelves = userSh.map { it.first },
-                shelvesForBook = bookShelves,
-                flatGridBooks = matching.map(visual),
-                flatListBooks = matching,
-                totalBookCount = totalCount,
-                ebookCount = ebCount,
-                inProgressCount = inProg.size,
-                finishedCount = fin.size,
-                audiobookCount = abCount,
-                resumeEbook = resumeEbook,
-                resumeAudio = resumeAudio
+                gridEntries = gridEntries,
+                flatGridBooks = flatGridBooks,
+                resumeEbooks = ebookResume.map { r ->
+                    ResumeItem(r.bookId, r.title, r.author, r.detail, resolvedCover(r.bookId))
+                },
+                resumeAudios = audioResume.map { r ->
+                    ResumeItem(r.bookId, r.title, r.author, r.detail, resolvedCover(r.bookId))
+                },
+                error = null
             )
         }
             .catch { emit(LibraryUiState(error = it.message, isLoading = false)) }
             .flowOn(dispatchers.default)
-
-    private fun shelfRow(
-        id: String, label: String,
-        books: List<BookEntity>, mapper: (BookEntity) -> BookVisual
-    ) = ShelfRow(id = id, label = label, books = books.map(mapper))
-
-    private fun formatRemaining(ms: Long): String {
-        val totalMin = ((ms + 59_999) / 60_000).coerceAtLeast(1)
-        val h = totalMin / 60
-        val m = totalMin % 60
-        return if (h > 0) "${h}t ${m}min igjen" else "${m}min igjen"
-    }
 
     private fun progressRows(): Flow<Map<Long, com.shelf.reader.data.local.entity.ReadingProgressEntity>> =
         db.progressDao().observeAll().map { rows ->
@@ -274,146 +213,44 @@ class LibraryViewModel(
 
     private fun booksMatching(
         query: String,
-        sort: LibrarySort,
-        filter: LibraryFilter
+        mode: LibraryMode
     ): Flow<List<BookEntity>> {
         val base = if (query.isNotBlank()) db.bookDao().search(query) else db.bookDao().observeAll()
         return base.map { list ->
-            val filtered = when (filter) {
-                LibraryFilter.ALL -> list
-                LibraryFilter.IN_PROGRESS -> list.filter { (it.dateFinished == null) }
-                LibraryFilter.UNREAD -> list.filter { it.dateFinished == null }
-                LibraryFilter.FINISHED -> list.filter { it.dateFinished != null }
-                LibraryFilter.EBOOKS -> list.filter { it.type != BookTypeEntity.AUDIOBOOK }
-                LibraryFilter.AUDIOBOOKS -> list.filter { it.type != BookTypeEntity.EBOOK }
-                LibraryFilter.FAVORITES -> list.filter { it.isFavorite }
-            }
-            when (sort) {
-                LibrarySort.DATE_ADDED -> filtered.sortedWith(compareByDescending<BookEntity> { it.dateAdded }.thenBy { it.id })
-                LibrarySort.TITLE, LibrarySort.TITLE_ASC -> filtered.sortedWith(compareBy<BookEntity> { it.sortTitle.lowercase() }.thenBy { it.id })
-                LibrarySort.TITLE_DESC -> filtered.sortedWith(compareByDescending<BookEntity> { it.sortTitle.lowercase() }.thenBy { it.id })
-                LibrarySort.AUTHOR -> filtered.sortedWith(compareBy<BookEntity> { it.sortAuthor.lowercase() }.thenBy { it.sortTitle.lowercase() }.thenBy { it.id })
-                LibrarySort.PROGRESS -> filtered.sortedWith(compareByDescending<BookEntity> { it.lastOpenedAt ?: 0L }.thenByDescending { it.dateAdded }.thenBy { it.id })
+            when (mode) {
+                LibraryMode.Books -> list.filter { it.type != BookTypeEntity.AUDIOBOOK }
+                LibraryMode.Audio -> list.filter { it.type == BookTypeEntity.AUDIOBOOK }
             }
         }
     }
-
-    private fun userShelves(): Flow<List<Pair<ShelfEntity, List<BookEntity>>>> =
-        db.shelfDao().observeUserShelves().flatMapLatest { shelves ->
-            if (shelves.isEmpty()) return@flatMapLatest flowOf(emptyList())
-            combine(shelves.map { s ->
-                db.shelfDao().observeShelfBooks(s.id).map { books -> s to books }
-            }) { it.toList() }
-        }
 
     // --- UI actions ---
 
     fun setQuery(q: String) { queryFlow.value = q.trim() }
-    fun setSort(s: LibrarySort) { sortFlow.value = s }
+
     fun setMode(m: LibraryMode) { modeFlow.value = m }
 
-    fun clearAllBooks() {
+    /** Sort Rail: persists per media tab. Default/invalid value is HYLLE. */
+    fun setSortMode(mode: LibrarySortMode) {
         viewModelScope.launch(dispatchers.io) {
-            db.bookDao().deleteAll()
+            if (modeFlow.value == LibraryMode.Books) prefs.setBooksSortMode(mode)
+            else prefs.setAudioSortMode(mode)
         }
     }
 
-    fun toggleFavorite(bookId: Long) {
+    /** ⇅ toggles the persisted direction for the current tab. */
+    fun toggleSortDirection() {
         viewModelScope.launch(dispatchers.io) {
-            val b = db.bookDao().getById(bookId) ?: return@launch
-            db.bookDao().update(b.copy(
-                isFavorite = !b.isFavorite,
-                lastModifiedAt = System.currentTimeMillis()
-            ))
-        }
-    }
-
-    fun markFinished(bookId: Long) {
-        viewModelScope.launch(dispatchers.io) {
-            val b = db.bookDao().getById(bookId) ?: return@launch
-            val now = System.currentTimeMillis()
-            val isFinishedNow = b.dateFinished == null
-            db.bookDao().update(b.copy(
-                dateFinished = if (isFinishedNow) now else null,
-                lastModifiedAt = now
-            ))
-            db.progressDao().upsertForBook(
-                bookId = bookId,
-                updater = { it.copy(progressPercent = if (isFinishedNow) 1f else it.progressPercent, updatedAt = now) },
-                creator = { com.shelf.reader.data.local.entity.ReadingProgressEntity(bookId = bookId, progressPercent = 1f) }
-            )
+            val isBooks = modeFlow.value == LibraryMode.Books
+            val current = (if (isBooks) prefs.booksSortDirection else prefs.audioSortDirection).firstOrNull()
+            val next = if (current == SortDirection.ASC) SortDirection.DESC else SortDirection.ASC
+            if (isBooks) prefs.setBooksSortDirection(next) else prefs.setAudioSortDirection(next)
         }
     }
 
     fun delete(bookId: Long) {
         viewModelScope.launch(dispatchers.io) {
             db.bookDao().softDelete(bookId)
-        }
-    }
-
-    fun addToShelf(shelfId: Long, bookId: Long) {
-        viewModelScope.launch(dispatchers.io) {
-            db.shelfDao().insertCrossRef(ShelfBookCrossRef(shelfId = shelfId, bookId = bookId))
-        }
-    }
-
-    fun createShelf(name: String): Long? {
-        val trimmed = name.trim()
-        if (trimmed.isBlank()) return null
-        viewModelScope.launch(dispatchers.io) {
-            val now = System.currentTimeMillis()
-            db.shelfDao().insert(
-                ShelfEntity(
-                    name = trimmed,
-                    sortName = trimmed,
-                    type = ShelfTypeEntity.USER,
-                    coverColor = (0xFF000000.toInt() or (trimmed.hashCode() and 0xFFFFFF)),
-                    icon = "folder_open",
-                    position = 0,
-                    createdAt = now,
-                    updatedAt = now
-                )
-            )
-        }
-        return 0L
-    }
-
-    fun renameShelf(id: Long, newName: String) {
-        viewModelScope.launch(dispatchers.io) {
-            val existing = db.shelfDao().getById(id) ?: return@launch
-            db.shelfDao().update(
-                existing.copy(
-                    name = newName,
-                    sortName = newName,
-                    updatedAt = System.currentTimeMillis()
-                )
-            )
-        }
-    }
-
-    fun deleteShelf(id: Long) {
-        viewModelScope.launch(dispatchers.io) {
-            db.shelfDao().deleteCrossRefsByShelfId(id)
-            db.shelfDao().deleteById(id)
-        }
-    }
-
-    fun assignBookToShelf(bookId: Long, shelfId: Long) {
-        viewModelScope.launch(dispatchers.io) {
-            try {
-                db.shelfDao().insertCrossRef(
-                    ShelfBookCrossRef(shelfId = shelfId, bookId = bookId)
-                )
-            } catch (_: SQLiteConstraintException) {
-            }
-        }
-    }
-
-    fun removeBookFromShelf(bookId: Long, shelfId: Long) {
-        viewModelScope.launch(dispatchers.io) {
-            db.shelfDao().deleteCrossRef(
-                ShelfBookCrossRef(shelfId = shelfId, bookId = bookId)
-            )
         }
     }
 }

@@ -3,23 +3,25 @@ package com.shelf.reader.library.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -28,22 +30,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import coil.compose.AsyncImage
+import com.shelf.reader.core.domain.model.LibrarySortMode
+import com.shelf.reader.core.domain.model.SortDirection
 import com.shelf.reader.designsystem.components.BookCoverCard
-import com.shelf.reader.designsystem.components.BookVisual
 import com.shelf.reader.designsystem.theme.ShelfTypography
-import com.shelf.reader.library.gamification.ui.ReadingRhythmViewModel
-import com.shelf.reader.library.gamification.ui.SaluteEffectOverlay
-import com.shelf.reader.library.gamification.ui.SaluteTier
-import com.shelf.reader.library.gamification.ui.play
-import com.shelf.reader.library.gamification.ui.rememberSaluteEffectState
+import com.shelf.reader.library.sort.ResumeSelector
+import com.shelf.reader.library.viewmodel.GridEntry
 import com.shelf.reader.library.viewmodel.LibraryMode
 import com.shelf.reader.library.viewmodel.LibraryViewModel
 import com.shelf.reader.library.viewmodel.ResumeItem
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
-// Omarchy-inspirert bibliotek-krom: Tokyo Night-base, én aksent, ingen hevede kort.
-// Delte tokens ligger i designsystem (OmarchyColors) slik at Innstillinger/Kilder matcher.
+// Omarchy-inspirert bibliotek-krom: svart base, lime-aksent, ingen hevede kort.
 private val LibBg = com.shelf.reader.designsystem.theme.OmarchyColors.Bg
 private val LibHeaderBg = com.shelf.reader.designsystem.theme.OmarchyColors.HeaderBg
 private val LibHairline = com.shelf.reader.designsystem.theme.OmarchyColors.Hairline
@@ -64,54 +64,16 @@ fun LibraryScreen(
     onSettingsClick: () -> Unit = {},
     onNavVisibilityChange: (Boolean) -> Unit = {},
     vmFactory: androidx.lifecycle.ViewModelProvider.Factory? = null,
-    vm: LibraryViewModel = viewModel(factory = vmFactory ?: defaultLibraryVmFactory()),
-    rhythmVmFactory: androidx.lifecycle.ViewModelProvider.Factory? = null,
-    rhythmVm: ReadingRhythmViewModel = viewModel(factory = rhythmVmFactory ?: defaultRhythmVmFactory())
+    vm: LibraryViewModel = viewModel(factory = vmFactory ?: defaultLibraryVmFactory())
 ) {
     val ui by vm.state.collectAsStateWithLifecycle()
     LaunchedEffect(mode) { vm.setMode(mode) }
     var search by rememberSaveable { mutableStateOf("") }
-    var showCreateShelf by rememberSaveable { mutableStateOf(false) }
-    var createShelfName by rememberSaveable { mutableStateOf("") }
+    var showResumeSheet by rememberSaveable { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(search) { vm.setQuery(search) }
-
-    val saluteState = rememberSaluteEffectState()
-    var activeSaluteTier by remember { mutableStateOf(SaluteTier.GOLD) }
-    var hasAutoTriggeredDebug by rememberSaveable { mutableStateOf(false) }
-
-    val appCtx = androidx.compose.ui.platform.LocalContext.current.applicationContext
-    val prefs = remember(appCtx) {
-        com.shelf.reader.data.prefs.UserPreferencesRepository(appCtx)
-    }
-    val celebrationsEnabled by prefs.rhythmCelebrationsEnabled.collectAsStateWithLifecycle(initialValue = true)
-    val debugAutoTriggerEnabled by prefs.rhythmDebugAutoTriggerOnLogin.collectAsStateWithLifecycle(initialValue = true)
-
-    LaunchedEffect(rhythmVm, celebrationsEnabled, saluteState) {
-        rhythmVm.tierEvents.collect { tier ->
-            if (celebrationsEnabled) {
-                activeSaluteTier = tier
-                val duration = if (tier == SaluteTier.GOLD) 5200 else 4500
-                saluteState.play(tier, duration)
-            }
-        }
-    }
-
-    val ctxPackage = androidx.compose.ui.platform.LocalContext.current
-    val isDebuggable = remember(ctxPackage) {
-        (ctxPackage.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-    }
-    LaunchedEffect(isDebuggable, debugAutoTriggerEnabled, hasAutoTriggeredDebug, saluteState) {
-        if (isDebuggable && debugAutoTriggerEnabled && !hasAutoTriggeredDebug) {
-            hasAutoTriggeredDebug = true
-            delay(900)
-            activeSaluteTier = SaluteTier.GOLD
-            saluteState.play(SaluteTier.GOLD, 6000)
-        }
-    }
 
     // Rulle-retning fra rutenettet: ned = skjul nav, opp = vis nav.
     val gridState = rememberLazyGridState()
@@ -135,24 +97,16 @@ fun LibraryScreen(
         if (booksToDisplay.isEmpty() || search.isNotBlank()) onNavVisibilityChange(true)
     }
 
+    val resumeCandidates = when (mode) {
+        LibraryMode.Books -> ui.resumeEbooks
+        LibraryMode.Audio -> ui.resumeAudios
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             contentWindowInsets = WindowInsets(0.dp),
             containerColor = LibBg,
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-            floatingActionButton = {
-                if (search.isBlank()) {
-                    ExtendedFloatingActionButton(
-                        onClick = { createShelfName = ""; showCreateShelf = true },
-                        icon = { Icon(Icons.Default.Folder, null, tint = LibAccent) },
-                        text = { Text("Ny hylle", color = LibFg, fontWeight = FontWeight.Medium) },
-                        containerColor = LibPanel,
-                        contentColor = LibFg,
-                        shape = RoundedCornerShape(4.dp),
-                        elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp)
-                    )
-                }
-            }
+            snackbarHost = { SnackbarHost(snackbarHostState) }
         ) { innerPadding ->
             Column(
                 Modifier
@@ -246,13 +200,22 @@ fun LibraryScreen(
                         .background(LibHairline)
                 )
 
+                // Sort Rail: alltid synlig over rutenettet, i begge faner.
+                SortRail(
+                    activeMode = ui.sortMode,
+                    direction = ui.direction,
+                    onSelect = { vm.setSortMode(it) },
+                    onToggleDirection = { vm.toggleSortDirection() }
+                )
+
                 // Fortsett-linje: waybar/tmux-stil. Monospace, lavkontrast, full bredde, ikke kort.
-                val resume = when (mode) {
-                    LibraryMode.Books -> ui.resumeEbook
-                    LibraryMode.Audio -> ui.resumeAudio
-                }
-                resume?.let { item ->
-                    ResumeStrip(item = item, onClick = { onBookClick(item.bookId) })
+                if (resumeCandidates.isNotEmpty()) {
+                    ResumeStrip(
+                        primary = resumeCandidates.first(),
+                        extraCount = resumeCandidates.size - 1,
+                        onClickPrimary = { onBookClick(resumeCandidates.first().bookId) },
+                        onClickMore = { showResumeSheet = true }
+                    )
                 }
 
                 Box(modifier = Modifier.weight(1f)) {
@@ -273,72 +236,210 @@ fun LibraryScreen(
                             verticalArrangement = Arrangement.spacedBy(14.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(booksToDisplay, key = { it.id }) { b ->
-                                BookCoverCard(
-                                    book = b.copy(leanDegrees = 0f),
-                                    onClick = { onBookClick(b.id) },
-                                    onLongClick = { onBookLongClick(b.id) },
-                                    showFormatBadge = false,
-                                    showInlineProgress = false,
-                                    underCoverContent = {
-                                        if (b.progress > 0f) {
-                                            ThinProgressBar(progress = b.progress)
-                                        }
+                            items(
+                                ui.gridEntries,
+                                span = { entry ->
+                                    GridItemSpan(if (entry is GridEntry.SectionLabel) maxLineSpan else 1)
+                                }
+                            ) { entry ->
+                                when (entry) {
+                                    is GridEntry.SectionLabel -> SectionLabel(entry.text)
+                                    is GridEntry.BookEntry -> {
+                                        val b = entry.book
+                                        BookCoverCard(
+                                            book = b.copy(leanDegrees = 0f),
+                                            onClick = { onBookClick(b.id) },
+                                            onLongClick = { onBookLongClick(b.id) },
+                                            showFormatBadge = false,
+                                            showInlineProgress = false,
+                                            underCoverContent = {
+                                                if (b.progress > 0f) {
+                                                    ThinProgressBar(progress = b.progress)
+                                                }
+                                            }
+                                        )
                                     }
-                                )
+                                }
                             }
                         }
                     }
                 }
-
-                // Dialog: Create New Shelf
-                if (showCreateShelf) {
-                    AlertDialog(
-                        onDismissRequest = { showCreateShelf = false },
-                        title = { Text("Ny hylle") },
-                        text = {
-                            OutlinedTextField(
-                                value = createShelfName,
-                                onValueChange = { createShelfName = it },
-                                label = { Text("Navn på samling") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        },
-                        confirmButton = {
-                            TextButton(
-                                onClick = {
-                                    val name = createShelfName.trim()
-                                    if (name.isNotBlank()) {
-                                        vm.createShelf(name)
-                                        scope.launch { snackbarHostState.showSnackbar("Hylle opprettet: $name") }
-                                        showCreateShelf = false
-                                    }
-                                }
-                            ) { Text("Opprett") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showCreateShelf = false }) { Text("Avbryt") }
-                        }
-                    )
-                }
             }
         }
-        SaluteEffectOverlay(
-            state = saluteState,
-            tier = activeSaluteTier,
-            modifier = Modifier.fillMaxSize()
+
+        // +N: enkel mørk bottom sheet med aktive fortsett-kandidater.
+        if (showResumeSheet && resumeCandidates.size > 1) {
+            ModalBottomSheet(
+                onDismissRequest = { showResumeSheet = false },
+                containerColor = LibPanel,
+                contentColor = LibFg,
+                tonalElevation = 0.dp
+            ) {
+                Text(
+                    "Fortsett",
+                    style = ShelfTypography.TitleMedium,
+                    color = LibFgBright,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+                resumeCandidates.take(ResumeSelector.MAX_CANDIDATES).forEach { item ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showResumeSheet = false
+                                onBookClick(item.bookId)
+                            }
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "▸",
+                            color = LibAccent,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(end = 10.dp)
+                        )
+                        AsyncImage(
+                            model = item.coverPath,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(width = 28.dp, height = 38.dp)
+                                .background(LibHairline, RoundedCornerShape(2.dp)),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                item.title,
+                                style = ShelfTypography.BodyMedium,
+                                color = LibFgBright,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                listOfNotNull(item.author.takeIf { it.isNotBlank() }, item.detail).joinToString(" · "),
+                                style = ShelfTypography.LabelSmall.copy(fontFamily = FontFamily.Monospace),
+                                color = LibDim,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.navigationBarsPadding())
+            }
+        }
+    }
+}
+
+/** Sort Rail: kompakt terminal/HUD-selector over rutenettet. Ingen Material-chips. */
+@Composable
+private fun SortRail(
+    activeMode: LibrarySortMode,
+    direction: SortDirection,
+    onSelect: (LibrarySortMode) -> Unit,
+    onToggleDirection: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(LibBg)
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        LibrarySortMode.entries.forEach { mode ->
+            val active = mode == activeMode
+            Column(
+                modifier = Modifier
+                    .heightIn(min = 44.dp)
+                    .clickable { onSelect(mode) }
+                    .padding(horizontal = 10.dp),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    mode.label,
+                    color = if (active) LibAccent else LibDim,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.drawBehind {
+                        // Aktiv modus: tynn lime-understrek, like bred som etiketten.
+                        if (active) {
+                            drawRect(
+                                color = LibAccent,
+                                topLeft = Offset(0f, size.height + 2.dp.toPx()),
+                                size = Size(size.width, 1.dp.toPx())
+                            )
+                        }
+                    }
+                )
+            }
+        }
+        // ⇅: kompakt, visuelt adskilt retningHandling.
+        Box(
+            modifier = Modifier
+                .heightIn(min = 44.dp)
+                .padding(start = 6.dp)
+                .background(LibPanel, RoundedCornerShape(4.dp))
+                .clickable { onToggleDirection() }
+                .padding(horizontal = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                "⇅",
+                color = LibFg,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 13.sp,
+                maxLines = 1,
+                softWrap = false
+            )
+        }
+    }
+}
+
+/** Full-bredde HYLLE-seksjonsetikett: monospace, lav kontrast, 1px skille. */
+@Composable
+private fun SectionLabel(text: String) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp)
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(LibHairline)
+        )
+        Text(
+            text,
+            fontFamily = FontFamily.Monospace,
+            fontSize = 10.sp,
+            color = LibDim,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 5.dp, bottom = 2.dp)
         )
     }
 }
 
 /** Fortsett-linje: liten monospace, lav kontrast, full bredde. 2px visuell vekt maks. */
 @Composable
-private fun ResumeStrip(item: ResumeItem, onClick: () -> Unit) {
+private fun ResumeStrip(
+    primary: ResumeItem,
+    extraCount: Int,
+    onClickPrimary: () -> Unit,
+    onClickMore: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClickPrimary)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -350,12 +451,31 @@ private fun ResumeStrip(item: ResumeItem, onClick: () -> Unit) {
             modifier = Modifier.padding(end = 8.dp)
         )
         Text(
-            text = "${item.title} · ${item.detail}",
+            text = "${primary.title} · ${primary.detail}",
             style = ShelfTypography.LabelSmall.copy(fontFamily = FontFamily.Monospace),
             color = LibDim,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false)
         )
+        if (extraCount > 0) {
+            Spacer(Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .background(LibPanel, RoundedCornerShape(4.dp))
+                    .clickable(onClick = onClickMore)
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    "+$extraCount",
+                    color = LibAccent,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+        }
     }
 }
 
@@ -468,18 +588,6 @@ private fun defaultLibraryVmFactory(): androidx.lifecycle.ViewModelProvider.Fact
     }
 }
 
-private fun defaultRhythmVmFactory(): androidx.lifecycle.ViewModelProvider.Factory = viewModelFactory {
-    initializer {
-        val app = (this[androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as android.app.Application)
-        val provider = app.applicationContext as com.shelf.reader.core.di.AppDependenciesProvider
-        ReadingRhythmViewModel(
-            rhythmDao = com.shelf.reader.data.local.ShelfDatabase.getInstance(app).readingRhythmDao(),
-            engine = provider.readingTracker,
-            preferences = com.shelf.reader.data.prefs.UserPreferencesRepository(app)
-        )
-    }
-}
-
 object SampleBooks {
-    val books: List<BookVisual> = emptyList()
+    val books: List<com.shelf.reader.designsystem.components.BookVisual> = emptyList()
 }

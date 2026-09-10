@@ -10,7 +10,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -40,26 +39,18 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.shelf.reader.core.dispatchers.DefaultDispatcherProvider
 import com.shelf.reader.core.dispatchers.DispatcherProvider
 import com.shelf.reader.core.domain.model.DarkModePref
-import com.shelf.reader.core.domain.model.LibraryViewType
 import com.shelf.reader.data.prefs.UserPreferencesRepository
 import com.shelf.reader.designsystem.theme.ShelfColors
 import com.shelf.reader.designsystem.theme.ShelfTypography
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
-import com.shelf.reader.BuildConfig
 import com.shelf.reader.core.di.AppDependenciesProvider
-import com.shelf.reader.library.gamification.ui.ReadingRhythmViewModel
-import com.shelf.reader.library.gamification.ui.SaluteEffectOverlay
-import com.shelf.reader.library.gamification.ui.SaluteTier
-import com.shelf.reader.library.gamification.ui.play
-import com.shelf.reader.library.gamification.ui.rememberSaluteEffectState
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.FileInputStream
 import java.io.FileOutputStream
 
 data class SettingsUiState(
-    val libraryViewType: LibraryViewType = LibraryViewType.SHELF,
     val darkMode: DarkModePref = DarkModePref.FOLLOW_SYSTEM,
     val dynamicColors: Boolean = false,
     val trueBlack: Boolean = false,
@@ -92,10 +83,7 @@ data class SettingsUiState(
     val onlineCoverLookup: Boolean = false,
     val handoffPrecision: String = com.shelf.reader.data.local.entity.HandoffPrecisionEntity.SMART.name,
     val handoffToastEnabled: Boolean = true,
-    val seenOnboarding: Boolean = false,
-    val rhythmStreakGoalDays: Int = 7,
-    val rhythmCelebrationsEnabled: Boolean = true,
-    val rhythmDebugAutoTrigger: Boolean = true
+    val seenOnboarding: Boolean = false
 )
 
 class SettingsViewModel(
@@ -105,7 +93,6 @@ class SettingsViewModel(
 ) : AndroidViewModel(app) {
 
     val state: StateFlow<SettingsUiState> = combine(
-        prefs.libraryViewType,
         prefs.darkMode,
         prefs.dynamicColors,
         prefs.trueBlack,
@@ -137,60 +124,49 @@ class SettingsViewModel(
         prefs.libraryTabCountsEnabled,
         prefs.onlineCoverLookup,
         prefs.handoffPrecision,
-        prefs.handoffToastEnabled,
-        prefs.rhythmStreakGoalDays,
-        prefs.rhythmCelebrationsEnabled,
-        prefs.rhythmDebugAutoTriggerOnLogin
+        prefs.handoffToastEnabled
     ) { a ->
         @Suppress("UNCHECKED_CAST")
         SettingsUiState(
-            libraryViewType = a[0] as LibraryViewType,
-            darkMode = a[1] as DarkModePref,
-            dynamicColors = a[2] as Boolean,
-            trueBlack = a[3] as Boolean,
-            readerFontSizeSp = a[4] as Int,
-            readerTheme = a[5] as String,
-            audioSpeed = a[6] as Float,
-            audioSkipBackSec = a[7] as Int,
-            audioSkipFwdSec = a[8] as Int,
-            audioFadeOut = a[9] as Boolean,
-            autoPlayNext = a[10] as Boolean,
-            watchLibraryFolder = a[11] as Boolean,
-            ftpSyncEnabled = a[12] as Boolean,
-            ftpWifiOnly = a[13] as Boolean,
-            ftpChargingOnly = a[14] as Boolean,
-            ftpIntervalMinutes = a[15] as Int,
-            smbSyncEnabled = a[16] as Boolean,
-            smbWifiOnly = a[17] as Boolean,
-            smbChargingOnly = a[18] as Boolean,
-            smbIntervalMinutes = a[19] as Int,
-            webdavSyncEnabled = a[20] as Boolean,
-            webdavWifiOnly = a[21] as Boolean,
-            webdavChargingOnly = a[22] as Boolean,
-            webdavIntervalMinutes = a[23] as Int,
-            torrentBackgroundEnabled = a[24] as Boolean,
-            torrentWifiOnly = a[25] as Boolean,
-            torrentChargingOnly = a[26] as Boolean,
-            torrentMinBattery = a[27] as Int,
-            libraryFormatFilterEnabled = a[28] as Boolean,
-            libraryTabCountsEnabled = a[29] as Boolean,
-            onlineCoverLookup = a[30] as Boolean,
-            handoffPrecision = a[31] as String,
-            handoffToastEnabled = a[32] as Boolean,
-            seenOnboarding = false,
-            rhythmStreakGoalDays = a[33] as Int,
-            rhythmCelebrationsEnabled = a[34] as Boolean,
-            rhythmDebugAutoTrigger = a[35] as Boolean
+            darkMode = a[0] as DarkModePref,
+            dynamicColors = a[1] as Boolean,
+            trueBlack = a[2] as Boolean,
+            readerFontSizeSp = a[3] as Int,
+            readerTheme = a[4] as String,
+            audioSpeed = a[5] as Float,
+            audioSkipBackSec = a[6] as Int,
+            audioSkipFwdSec = a[7] as Int,
+            audioFadeOut = a[8] as Boolean,
+            autoPlayNext = a[9] as Boolean,
+            watchLibraryFolder = a[10] as Boolean,
+            ftpSyncEnabled = a[11] as Boolean,
+            ftpWifiOnly = a[12] as Boolean,
+            ftpChargingOnly = a[13] as Boolean,
+            ftpIntervalMinutes = a[14] as Int,
+            smbSyncEnabled = a[15] as Boolean,
+            smbWifiOnly = a[16] as Boolean,
+            smbChargingOnly = a[17] as Boolean,
+            smbIntervalMinutes = a[18] as Int,
+            webdavSyncEnabled = a[19] as Boolean,
+            webdavWifiOnly = a[20] as Boolean,
+            webdavChargingOnly = a[21] as Boolean,
+            webdavIntervalMinutes = a[22] as Int,
+            torrentBackgroundEnabled = a[23] as Boolean,
+            torrentWifiOnly = a[24] as Boolean,
+            torrentChargingOnly = a[25] as Boolean,
+            torrentMinBattery = a[26] as Int,
+            libraryFormatFilterEnabled = a[27] as Boolean,
+            libraryTabCountsEnabled = a[28] as Boolean,
+            onlineCoverLookup = a[29] as Boolean,
+            handoffPrecision = a[30] as String,
+            handoffToastEnabled = a[31] as Boolean,
+            seenOnboarding = false
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = SettingsUiState()
     )
-
-    fun setLibraryViewType(v: LibraryViewType) = viewModelScope.launch(dispatchers.io) {
-        prefs.setLibraryViewType(v)
-    }
 
     fun setDarkMode(d: DarkModePref) = viewModelScope.launch(dispatchers.io) {
         prefs.setDarkMode(d)
@@ -320,18 +296,6 @@ class SettingsViewModel(
         prefs.setHandoffToast(b)
     }
 
-    fun setRhythmStreakGoalDays(days: Int) = viewModelScope.launch(dispatchers.io) {
-        prefs.setRhythmStreakGoalDays(days)
-    }
-
-    fun setRhythmCelebrationsEnabled(b: Boolean) = viewModelScope.launch(dispatchers.io) {
-        prefs.setRhythmCelebrationsEnabled(b)
-    }
-
-    fun setRhythmDebugAutoTrigger(b: Boolean) = viewModelScope.launch(dispatchers.io) {
-        prefs.setRhythmDebugAutoTrigger(b)
-    }
-
     fun clearCache() = viewModelScope.launch(dispatchers.io) {
         val app = getApplication<Application>()
         val cacheDir = app.cacheDir
@@ -386,21 +350,6 @@ private fun defaultSettingsVmFactory(): ViewModelProvider.Factory {
     return viewModelFactory {
         initializer {
             SettingsViewModel(app)
-        }
-    }
-}
-
-@Composable
-private fun defaultRhythmSettingsVmFactory(): ViewModelProvider.Factory {
-    return viewModelFactory {
-        initializer {
-            val app = (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application)
-            val provider = app.applicationContext as AppDependenciesProvider
-            ReadingRhythmViewModel(
-                rhythmDao = com.shelf.reader.data.local.ShelfDatabase.getInstance(app).readingRhythmDao(),
-                engine = provider.readingTracker,
-                preferences = UserPreferencesRepository(app)
-            )
         }
     }
 }
@@ -581,46 +530,16 @@ private fun SyncSourceRow(
 fun SettingsScreen(
     onBack: () -> Unit,
     onSourcesClick: () -> Unit = {},
-    vm: SettingsViewModel = viewModel(factory = defaultSettingsVmFactory()),
-    rhythmVmFactory: ViewModelProvider.Factory? = null,
-    rhythmVm: ReadingRhythmViewModel = viewModel(factory = rhythmVmFactory ?: defaultRhythmSettingsVmFactory())
+    vm: SettingsViewModel = viewModel(factory = defaultSettingsVmFactory())
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
-    val rhythmState by rhythmVm.uiState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    val saluteState = rememberSaluteEffectState()
-
-    LaunchedEffect(Unit) {
-        rhythmVm.tierEvents.collect { tier ->
-            if (state.rhythmCelebrationsEnabled) {
-                val title = when (tier) {
-                    SaluteTier.GOLD -> "GULL! MÅL OPPNÅDD"
-                    SaluteTier.SILVER -> "SØLV! FLOTT JOBB"
-                    SaluteTier.BRONZE -> "BRONSE! BRA JOBB"
-                }
-                val subtitle = when (tier) {
-                    SaluteTier.GOLD -> "Du er en ekte lesehelt!"
-                    SaluteTier.SILVER -> "Nesten gull - fortsett!"
-                    SaluteTier.BRONZE -> "God start på reisen!"
-                }
-                scope.launch {
-                    saluteState.play(tier, 4500)
-                }
-                scope.launch {
-                    snackbarHostState.showSnackbar(title)
-                }
-            }
-        }
-    }
-
-    var lastSaluteTierForOverlay by remember { mutableStateOf(SaluteTier.GOLD) }
 
     val NUM_DLG_FONT = 1
     val NUM_DLG_SKIP_BACK = 2
     val NUM_DLG_SKIP_FWD = 3
-    val NUM_DLG_DAILY_GOAL = 4
     var activeNumDialog by remember { mutableStateOf(0) }
     var numDialogInput by remember { mutableStateOf("") }
 
@@ -711,60 +630,6 @@ fun SettingsScreen(
                     modifier = Modifier.size(18.dp),
                     tint = com.shelf.reader.designsystem.theme.OmarchyColors.Dim
                 )
-            }
-
-            SettingsSection("Utsende") {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-
-                    Text(
-                        "Bibliotekvisning",
-                        style = ShelfTypography.TitleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .background(
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                RoundedCornerShape(12.dp)
-                            )
-                            .padding(2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        LibraryViewType.values().forEach { vt ->
-                            val isSel = vt == state.libraryViewType
-                            FilterChip(
-                                selected = isSel,
-                                onClick = { vm.setLibraryViewType(vt) },
-                                label = {
-                                    Text(
-                                        when (vt) {
-                                            LibraryViewType.SHELF -> "Hylle"
-                                            LibraryViewType.GRID -> "Rutenett"
-                                            LibraryViewType.LIST -> "Liste"
-                                        },
-                                        style = ShelfTypography.LabelMedium
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        when (vt) {
-                                            LibraryViewType.SHELF -> Icons.Default.ViewAgenda
-                                            LibraryViewType.GRID -> Icons.Default.GridView
-                                            LibraryViewType.LIST -> Icons.AutoMirrored.Filled.ViewList
-                                        },
-                                        null,
-                                        Modifier.size(16.dp)
-                                    )
-                                },
-                                modifier = Modifier
-                                    .padding(horizontal = 2.dp)
-                                    .weight(1f)
-                            )
-                        }
-                    }
-
-                }
             }
 
             SettingsSection("Leser") {
@@ -1398,367 +1263,6 @@ fun SettingsScreen(
                 }
             }
 
-            SettingsSection("Leserytme & Mål") {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = androidx.compose.ui.graphics.Color(0x22F59E0B),
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Default.AutoAwesome,
-                                    contentDescription = null,
-                                    tint = androidx.compose.ui.graphics.Color(0xFFC8F542),
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "Ditt leserytme",
-                                style = ShelfTypography.TitleSmall,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                "${rhythmState.currentStreak} dager nå • ${rhythmState.longestStreak} rekord • ${rhythmState.totalReadingDays} dager totalt",
-                                style = ShelfTypography.BodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Daglig lesemål",
-                            style = ShelfTypography.BodyLarge,
-                            modifier = Modifier.weight(1f)
-                        )
-                        AssistChip(
-                            onClick = { openNumDialog(NUM_DLG_DAILY_GOAL, (rhythmState.targetSeconds / 60).toInt()) },
-                            label = {
-                                Text(
-                                    "${rhythmState.targetSeconds / 60} min",
-                                    style = ShelfTypography.LabelMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        )
-                    }
-                    Slider(
-                        value = (rhythmState.targetSeconds / 60).toInt().toFloat(),
-                        onValueChange = { rhythmVm.updateDailyTarget(it.toInt()) },
-                        valueRange = 5f..180f,
-                        steps = 34
-                    )
-
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf(5, 10, 15, 30, 45, 60).forEach { mins ->
-                            val sel = (rhythmState.targetSeconds / 60).toInt() == mins
-                            AssistChip(
-                                onClick = { rhythmVm.updateDailyTarget(mins) },
-                                label = { Text("$mins min") },
-                                colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = if (sel)
-                                        MaterialTheme.colorScheme.primaryContainer
-                                    else MaterialTheme.colorScheme.surface
-                                )
-                            )
-                        }
-                    }
-
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-
-                    Text(
-                        "Streak-mål",
-                        style = ShelfTypography.TitleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf(3, 7, 14, 30, 60, 100).forEach { days ->
-                            val sel = state.rhythmStreakGoalDays == days
-                            FilterChip(
-                                selected = sel,
-                                onClick = { vm.setRhythmStreakGoalDays(days) },
-                                label = { Text("$days dager") },
-                                leadingIcon = {
-                                    androidx.compose.animation.AnimatedVisibility(visible = rhythmState.currentStreak >= days) {
-                                        Icon(Icons.Default.Check, null, Modifier.size(16.dp))
-                                    }
-                                }
-                            )
-                        }
-                    }
-                    val streakLeft = (state.rhythmStreakGoalDays - rhythmState.currentStreak).coerceAtLeast(0)
-                    Text(
-                        if (rhythmState.currentStreak >= state.rhythmStreakGoalDays) {
-                            "Gratulerer! Du har nådd streak-målet på ${state.rhythmStreakGoalDays} dager \uD83D\uDD25"
-                        } else {
-                            "$streakLeft dager igjen av streak-målet ditt"
-                        },
-                        style = ShelfTypography.BodySmall,
-                        color = if (rhythmState.currentStreak >= state.rhythmStreakGoalDays)
-                            androidx.compose.ui.graphics.Color(0xFFC8F542)
-                        else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "Ukentlig måloppnåelse",
-                                style = ShelfTypography.BodyLarge
-                            )
-                            Text(
-                                "${rhythmState.weeklyActiveMinutes} / ${rhythmState.weeklyGoalMinutes} min denne uken",
-                                style = ShelfTypography.BodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Text(
-                            "${(rhythmState.weeklyProgressFraction * 100).toInt()}%",
-                            style = ShelfTypography.TitleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = androidx.compose.ui.graphics.Color(0xFFC8F542)
-                        )
-                    }
-                    LinearProgressIndicator(
-                        progress = { rhythmState.weeklyProgressFraction },
-                        modifier = Modifier.fillMaxWidth(),
-                        color = androidx.compose.ui.graphics.Color(0xFFC8F542),
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    )
-
-                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "Festlig 3D-effekt ved mål",
-                                style = ShelfTypography.BodyLarge
-                            )
-                            Text(
-                                "Ekstraordinær konfetti-effekt når du når dagens mål",
-                                style = ShelfTypography.BodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Switch(
-                            checked = state.rhythmCelebrationsEnabled,
-                            onCheckedChange = { vm.setRhythmCelebrationsEnabled(it) }
-                        )
-                    }
-                }
-            }
-
-            if (BuildConfig.DEBUG) {
-                SettingsSection("🛠️ Utviklerverktøy — Leserytme") {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-
-                        Text(
-                            "Trigger 3D-salute-effekt",
-                            style = ShelfTypography.TitleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            FilledTonalButton(
-                                onClick = {
-                                    lastSaluteTierForOverlay = SaluteTier.BRONZE
-                                    scope.launch {
-                                        saluteState.play(SaluteTier.BRONZE, 4500)
-                                    }
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.EmojiEvents, null, Modifier.size(18.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Bronse", fontWeight = FontWeight.SemiBold)
-                            }
-                            FilledTonalButton(
-                                onClick = {
-                                    lastSaluteTierForOverlay = SaluteTier.SILVER
-                                    scope.launch {
-                                        saluteState.play(SaluteTier.SILVER, 4500)
-                                    }
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.EmojiEvents, null, Modifier.size(18.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Sølv", fontWeight = FontWeight.SemiBold)
-                            }
-                            FilledTonalButton(
-                                onClick = {
-                                    lastSaluteTierForOverlay = SaluteTier.GOLD
-                                    scope.launch {
-                                        saluteState.play(SaluteTier.GOLD, 5000)
-                                    }
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.WorkspacePremium, null, Modifier.size(18.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Gull", fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-
-                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-
-                        Text(
-                            "Simuler lese-aktivitet",
-                            style = ShelfTypography.TitleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = {
-                                    rhythmVm.debugAddActiveSeconds(60)
-                                    scope.launch { snackbarHostState.showSnackbar("+1 minutt lagt til i dag") }
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.Add, null, Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("+1 min")
-                            }
-                            OutlinedButton(
-                                onClick = {
-                                    rhythmVm.debugAddActiveSeconds(10 * 60)
-                                    scope.launch { snackbarHostState.showSnackbar("+10 min lagt til i dag") }
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.Add, null, Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("+10 min")
-                            }
-                            OutlinedButton(
-                                onClick = {
-                                    rhythmVm.debugAddActiveSeconds(30 * 60)
-                                    scope.launch { snackbarHostState.showSnackbar("+30 min lagt til i dag") }
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.Add, null, Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("+30 min")
-                            }
-                        }
-
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = {
-                                    rhythmVm.debugSimulateGoalReached()
-                                    scope.launch { snackbarHostState.showSnackbar("Simulerte: Dagens mål nådd") }
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.AutoAwesome, null, Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Mål nådd")
-                            }
-                        }
-
-                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-
-                        Text(
-                            "Tilbakestill",
-                            style = ShelfTypography.TitleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = {
-                                    rhythmVm.debugResetStreak()
-                                    scope.launch { snackbarHostState.showSnackbar("Streak nullstilt") }
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.Refresh, null, Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Nullstill streak")
-                            }
-                            OutlinedButton(
-                                onClick = {
-                                    rhythmVm.debugResetAll()
-                                    scope.launch { snackbarHostState.showSnackbar("Profil nullstilt") }
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Default.DeleteOutline, null, Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Alt")
-                            }
-                        }
-
-                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
-
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    "Auto-trigger salute på library (DEBUG)",
-                                    style = ShelfTypography.BodyLarge
-                                )
-                                Text(
-                                    "Viser gull-effekt automatisk når åpner biblioteket",
-                                    style = ShelfTypography.BodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            Switch(
-                                checked = state.rhythmDebugAutoTrigger,
-                                onCheckedChange = { vm.setRhythmDebugAutoTrigger(it) }
-                            )
-                        }
-                    }
-                }
-            }
-
             SettingsSection("Om") {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
@@ -1830,10 +1334,6 @@ fun SettingsScreen(
                 "Frem-spole", "10 – 120", "s", 10, 120,
                 { v: Int -> vm.setSkipFwd(v); scope.launch { snackbarHostState.showSnackbar("Frem-spole: ${v} s") } }
             )
-            NUM_DLG_DAILY_GOAL -> listOf(
-                "Daglig lesemål", "5 – 180", "minutter", 5, 180,
-                { v: Int -> rhythmVm.updateDailyTarget(v); scope.launch { snackbarHostState.showSnackbar("Daglig mål: ${v} min") } }
-            )
             else -> listOf("Verdi", "", "", 0, 1, { _: Int -> })
         }
         val dlgTitle = values[0] as String
@@ -1886,13 +1386,5 @@ fun SettingsScreen(
             }
         )
     }
-
-    SaluteEffectOverlay(
-            state = saluteState,
-            tier = lastSaluteTierForOverlay,
-            modifier = Modifier.fillMaxSize()
-        )
-    }
 }
-
-
+}
