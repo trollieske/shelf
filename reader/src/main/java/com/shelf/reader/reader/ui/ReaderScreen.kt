@@ -27,27 +27,17 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.BorderColor
 import androidx.compose.material3.*
-import android.os.Build
-import android.view.ActionMode
-import android.view.Menu
-import android.view.MenuItem
-import android.webkit.WebChromeClient
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.animation.core.tween
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -60,7 +50,6 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -81,8 +70,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlin.math.absoluteValue
-import kotlin.math.roundToInt
 
 // Fokusert diagnostikk for kant-krøllen (slås AV i endelig kode).
 private const val CURL_DIAG = false
@@ -93,6 +80,45 @@ private fun curlDiag(msg: String) { if (CURL_DIAG) Log.d("CurlDiag", msg) }
 // indeks-remapping og grense-commit. Aldri rått bokinnhold.
 private const val READER_DIAG = false // gated: kun diagnostikkbygg
 private fun readerDiag(msg: String) { if (READER_DIAG) Log.d("ReaderDiag", msg) }
+
+// Gated diagnostikk for kontroll-overlegg (AV som standard): logger KUN mål og
+// nøkler ved vis/skjul av kontroller — aldri rått bokinnhold, URL-er, filnavn eller base64.
+private const val READER_LAYOUT_DIAG = false
+private fun layoutDiag(msg: String) { if (READER_LAYOUT_DIAG) Log.d("ReaderLayoutDiag", msg) }
+
+/**
+ * Ren (Compose-fri) beregning av leserens innholdsboks.
+ *
+ * INVARIANT: kildebitmapmen fra HtmlPageRenderer (effectiveWidthPx × contentHeightPx)
+ * og Canvas-destinasjonen (destinationWidthPx × destinationHeightPx) deler nøyaktig
+ * samme logiske innholdsboks — samme mål, samme aspektratio. Padden påføres
+ * nøyaktig ÉN gang til hver: aldri uavhengig X/Y-skalering, aldri dobbel padding.
+ *
+ * Målene utledes KUN av det stabile fullskjerm-lesevinduet (målt én gang) —
+ * aldri av om kontrollene er synlige.
+ */
+internal data class ReaderContentBox(
+    val viewportWidthPx: Int,
+    val viewportHeightPx: Int,
+    val hPadPx: Int,
+    val vPadPx: Int,
+) {
+    val effectiveWidthPx: Int get() = (viewportWidthPx - 2 * hPadPx).coerceAtLeast(1)
+    val contentHeightPx: Int get() = (viewportHeightPx - 2 * vPadPx).coerceAtLeast(1)
+
+    /** Destinasjonsinnholdsboks i Canvas — identisk med rendererens bitmapdims. */
+    val destinationWidthPx: Int get() = effectiveWidthPx
+    val destinationHeightPx: Int get() = contentHeightPx
+
+    val sourceAspectRatio: Float
+        get() = effectiveWidthPx.toFloat() / contentHeightPx.toFloat()
+
+    val destinationAspectRatio: Float
+        get() = destinationWidthPx.toFloat() / destinationHeightPx.toFloat()
+
+    /** Kanonisk størrelsesnøkkel — identisk med ReaderScreen sin "$w-$h". */
+    fun sizeKey(): String = "$effectiveWidthPx-$contentHeightPx"
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,7 +136,6 @@ fun ReaderScreen(
     var showContentsSheet by rememberSaveable { mutableStateOf(false) }
     var showThemesSheet by rememberSaveable { mutableStateOf(false) }
     var showBookmarksSheet by rememberSaveable { mutableStateOf(false) }
-    var showInteractiveHighlightView by rememberSaveable { mutableStateOf(false) }
     var showSearchDialog by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var orientationLocked by rememberSaveable { mutableStateOf(false) }
@@ -119,6 +144,16 @@ fun ReaderScreen(
 
     val tracker = remember {
         (context.applicationContext as com.shelf.reader.core.di.AppDependenciesProvider).readingTracker
+    }
+
+    // Kompakt bokmerke-HUD: kort bekreftelse ("Bokmerke lagret" / "Bokmerke fjernet"),
+    // aldri stor Snackbar — bokmerket endrer aldri sidetilstand.
+    val bookmarkHud by vm.bookmarkHudMessage.collectAsStateWithLifecycle()
+    LaunchedEffect(bookmarkHud) {
+        if (bookmarkHud != null) {
+            delay(1400)
+            vm.clearBookmarkHud()
+        }
     }
 
     // Navigasjons-epoke: økes KUN ved eksterne navigasjonshendelser (TOC-valg,
@@ -167,9 +202,12 @@ fun ReaderScreen(
                 val themeColors = readerThemeColors(ui.readerTheme)
                 val bgC = Color(themeColors.paperColorInt)
 
-                // ── SITE WRAPPER BAKGRUNN (PageCurl bak ALLE menyer, INGEN SQUISH!) ──
-                Box(Modifier.fillMaxSize().background(bgC)) {
+                // ── FULLSKJERM-LESER: boken fyller ALLTID hele lesevinduet. Kontroller
+                // er ren overlegg over den allerede viste siden — de påvirker aldri
+                // leserens mål, bitmapgeometri eller PageCurl-dimensjoner. ──
+                Box(Modifier.matchParentSize().background(bgC)) {
                     RealBookSlideReader(
+                        modifier = Modifier.matchParentSize(),
                         ui = ui,
                         navEpoch = navEpoch,
                         showControls = showControls,
@@ -181,278 +219,62 @@ fun ReaderScreen(
                     )
                 }
 
-                // ═══ OVERLAY MENY TOPP (hele veien opp, SOLID STRIP, ingen over leseflaten midt på) ═══
-                AnimatedVisibility(
-                    visible = showControls,
-                    enter = fadeIn(tween(120)) + slideInVertically { -it / 3 },
-                    exit = fadeOut(tween(90)) + slideOutVertically { -it / 2 }
-                ) {
-                    Surface(
-                        tonalElevation = 4.dp,
-                        color = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.onSurface,
-                        shadowElevation = 6.dp,
+                // ═══ OVERLAY-KONTROLLER: tegnes OVER den allerede viste boksiden.
+                // ALDRI en Column-søsken eller Scaffold topBar — påvirker aldri
+                // leserens layout, mål eller constraints. ──
+                if (showControls) {
+                    ReaderControlsOverlay(
                         modifier = Modifier
                             .align(Alignment.TopCenter)
                             .fillMaxWidth()
-                    ) {
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .statusBarsPadding()
-                                .padding(horizontal = 6.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(onClick = onBack) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Tilbake", modifier = Modifier.size(26.dp))
-                            }
-                            Text(
-                                ui.bookTitle,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f).padding(horizontal = 6.dp)
-                            )
-                            IconButton(onClick = { showSearchDialog = true }) {
-                                Icon(Icons.Default.Search, "Søk", modifier = Modifier.size(24.dp))
-                            }
-                            IconButton(onClick = {
-                                val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    val pct = ((ui.percent.coerceIn(0f, 1f)) * 100).toInt()
-                                    val chapTitle = ui.chapters.getOrNull(ui.currentChapterIndex)?.title?.takeIf { it.isNotBlank() } ?: "Kapittel ${ui.currentChapterIndex + 1}"
-                                    putExtra(
-                                        android.content.Intent.EXTRA_TEXT,
-                                        "Jeg lser nå \"${ui.bookTitle}\" — $chapTitle (side ${ui.currentPage + 1} av ${ui.totalPages.coerceAtLeast(1)}, $pct%)\n#ShelfApp"
-                                    )
-                                    putExtra(android.content.Intent.EXTRA_TITLE, ui.bookTitle)
-                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            .zIndex(1f),
+                        ui = ui,
+                        orientationLocked = orientationLocked,
+                        onBack = onBack,
+                        onOpenSearch = { showSearchDialog = true },
+                        onOpenContents = { showContentsSheet = true },
+                        onOpenThemes = { showThemesSheet = true },
+                        onToggleBookmark = { vm.toggleBookmark(); tracker.onUserInteraction() },
+                        onToggleOrientationLock = {
+                            orientationLocked = !orientationLocked
+                            val activity = context as? Activity
+                            if (activity != null) {
+                                activity.requestedOrientation = if (orientationLocked) {
+                                    android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LOCKED
+                                } else {
+                                    android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                                 }
-                                context.startActivity(android.content.Intent.createChooser(shareIntent, "Del lesefremgang"))
-                            }) {
-                                Icon(Icons.Outlined.Share, "Del", modifier = Modifier.size(24.dp))
                             }
-                        }
-                    }
-                }
-
-                // ═══ OVERLAY MENY BUNN (hele veien ned, SOLID STRIP, ingen over leseflaten midt på) ═══
-                AnimatedVisibility(
-                    visible = showControls,
-                    enter = fadeIn(tween(120)) + slideInVertically { it / 3 },
-                    exit = fadeOut(tween(90)) + slideOutVertically { it / 2 }
-                ) {
-                    Surface(
-                        tonalElevation = 6.dp,
-                        color = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        shadowElevation = 8.dp,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                    ) {
-                        val pagesLeftInChapter = (ui.totalPages - ui.currentPage - 1).coerceAtLeast(0)
-                        val pctStr = "${((ui.percent.coerceIn(0f, 1f)) * 100).toInt()}%"
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .navigationBarsPadding()
-                                .padding(top = 6.dp, bottom = 8.dp)
-                        ) {
-                            Text(
-                                "$pagesLeftInChapter pages left · $pctStr · ${ui.currentPage + 1} of ${ui.totalPages.coerceAtLeast(1)}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
-                                textAlign = TextAlign.Center,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                NavigationBarItem(
-                                    selected = false,
-                                    onClick = { showContentsSheet = true },
-                                    icon = { Icon(Icons.AutoMirrored.Filled.List, null, modifier = Modifier.size(26.dp)) },
-                                    label = { Text("Contents", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
-                                )
-                                NavigationBarItem(
-                                    selected = false,
-                                    onClick = { showThemesSheet = true },
-                                    icon = {
-                                        Row(verticalAlignment = Alignment.Bottom) {
-                                            Text("A", fontSize = 20.sp, fontWeight = FontWeight.Black)
-                                            Text("A", fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 1.dp))
-                                        }
-                                    },
-                                    label = { Text("Themes", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
-                                )
-                                NavigationBarItem(
-                                    selected = false,
-                                    onClick = {
-                                        val page = ui.currentPage.coerceAtLeast(0)
-                                        val pct = if (ui.totalPages > 1) page.toFloat() / (ui.totalPages - 1) else 0f
-                                        vm.saveBookmark(pct, page)
-                                    },
-                                    icon = { Icon(Icons.Outlined.BookmarkBorder, null, modifier = Modifier.size(26.dp)) },
-                                    label = { Text("Bookmark", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
-                                )
-                                NavigationBarItem(
-                                    selected = false,
-                                    onClick = { showInteractiveHighlightView = true },
-                                    icon = { Icon(Icons.Outlined.BorderColor, null, modifier = Modifier.size(26.dp)) },
-                                    label = { Text("Mark Text", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
-                                )
-                                NavigationBarItem(
-                                    selected = orientationLocked,
-                                    onClick = {
-                                        orientationLocked = !orientationLocked
-                                        val activity = context as? Activity
-                                        if (activity != null) {
-                                            activity.requestedOrientation = if (orientationLocked) {
-                                                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LOCKED
-                                            } else {
-                                                android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                                            }
-                                        }
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            if (orientationLocked) "Skjerm låst i nåværende rotasjon" else "Skjerm låst opp",
-                                            android.widget.Toast.LENGTH_SHORT
-                                        ).show()
-                                    },
-                                    icon = {
-                                        Icon(
-                                            if (orientationLocked) Icons.Default.Lock else Icons.Outlined.Lock,
-                                            null,
-                                            modifier = Modifier.size(26.dp),
-                                            tint = if (orientationLocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    },
-                                    label = { Text(if (orientationLocked) "Låst" else "Lock", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // ═══ INTERAKTIV WEBVIEW FOR TEKSTMARKERING (Marker Tekst-knapp) ═══
-        AnimatedVisibility(
-            visible = showInteractiveHighlightView,
-            enter = fadeIn(tween(140)),
-            exit = fadeOut(tween(100))
-        ) {
-            val themeColors = readerThemeColors(ui.readerTheme)
-            val currentHtml = if (ui.currentChapterIndex in ui.chapters.indices) ui.chapters[ui.currentChapterIndex].htmlContent else ""
-            val fontSize = ui.fontSizeSp
-            val lang = "en"
-            Column(Modifier.fillMaxSize().background(Color(themeColors.paperColorInt))) {
-                // Top bar for markeringsmodus
-                Surface(tonalElevation = 4.dp, color = MaterialTheme.colorScheme.surface) {
-                    Row(
-                        Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 6.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Marker tekst · ${ui.chapters.getOrNull(ui.currentChapterIndex)?.title ?: ""}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).padding(start = 10.dp, end = 6.dp)
-                        )
-                        FilledTonalButton(
-                            onClick = { showInteractiveHighlightView = false },
-                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                        ) {
-                            Text("Ferdig", fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(Modifier.width(6.dp))
-                    }
-                }
-                Box(Modifier.weight(1f)) {
-                    AndroidView(
-                        factory = { ctx ->
-                            WebView(ctx).apply {
-                                settings.apply {
-                                    javaScriptEnabled = true
-                                    domStorageEnabled = false
-                                    cacheMode = WebSettings.LOAD_NO_CACHE
-                                    allowFileAccess = false
-                                    textZoom = 100
-                                    useWideViewPort = false
-                                    loadWithOverviewMode = false
-                                    builtInZoomControls = false
-                                    displayZoomControls = false
-                                    setSupportZoom(false)
-                                }
-                                // Sikre at WebView ikke hopper rundt ved scroll:
-                                overScrollMode = android.view.View.OVER_SCROLL_NEVER
-                                // Hindre at valgte tekster kopieres av Android-menyen (vår meny ligger ALLTID UNDER)
-                                isLongClickable = true
-                                isHapticFeedbackEnabled = false
-
-                                webViewClient = object : WebViewClient() {
-                                    override fun onPageFinished(view: WebView?, url: String?) {
-                                        super.onPageFinished(view, url)
-                                        val scrollToPage = ui.currentPage.coerceAtLeast(0)
-                                        // Vent 350 ms for at ALT skal være malt, kolonner bredder kjent, CSS ferdig
-                                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                            view?.evaluateJavascript(
-                                                "(function(){try{ " +
-                                                    "var pw = (document.documentElement.clientWidth || window.innerWidth || 360); " +
-                                                    "var targetX = ($scrollToPage) * pw; " +
-                                                    "window.scrollTo(targetX, 0);" +
-                                                    " }catch(e){ console.error(e); }})();",
-                                                null
-                                            )
-                                        }, 350)
-                                    }
-                                }
-                                webChromeClient = WebChromeClient()
-                                val density = ctx.resources.displayMetrics.density.coerceAtLeast(1f)
-                                val cssPageWidth = (ctx.resources.displayMetrics.widthPixels / density).toInt()
-                                val cssQuoteBorder = 3f / density
-                                val html = buildHighlightableHtml(currentHtml, fontSize, themeColors, lang, cssPageWidth, cssQuoteBorder)
-                                addJavascriptInterface(
-                                    object : Any() {
-                                        @android.webkit.JavascriptInterface
-                                        fun onHighlightCreated(text: String, colorInt: Int, pageIndex: Int, startOff: Double, endOff: Double) {
-                                            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                                vm.saveHighlight(
-                                                    text = text,
-                                                    colorInt = colorInt,
-                                                    pageIndex = pageIndex,
-                                                    startOffset = startOff.toFloat(),
-                                                    endOffset = endOff.toFloat()
-                                                )
-                                            }
-                                        }
-                                    },
-                                    "AndroidPageReady"
-                                )
-                                loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
-                            }
+                            android.widget.Toast.makeText(
+                                context,
+                                if (orientationLocked) "Skjerm låst i nåværende rotasjon" else "Skjerm låst opp",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
                         },
-                        modifier = Modifier.fillMaxSize()
                     )
                 }
-                Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 4.dp) {
-                    Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(8.dp)) {
+
+                // ── Kompakt bokmerke-HUD (kort bekreftelse, endrer aldri sidetilstand) ──
+                AnimatedVisibility(
+                    visible = bookmarkHud != null,
+                    enter = fadeIn(tween(140)),
+                    exit = fadeOut(tween(160)),
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .zIndex(2f)
+                ) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.72f),
+                        shape = RoundedCornerShape(20.dp),
+                        tonalElevation = 0.dp,
+                        shadowElevation = 4.dp
+                    ) {
                         Text(
-                            "Marker teksten med fingeren over → velg farge i menyen som dukker opp. Merkede setninger lagres i boken din.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                            textAlign = TextAlign.Center
+                            bookmarkHud.orEmpty(),
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
                         )
                     }
                 }
@@ -595,7 +417,7 @@ fun ReaderScreen(
                         if (searchQuery.isNotBlank()) {
                             android.widget.Toast.makeText(
                                 context,
-                                "Søk etter \"$searchQuery\" i nåværende kapittel – bytt til Marker tekst for interaktivt søk.",
+                                "Søk etter \"$searchQuery\" er ikke tilgjengelig i bitmap-visningen ennå.",
                                 android.widget.Toast.LENGTH_LONG
                             ).show()
                         }
@@ -617,7 +439,7 @@ fun ReaderScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                         Text(
-                            "Tips: trykk på Mark-tekst nederst i menyen for å bla i teksten og søke direkte i HTML-visningen med finne-i-side.",
+                            "Søk søker i nåværende kapitteltekst og lister treff som kompakt HUD.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -668,6 +490,7 @@ internal const val PAGE_BITMAP_PAINT_FLAGS: Int =
 @OptIn(ExperimentalPageCurlApi::class)
 @Composable
 private fun RealBookSlideReader(
+    modifier: Modifier = Modifier,
     ui: ReaderBookState,
     navEpoch: Int,
     showControls: Boolean,
@@ -679,6 +502,12 @@ private fun RealBookSlideReader(
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
+    // Fullskjerm-målet (hele skjermen i dp → px) er stabilt på tvers av
+    // kontroll-toggle: vis/skjul av systembars endrer aldri denne verdien, så
+    // effectiveWidthPx/contentHeightPx/sizeKey/configKey/renderKey og hele
+    // bitmapgeometrien er UENDRET før og etter en toggle. (Padding påføres
+    // nøyaktig én gang til renderer-dims og én gang — med SAMME tall — til
+    // Canvas-destinasjonen, se ReaderContentBox.)
     val configuration = LocalConfiguration.current
     val swPx = with(density) { configuration.screenWidthDp.dp.toPx() }.toInt()
     val shPx = with(density) { configuration.screenHeightDp.dp.toPx() }.toInt()
@@ -686,10 +515,17 @@ private fun RealBookSlideReader(
     // Sideinnholdsboksen (identisk med paddingen i CurlPageContent/lastGood):
     // rendererens bitmapdimensjoner MÅ være nøyaktig disse — aldri en blanding
     // av fullskjerm- og padde-mål (som gav vertikal skvis + skaleringsartefakter).
+    // Padden påføres nøyaktig ÉN gang: samme tall brukes til Canvas-destinasjonen.
     val pageHPad = 32.dp
     val pageVPad = 48.dp
-    val effectiveWidthPx = swPx - with(density) { (pageHPad * 2).toPx() }.toInt()
-    val contentHeightPx = shPx - with(density) { (pageVPad * 2).toPx() }.toInt()
+    val contentBox = ReaderContentBox(
+        viewportWidthPx = swPx,
+        viewportHeightPx = shPx,
+        hPadPx = with(density) { pageHPad.toPx() }.toInt(),
+        vPadPx = with(density) { pageVPad.toPx() }.toInt(),
+    )
+    val effectiveWidthPx = contentBox.effectiveWidthPx
+    val contentHeightPx = contentBox.contentHeightPx
     val sizeKey = "$effectiveWidthPx-$contentHeightPx"
     val fontKey = "${ui.fontSizeSp}-${ui.readerTheme}"
     val configKey = "$fontKey-$sizeKey"
@@ -790,6 +626,31 @@ private fun RealBookSlideReader(
     val updatedJump by rememberUpdatedState(onJumpToChapterPage)
     val updatedNextReady by rememberUpdatedState(nextReadyRef)
     val updatedPrevReady by rememberUpdatedState(prevReadyRef)
+
+    // ── Gated layout-diagnostikk (READER_LAYOUT_DIAG = false som standard) ──
+    // Logger KUN mål, aspektratio, nøkler og sidetilstand ved vis/skjul av kontroller.
+    // En korrekt toggle rapporterer identiske verdier før og etter.
+    LaunchedEffect(showControls) {
+        if (!READER_LAYOUT_DIAG) return@LaunchedEffect
+        val srcBmp = cache.getSync(renderKey(chapIdx, ui.currentPage))
+        val srcW = srcBmp?.width ?: -1
+        val srcH = srcBmp?.height ?: -1
+        val dstW = contentBox.destinationWidthPx
+        val dstH = contentBox.destinationHeightPx
+        val srcAr = if (srcH > 0) (srcW.toFloat() / srcH) else -1f
+        val dstAr = contentBox.destinationAspectRatio
+        layoutDiag(
+            "TOGGLE showControls=$showControls" +
+            " viewport=${swPx}x$shPx" +
+            " effective=${effectiveWidthPx}x$contentHeightPx" +
+            " src=${srcW}x$srcH dst=${dstW}x$dstH" +
+            " srcAR=$srcAr dstAR=$dstAr" +
+            " sizeKey=$sizeKey configKey=$configKey" +
+            " renderKey=${renderKey(chapIdx, ui.currentPage)}" +
+            " window=${window.sectionIndex}:${window.count}" +
+            " curl=${curlState.current} pages=$sectionPageCount"
+        )
+    }
 
     // Bygg vinduet på nytt ved sidetall-korrigering (prepare fullført) eller
     // seksjonsskifte uten ventende commit-remap. Snap skjer FØR vindusskrivingen
@@ -1035,9 +896,10 @@ private fun RealBookSlideReader(
                         if (!b.isRecycled) {
                             native.drawBitmap(
                                 b, null,
-                                // Heltalls-destinasjon, nøyaktig målt innholdsdimsjon (aldri
-                                // blanding av fullskjerm- og renderer-mål), felles filtrert Paint.
-                                android.graphics.RectF(0f, 0f, size.width.roundToInt().toFloat(), size.height.roundToInt().toFloat()),
+                                // Destinasjon = innholdsboksen beregnet fra SAMME mål som
+                                // rendereren (effectiveWidthPx × contentHeightPx) — kilde og
+                                // destinasjon deler aspektratio, aldri uavhengig X/Y-skalering.
+                                android.graphics.RectF(0f, 0f, contentBox.destinationWidthPx.toFloat(), contentBox.destinationHeightPx.toFloat()),
                                 pageBitmapPaint
                             )
                         }
@@ -1049,7 +911,7 @@ private fun RealBookSlideReader(
         }
     }
 
-    Box(Modifier.fillMaxSize().background(paperColor)) {
+    Box(modifier.fillMaxSize().background(paperColor)) {
         // lastGood under PageCurl: papir + sist viste side, aldri svart.
         lastGood.value?.let { b ->
             Canvas(Modifier.fillMaxSize().padding(horizontal = pageHPad, vertical = pageVPad)) {
@@ -1058,7 +920,7 @@ private fun RealBookSlideReader(
                     if (!b.isRecycled) {
                         native.drawBitmap(
                             b, null,
-                            android.graphics.RectF(0f, 0f, size.width.roundToInt().toFloat(), size.height.roundToInt().toFloat()),
+                            android.graphics.RectF(0f, 0f, contentBox.destinationWidthPx.toFloat(), contentBox.destinationHeightPx.toFloat()),
                             pageBitmapPaint
                         )
                     }
@@ -1100,6 +962,166 @@ private fun RealBookSlideReader(
     }
 }
 
+/**
+ * OVERLAY-KONTROLLER: tegnes OVER den allerede rendererte boksiden.
+ *
+ * - Er ALDRI en Column-søsken over leseren og aldri en Scaffold topBar med
+ *   innerPadding — påvirker aldri leserens layout, mål, insets eller constraints.
+ * - Roterer/fader kun seg selv (alpha + vertikal translasjon), aldri boksiden.
+ * - Konsumerer kun berøringer inne på de synlige kontrollene; tomme områder
+ *   (ingen bakgrunn/pointerInput) lar PageCurl/tap passere uhindret.
+ */
+@Composable
+private fun ReaderControlsOverlay(
+    ui: ReaderBookState,
+    orientationLocked: Boolean,
+    onBack: () -> Unit,
+    onOpenSearch: () -> Unit,
+    onOpenContents: () -> Unit,
+    onOpenThemes: () -> Unit,
+    onToggleBookmark: () -> Unit,
+    onToggleOrientationLock: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val ctx = LocalContext.current
+    Box(modifier.fillMaxSize()) {
+        // ═══ TOPP-STRIP (hele veien opp, solid strip) ═══
+        AnimatedVisibility(
+            visible = true,
+            enter = fadeIn(tween(120)) + slideInVertically { -it / 3 },
+            exit = fadeOut(tween(90)) + slideOutVertically { -it / 2 },
+            modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth()
+        ) {
+            Surface(
+                tonalElevation = 4.dp,
+                color = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                shadowElevation = 6.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 6.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Tilbake", modifier = Modifier.size(26.dp))
+                    }
+                    Text(
+                        ui.bookTitle,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(horizontal = 6.dp)
+                    )
+                    IconButton(onClick = onOpenSearch) {
+                        Icon(Icons.Default.Search, "Søk", modifier = Modifier.size(24.dp))
+                    }
+                    IconButton(onClick = {
+                        val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            val pct = ((ui.percent.coerceIn(0f, 1f)) * 100).toInt()
+                            val chapTitle = ui.chapters.getOrNull(ui.currentChapterIndex)?.title?.takeIf { it.isNotBlank() } ?: "Kapittel ${ui.currentChapterIndex + 1}"
+                            putExtra(
+                                android.content.Intent.EXTRA_TEXT,
+                                "Jeg lser nå \"${ui.bookTitle}\" — $chapTitle (side ${ui.currentPage + 1} av ${ui.totalPages.coerceAtLeast(1)}, $pct%)\n#ShelfApp"
+                            )
+                            putExtra(android.content.Intent.EXTRA_TITLE, ui.bookTitle)
+                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        ctx.startActivity(android.content.Intent.createChooser(shareIntent, "Del lesefremgang"))
+                    }) {
+                        Icon(Icons.Outlined.Share, "Del", modifier = Modifier.size(24.dp))
+                    }
+                }
+            }
+        }
+
+        // ═══ BUNN-STRIP (hele veien ned, solid strip) ═══
+        AnimatedVisibility(
+            visible = true,
+            enter = fadeIn(tween(120)) + slideInVertically { it / 3 },
+            exit = fadeOut(tween(90)) + slideOutVertically { it / 2 },
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+        ) {
+            Surface(
+                tonalElevation = 6.dp,
+                color = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                shadowElevation = 8.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val pagesLeftInChapter = (ui.totalPages - ui.currentPage - 1).coerceAtLeast(0)
+                val pctStr = "${((ui.percent.coerceIn(0f, 1f)) * 100).toInt()}%"
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(top = 6.dp, bottom = 8.dp)
+                ) {
+                    Text(
+                        "$pagesLeftInChapter pages left · $pctStr · ${ui.currentPage + 1} of ${ui.totalPages.coerceAtLeast(1)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        NavigationBarItem(
+                            selected = false,
+                            onClick = onOpenContents,
+                            icon = { Icon(Icons.AutoMirrored.Filled.List, null, modifier = Modifier.size(26.dp)) },
+                            label = { Text("Contents", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
+                        )
+                        NavigationBarItem(
+                            selected = false,
+                            onClick = onOpenThemes,
+                            icon = {
+                                Row(verticalAlignment = Alignment.Bottom) {
+                                    Text("A", fontSize = 20.sp, fontWeight = FontWeight.Black)
+                                    Text("A", fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 1.dp))
+                                }
+                            },
+                            label = { Text("Themes", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
+                        )
+                        NavigationBarItem(
+                            selected = false,
+                            onClick = onToggleBookmark,
+                            icon = { Icon(Icons.Outlined.BookmarkBorder, null, modifier = Modifier.size(26.dp)) },
+                            label = { Text("Bookmark", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
+                        )
+                        NavigationBarItem(
+                            selected = orientationLocked,
+                            onClick = onToggleOrientationLock,
+                            icon = {
+                                Icon(
+                                    if (orientationLocked) Icons.Default.Lock else Icons.Outlined.Lock,
+                                    null,
+                                    modifier = Modifier.size(26.dp),
+                                    tint = if (orientationLocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            label = { Text(if (orientationLocked) "Låst" else "Lock", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 private fun setWindowBrightness(context: Context, brightness: Float) {
     val lp = (context as? Activity)?.window?.attributes ?: return
     lp.screenBrightness = if (brightness < 0f) -1f else brightness.coerceIn(0.01f, 1.0f)
@@ -1122,156 +1144,4 @@ private fun defaultReaderVmFactory(): androidx.lifecycle.ViewModelProvider.Facto
     }
 }
 
-private fun buildHighlightableHtml(
-    content: String,
-    fontSizeSp: Int,
-    theme: com.shelf.reader.reader.pageturn.ReaderThemeColors,
-    lang: String,
-    cssPageWidth: Int,
-    cssQuoteBorder: Float,
-): String {
-    val colorsJson = arrayOf(
-        "\"#FFDD55\":0xFFFFFF7F",
-        "\"#FF9AA2\":0xFFFF9AA2",
-        "\"#B5DEFF\":0xFFB5DEFF",
-        "\"#C7CEEA\":0xFFC7CEEA",
-        "\"#A0E7E5\":0xFFA0E7E5",
-        "\"#B4F8C8\":0xFFB4F8C8",
-    ).joinToString(",")
-    val scriptJs = """
-        (function() {
-            var colors = [
-                { hex: '#FFDD55', android: -65793 },
-                { hex: '#FF9AA2', android: -41962 },
-                { hex: '#B5DEFF', android: -4857089 },
-                { hex: '#C7CEEA', android: -3682582 },
-                { hex: '#A0E7E5', android: -6230043 },
-                { hex: '#B4F8C8', android: -4917304 }
-            ];
-            var ui = document.createElement('div');
-            ui.style.cssText = 'position:fixed;z-index:9999;display:none;padding:6px 10px;background:rgba(30,30,32,0.98);border-radius:12px;box-shadow:0 4px 18px rgba(0,0,0,0.4);';
-            ui.className = '__hl_float';
-            colors.forEach(function(c){
-                var s=document.createElement('span');
-                s.setAttribute('data-c', c.android);
-                s.setAttribute('data-hex', c.hex);
-                s.style.cssText='display:inline-block;width:26px;height:26px;border-radius:50%;margin:0 4px;cursor:pointer;border:2px solid rgba(255,255,255,0.75);background:'+c.hex;
-                s.addEventListener('click', function(ev){
-                    ev.preventDefault(); ev.stopPropagation();
-                    var sel = window.getSelection();
-                    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) { ui.style.display = 'none'; return; }
-                    var text = sel.toString();
-                    if (!text || text.trim().length === 0) { ui.style.display = 'none'; return; }
-                    var hex = this.getAttribute('data-hex') || '#FFDD55';
-                    var cInt = parseInt(this.getAttribute('data-c'), 10);
-                    try {
-                        var range = sel.getRangeAt(0);
-                        // ─── WRAP TEKSTEN I <span> MED BAKGRUNNSFARGE SÅ DEN BLIR SYNLIG! ───
-                        var span = document.createElement('span');
-                        span.style.backgroundColor = hex;
-                        span.style.padding = '0 2px';
-                        span.style.borderRadius = '3px';
-                        try {
-                            range.surroundContents(span);
-                        } catch(e) {
-                            // Fallback hvis range går over elementer: ekstraher innhold og pakk inn
-                            try {
-                                var content = range.extractContents();
-                                span.appendChild(content);
-                                range.insertNode(span);
-                            } catch(e2) {}
-                        }
-                    } catch(e) { console.error(e); }
-                    var pageWidth = (document.documentElement.clientWidth || window.innerWidth || 360);
-                    var rect = (function(){ try{ var t = document.createElement('span'); t.style.position='relative'; t.style.left='0'; t.style.visibility='hidden'; return (window.getSelection && window.getSelection().rangeCount) ? window.getSelection().getRangeAt(0).getBoundingClientRect() : {left:0,right:pageWidth}; }catch(e){ return {left:0,right:pageWidth}; } })();
-                    var page = Math.max(0, Math.floor(rect.left / pageWidth));
-                    var relLeft = rect.left - page * pageWidth;
-                    var relRight = rect.right - page * pageWidth;
-                    var startFrac = Math.max(0, Math.min(1, relLeft / pageWidth));
-                    var endFrac = Math.max(0, Math.min(1, relRight / pageWidth));
-                    try { AndroidPageReady.onHighlightCreated(text, cInt, page, Math.min(startFrac, endFrac), Math.max(startFrac, endFrac)); } catch(e){ console.error(e); }
-                    sel.removeAllRanges();
-                    ui.style.display = 'none';
-                });
-                ui.appendChild(s);
-            });
-            document.body.appendChild(ui);
-            function hideIfOutside(e){ if (ui.style.display === 'none') return; var r = ui.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) ui.style.display = 'none'; }
-            document.addEventListener('selectionchange', function(){
-                var sel = window.getSelection();
-                if (!sel || sel.rangeCount === 0 || sel.isCollapsed || sel.toString().trim().length === 0) { ui.style.display = 'none'; return; }
-                var rect = sel.getRangeAt(0).getBoundingClientRect();
-                ui.style.display = 'block';
-                // VI VISER ALLTID MENYEN NEDENFOR TEKSTEN! Da unngår vi OnePlus sin oppover-plasserte Copy-meny!
-                var top = rect.bottom + 20;
-                var viewportH = window.innerHeight || document.documentElement.clientHeight || 800;
-                if (top + 60 > viewportH) top = rect.top - 70;
-                if (top < 6) top = rect.bottom + 20;
-                var left = rect.left + rect.width/2 - ui.offsetWidth/2;
-                if (left < 6) left = 6;
-                var maxL = (window.innerWidth || 360) - ui.offsetWidth - 6;
-                if (left > maxL) left = maxL;
-                ui.style.top = top + 'px';
-                ui.style.left = left + 'px';
-            });
-            document.addEventListener('mousedown', hideIfOutside);
-            document.addEventListener('touchstart', hideIfOutside, {passive:true});
-        })();
-    """.trimIndent()
-    return """
-    <!DOCTYPE html>
-    <html lang="${lang.ifBlank { "en" }}">
-    <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <style>
-      *, *::before, *::after { box-sizing: border-box; }
-      html, body { 
-        margin: 0; padding: 0; height: 100%; width: 100%; 
-        background: ${theme.bodyBg}; color: ${theme.textColor};
-        -webkit-text-size-adjust: none;
-      }
-      body { 
-        font-family: "Crimson Pro", "EB Garamond", "Palatino", "Georgia", serif; 
-        font-size: ${fontSizeSp}px; 
-        line-height: 1.7; 
-        text-rendering: optimizeLegibility;
-        -webkit-font-smoothing: antialiased;
-        -webkit-tap-highlight-color: transparent;
-        overflow-x: auto;
-        overflow-y: hidden;
-      }
-      #content-wrapper {
-        display: block; 
-        min-height: 100vh;
-        min-width: 100vw;
-        width: max-content;
-        margin: 0;
-        padding: 48px 64px 64px 64px;
-        column-width: calc(100vw - 128px); 
-        column-gap: 96px; 
-        column-fill: auto;
-        word-wrap: break-word; 
-        overflow-wrap: break-word; 
-        hyphens: auto; 
-        -webkit-hyphens: auto; 
-        text-align: justify;
-        orphans: 1;
-        widows: 1;
-      }
-      h1, h2, h3 { color: ${theme.headingColor}; text-align: center !important; margin: 1.2em 0 0.6em !important; font-weight: 700 !important; line-height: 1.3; }
-      h1 { font-size: 1.5em !important; }
-      h2 { font-size: 1.3em !important; }
-      h3 { font-size: 1.15em !important; }
-      p { margin: 0 0 0.7em !important; text-align: justify !important; text-indent: 1.6em !important; line-height: 1.7 !important; }
-      img, svg { max-width: 100% !important; height: auto !important; display: block !important; margin: 0.8em auto !important; }
-      blockquote { border-left: ${cssQuoteBorder}px solid ${theme.headingColor}; padding-left: 1.2em; margin: 1.5em 0; font-style: italic; opacity: 0.92; }
-      ::selection { background: rgba(255, 205, 90, 0.55); }
-    </style>
-    </head>
-    <body><div id="content-wrapper">$content</div>
-    <script>$scriptJs</script>
-    </body>
-    </html>
-    """.trimIndent()
-}
 

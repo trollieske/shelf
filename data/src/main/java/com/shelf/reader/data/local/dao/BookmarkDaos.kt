@@ -40,6 +40,13 @@ interface BookmarkDao {
     @Query("SELECT * FROM bookmarks WHERE book_id = :bookId AND ABS(COALESCE(position_percent, -1) - :pct) < 0.01 LIMIT 1")
     suspend fun getNear(bookId: Long, pct: Float): BookmarkEntity?
 
+    /**
+     * Eksakt treff for side-bokmerke-toggle: samme bok + samme seksjon (kapittel-
+     * indeks) + samme lokale sideindeks — sikrer ingen duplikater ved lagring.
+     */
+    @Query("SELECT * FROM bookmarks WHERE book_id = :bookId AND type = :type AND chapter_index = :chapterIndex AND page_index = :pageIndex LIMIT 1")
+    suspend fun getByBookSectionPage(bookId: Long, type: BookmarkTypeEntity, chapterIndex: Int, pageIndex: Int): BookmarkEntity?
+
     @Transaction
     @Query("SELECT * FROM bookmarks ORDER BY updated_at DESC LIMIT :limit")
     fun observeRecent(limit: Int = 20): Flow<List<BookmarkEntity>>

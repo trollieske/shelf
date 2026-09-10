@@ -205,26 +205,52 @@ class ReaderViewModel(
         )
     }
 
-    fun saveBookmark(percent: Float, pageIndex: Int) {
+    // ── Bokmerke: enkel side-bokmerke-toggle ─────────────────────────────────
+
+    /** Kompakt HUD-melding ("Bokmerke lagret" / "Bokmerke fjernet") eller null. */
+    private val _bookmarkHudMessage = MutableStateFlow<String?>(null)
+    val bookmarkHudMessage: StateFlow<String?> = _bookmarkHudMessage.asStateFlow()
+
+    fun clearBookmarkHud() { _bookmarkHudMessage.value = null }
+
+    /**
+     * Slår av/på bokmerke for NÅVÆRENDE logiske plassering:
+     * bokId + seksjon/kapittel-indeks + lokal sideindeks (type GENERIC).
+     * Første trykk = lagre, andre trykk (samme nøkkel) = fjern. Ingen duplikater.
+     *
+     * Endrer ALDRI sidetilstand: ingen WebView, ingen re-render, ingen cache-tømming,
+     * ingen PageCurl/PageWindow-endring, ingen kapittel-/sidebytte.
+     */
+    fun toggleBookmark() {
         val bookId = _currentBookId.value
         if (bookId == 0L) return
         viewModelScope.launch(dispatchers.io) {
-            val chapterIdx = _state.value.currentChapterIndex
-            val chapterTitle = _state.value.chapters.getOrNull(chapterIdx)?.title
-            val snippet = "Page ${pageIndex + 1}"
+            val state = _state.value
+            val chapterIdx = state.currentChapterIndex
+            val page = state.currentPage.coerceAtLeast(0)
+            val pct = if (state.totalPages > 1) page.toFloat() / (state.totalPages - 1) else 0f
             runCatching {
-                db.bookmarkDao().insert(
-                    BookmarkEntity(
-                        bookId = bookId,
-                        type = BookmarkTypeEntity.GENERIC,
-                        title = chapterTitle?.let { "Chap ${chapterIdx + 1}: $it" },
-                        snippet = snippet,
-                        pageIndex = pageIndex,
-                        chapterIndex = chapterIdx,
-                        positionPercent = percent.coerceIn(0f, 1f),
+                val existing = db.bookmarkDao()
+                    .getByBookSectionPage(bookId, BookmarkTypeEntity.GENERIC, chapterIdx, page)
+                if (existing != null) {
+                    db.bookmarkDao().delete(existing)
+                    "Bokmerke fjernet"
+                } else {
+                    val chapterTitle = state.chapters.getOrNull(chapterIdx)?.title
+                    db.bookmarkDao().insert(
+                        BookmarkEntity(
+                            bookId = bookId,
+                            type = BookmarkTypeEntity.GENERIC,
+                            title = chapterTitle?.let { "Chap ${chapterIdx + 1}: $it" },
+                            snippet = "Page ${page + 1}",
+                            pageIndex = page,
+                            chapterIndex = chapterIdx,
+                            positionPercent = pct.coerceIn(0f, 1f),
+                        )
                     )
-                )
-            }
+                    "Bokmerke lagret"
+                }
+            }.onSuccess { _bookmarkHudMessage.value = it }
         }
     }
 
