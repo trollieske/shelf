@@ -58,8 +58,27 @@ class AudiobookEngine(
 
         val durationMs = book.durationMs ?: estimateDuration(ctx, book, mediaUri)
 
-        val chapters = book.chaptersJson?.let { parseChapters(it) }
+        // Kapitler fra chaptersJson; ved ≤ 1 kapittel prøver vi å HELE boken ved å
+        // re-parse innebygde kapitler (chpl/CHAP) fra kildefilen og oppdatere DB-en.
+        // Dette reparerer bøker importert før chpl-parsingen ble fikset — uten
+        // re-import, og uten å røre fremdrift/posisjon.
+        var chapters = book.chaptersJson?.let { parseChapters(it) }
             ?: buildStubChapters(book.title, durationMs)
+        if (book.type == BookTypeEntity.AUDIOBOOK && chapters.size <= 1) {
+            rescanEmbeddedChapters(book, mediaUri)?.let { (fixed, json) ->
+                chapters = fixed
+                runCatching {
+                    db.bookDao().update(
+                        book.copy(
+                            chaptersJson = json,
+                            chapterCount = fixed.size,
+                            durationMs = book.durationMs?.takeIf { it > 0L } ?: estimateDuration(ctx, book, mediaUri),
+                            lastModifiedAt = System.currentTimeMillis()
+                        )
+                    )
+                }
+            }
+        }
 
         val currentMs = (prog * durationMs).toLong()
             .coerceAtMost(max(durationMs - 5_000L, 0L))
@@ -117,6 +136,61 @@ class AudiobookEngine(
 
     private fun estimateDuration(ctx: Context, book: BookEntity, mediaUri: String?): Long {
         return 2L * 60L * 60L * 1000L
+    }
+
+    /**
+     * Auto-reparasjon: hvis en lydbok har ≤ 1 kapittel i DB-en, prøv å re-parse
+     * innebygde kapitler fra kildefilen (M4B chpl / MP3 ID3 CHAP). Returnerer
+     * (kapitler, chaptersJson) ved suksess (> 1 kapitler), ellers null.
+     * Endrer aldri fremdrift, aldrig avspillingsposisjon — kun kapittelmetadata.
+     */
+    private suspend fun rescanEmbeddedChapters(
+        book: BookEntity,
+        mediaUri: String?,
+    ): Pair<List<AudiobookChapter>, String>? {
+        val source = mediaUri?.takeIf { it.isNotBlank() } ?: return null
+        val coreFormat = when (book.format) {
+            com.shelf.reader.data.local.entity.FormatEntity.M4B -> com.shelf.reader.core.domain.model.BookFormat.M4B
+            com.shelf.reader.data.local.entity.FormatEntity.M4A -> com.shelf.reader.core.domain.model.BookFormat.M4A
+            com.shelf.reader.data.local.entity.FormatEntity.MP3 -> com.shelf.reader.core.domain.model.BookFormat.MP3
+            com.shelf.reader.data.local.entity.FormatEntity.AAC -> com.shelf.reader.core.domain.model.BookFormat.AAC
+            else -> return null
+        }
+        val uri = if (source.startsWith("/")) Uri.fromFile(File(source)) else Uri.parse(source)
+        return runCatching {
+            val parser = com.shelf.reader.core.parse.getParserFor(coreFormat)
+            val meta = parser.parse(ctx, uri, book.title, 0L, null)
+            val list = meta?.chapters.orEmpty().filter { it.startMs >= 0L }
+            if (list.size <= 1) return null
+            val duration = meta?.durationMs ?: 0L
+            val arr = org.json.JSONArray()
+            list.forEachIndexed { idx, ch ->
+                val end = list.getOrNull(idx + 1)?.startMs?.takeIf { it > list[idx].startMs }
+                    ?: (duration.takeIf { it > list[idx].startMs })
+                    ?: (list[idx].endMs?.takeIf { it > list[idx].startMs })
+                    ?: (list[idx].startMs + 10L * 60L * 1000L)
+                val obj = org.json.JSONObject().apply {
+                    put("index", idx)
+                    put("title", list[idx].title.ifBlank { "Kapittel ${idx + 1}" })
+                    put("startMs", list[idx].startMs)
+                    put("endMs", end)
+                    put("mediaUri", source)
+                    put("durationMs", (end - list[idx].startMs).coerceAtLeast(1L))
+                }
+                arr.put(obj)
+            }
+            val chapters = (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                AudiobookChapter(
+                    index = i,
+                    title = obj.optString("title", "Kapittel ${i + 1}"),
+                    startMs = obj.optLong("startMs", 0L),
+                    endMs = obj.optLong("endMs", 0L).takeIf { it > 0L },
+                    mediaUri = source
+                )
+            }
+            Pair(chapters, arr.toString())
+        }.getOrNull()
     }
 
     private fun parseChapters(json: String): List<AudiobookChapter> {

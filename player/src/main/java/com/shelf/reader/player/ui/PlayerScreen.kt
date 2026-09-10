@@ -384,36 +384,10 @@ fun PlayerScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            Column(Modifier.fillMaxWidth()) {
-                val currentSec = state.currentMs / 1_000L
-                val durSec = state.durationMs / 1_000L
-                val pctF = if (state.durationMs > 0) state.currentMs.toFloat() / state.durationMs.toFloat() else 0f
-                var slider by remember(state.currentMs, state.durationMs) { mutableFloatStateOf(pctF) }
-
-                Slider(
-                    value = slider,
-                    onValueChange = { slider = it },
-                    onValueChangeFinished = {
-                        val ms = (slider * state.durationMs.coerceAtLeast(1L)).toLong()
-                        scope.launch { vm.seekTo(ms) }
-                    }
-                )
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        formatDuration(currentSec),
-                        style = ShelfTypography.LabelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        "- ${formatDuration(max(0L, durSec - currentSec))}",
-                        style = ShelfTypography.LabelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            SeekProgressSection(
+                state = state,
+                onSeek = { ms -> scope.launch { vm.seekTo(ms) } },
+            )
 
             Spacer(Modifier.height(20.dp))
 
@@ -574,6 +548,159 @@ fun PlayerScreen(
             onDismiss = { showSleep = false },
             onPick = { mins -> scope.launch { vm.setSleepTimer(mins) }; showSleep = false }
         )
+    }
+}
+
+/**
+ * Dobbel fremgangslinje (QOL):
+ *  - «Kapittel»: spoler finmasket INNENFOR nåværende kapittel — lang-drag på
+ *    hele boken lar deg ikke lenger hoppe over store tidsdeler.
+ *    Under vises en tynn hel-bok-linje + kapittelnummer/prosent, så du alltid
+ *    ser hvor du er i boken også.
+ *  - «Hele boken»: spoler over hele bokens varighet (som tidligere).
+ * Standard: kapittelvisning når boken har > 1 kapittel. Valget huskes per sesjon.
+ */
+@Composable
+private fun SeekProgressSection(
+    state: AudiobookState,
+    onSeek: (Long) -> Unit,
+) {
+    val chapters = state.chapters
+    val bookDuration = state.durationMs.coerceAtLeast(0L)
+    val hasChapters = chapters.size > 1
+    var chapterMode by rememberSaveable { mutableStateOf(true) }
+
+    Column(Modifier.fillMaxWidth()) {
+        if (hasChapters) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = chapterMode,
+                    onClick = { chapterMode = true },
+                    label = { Text("Kapittel", fontWeight = FontWeight.SemiBold) },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterChip(
+                    selected = !chapterMode,
+                    onClick = { chapterMode = false },
+                    label = { Text("Hele boken") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+
+        val useChapterScrub = hasChapters && chapterMode
+        if (useChapterScrub) {
+            val chapter = chapters.getOrNull(state.currentChapterIndex)
+            val chStart = chapter?.startMs?.coerceAtLeast(0L) ?: 0L
+            val chEnd = chapter?.endMs?.takeIf { it > chStart }
+                ?: state.durationMs.takeIf { it > chStart }
+                ?: (chStart + 1L)
+            val chLen = (chEnd - chStart).coerceAtLeast(1L)
+            val chElapsed = (state.currentMs - chStart).coerceIn(0L, chLen)
+            val chPct = chElapsed.toFloat() / chLen.toFloat()
+            var slider by remember(state.currentMs, chStart, chEnd) { mutableFloatStateOf(chPct) }
+
+            Slider(
+                value = slider,
+                onValueChange = { slider = it },
+                onValueChangeFinished = {
+                    val ms = chStart + (slider * chLen).toLong()
+                    onSeek(ms)
+                }
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    formatDuration(chElapsed / 1_000L),
+                    style = ShelfTypography.LabelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "- ${formatDuration(max(0L, (chEnd - state.currentMs) / 1_000L))}",
+                    style = ShelfTypography.LabelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // Hel-bok-kontekst: tynn, ikke-skrubbar linje + kapittelnummer/prosent
+            val bookPct = if (bookDuration > 0) (state.currentMs.toFloat() / bookDuration).coerceIn(0f, 1f) else 0f
+            LinearProgressIndicator(
+                progress = { bookPct },
+                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp))
+            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Kapittel ${state.currentChapterIndex + 1} av ${chapters.size} · ${chapter?.title.orEmpty()}".trim(),
+                    style = ShelfTypography.LabelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                Text(
+                    "${(bookPct * 100).toInt()}% av boken",
+                    style = ShelfTypography.LabelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            val currentSec = state.currentMs / 1_000L
+            val durSec = bookDuration / 1_000L
+            val pctF = if (bookDuration > 0) state.currentMs.toFloat() / bookDuration.toFloat() else 0f
+            var slider by remember(state.currentMs, bookDuration) { mutableFloatStateOf(pctF) }
+
+            Slider(
+                value = slider,
+                onValueChange = { slider = it },
+                onValueChangeFinished = {
+                    val ms = (slider * bookDuration.coerceAtLeast(1L)).toLong()
+                    onSeek(ms)
+                }
+            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    formatDuration(currentSec),
+                    style = ShelfTypography.LabelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "- ${formatDuration(max(0L, durSec - currentSec))}",
+                    style = ShelfTypography.LabelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (hasChapters) {
+                Spacer(Modifier.height(10.dp))
+                val chapter = chapters.getOrNull(state.currentChapterIndex)
+                val chStart = chapter?.startMs?.coerceAtLeast(0L) ?: 0L
+                val chEnd = chapter?.endMs?.takeIf { it > chStart } ?: bookDuration.coerceAtLeast(chStart + 1)
+                val chLen = (chEnd - chStart).coerceAtLeast(1L)
+                val chPct = ((state.currentMs - chStart).coerceIn(0L, chLen)).toFloat() / chLen.toFloat()
+                LinearProgressIndicator(
+                    progress = { chPct },
+                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp))
+                )
+                Text(
+                    "Kapittel ${state.currentChapterIndex + 1} av ${chapters.size} · ${chapter?.title.orEmpty()}".trim(),
+                    style = ShelfTypography.LabelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
     }
 }
 

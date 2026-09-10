@@ -289,155 +289,168 @@ class AudioMetadataParser : FormatMetadataParser {
 
 /**
  * Lightweight binary MP4/M4B/M4A chapter parser.
- * Reads the 'chpl' (chapters) QuickTime atom inside 'moov' → 'udta' → 'meta' → 'ilst' hierarchy.
+ * Reads the 'chpl' (chapters) QuickTime atom inside 'moov' → 'udta' hierarchy.
  * Never accesses MediaDrm or decodes audio - purely structural parsing of ISOBMFF container atoms.
  *
  * Returns Pair(chapters, totalDurationMillis?).
  *   chapters: zero or more entries, each with start/end millisecond offsets and title.
  *   durationMs: either the last chapter's end, or the 'mvhd' movie timescale duration, if available.
+ *
+ * FIX: 'moov' ligger ofte ETTER 'mdat' hos store lydbok-filer (single-file M4B).
+ * Vi går derfor gjennom TOPP-nivå-atomene ved å skippe i strømmen (hele filen,
+ * ingen 8 MB-begrensning) og leser KUN 'moov'-atomet inn i minnet.
  */
-private fun parseMp4Chapters(stream: InputStream, size: Long): Pair<List<ChapterInfo>, Long?> {
-    // Read first MB (covers moov header for all typical m4b files).
-    val headerLimit = (if (size <= 0L) (2L * 1024L * 1024L) else size.coerceAtMost(8L * 1024L * 1024L)).toInt()
-    val buffer = ByteArray(headerLimit)
-    var read = 0
-    while (read < headerLimit) {
-        val n = stream.read(buffer, read, headerLimit - read)
-        if (n < 0) break
-        read += n
-    }
-    val file = buffer.copyOf(read)
+internal fun parseMp4Chapters(stream: InputStream, size: Long): Pair<List<ChapterInfo>, Long?> {
     var totalDurMs: Long? = null
     val embeddedChapters = mutableListOf<Pair<Long, String>>()
 
     fun u32(b: ByteArray, off: Int): Long {
-        if (off + 4 > b.size) return -1
+        if (off + 4 > b.size || off < 0) return -1
         return ((b[off].toLong() and 0xFFL) shl 24) or
             ((b[off + 1].toLong() and 0xFFL) shl 16) or
             ((b[off + 2].toLong() and 0xFFL) shl 8) or
             (b[off + 3].toLong() and 0xFFL)
     }
+    fun u64At(b: ByteArray, off: Int): Long {
+        if (off + 8 > b.size || off < 0) return -1
+        var v = 0L
+        for (i in 0 until 8) {
+            val byteVal = b[off + i].toLong() and 0xFFL
+            if (i == 0 && byteVal != 0L) return -1L // u64 som ikke passer i Long-signert
+            v = (v shl 8) or byteVal
+        }
+        return v
+    }
     fun asciiTag(b: ByteArray, off: Int): String {
         if (off + 4 > b.size) return ""
         return buildString { append(b[off].toInt().toChar()); append(b[off+1].toInt().toChar()); append(b[off+2].toInt().toChar()); append(b[off+3].toInt().toChar()) }
     }
-    fun u16(b: ByteArray, off: Int): Int {
-        if (off + 2 > b.size) return 0
-        return ((b[off].toInt() and 0xFF) shl 8) or (b[off + 1].toInt() and 0xFF)
+
+    // --- 1. Gå gjennom topp-nivå-atomer via strøm-skip (hele filen) -----------
+    var moov: ByteArray? = null
+    run {
+        val header = ByteArray(8)
+        while (true) {
+            if (readN(stream, header, 8) < 8) break
+            val aSize = u32(header, 0)
+            val tag = asciiTag(header, 4)
+            var payload = -1L
+            if (aSize == 1L) {
+                // 64-bit largesize
+                val ext = ByteArray(8)
+                if (readN(stream, ext, 8) < 8) break
+                payload = ((ext[0].toLong() and 0xFFL) shl 56) or ((ext[1].toLong() and 0xFFL) shl 48) or
+                        ((ext[2].toLong() and 0xFFL) shl 40) or ((ext[3].toLong() and 0xFFL) shl 32) or
+                        ((ext[4].toLong() and 0xFFL) shl 24) or ((ext[5].toLong() and 0xFFL) shl 16) or
+                        ((ext[6].toLong() and 0xFFL) shl 8) or (ext[7].toLong() and 0xFFL)
+                payload -= 16
+            } else if (aSize > 8L) {
+                payload = aSize - 8
+            }
+            if (tag == "moov") {
+                if (payload in 8 until (128L * 1024L * 1024L)) {
+                    val buf = ByteArray(payload.toInt())
+                    val got = readN(stream, buf, buf.size)
+                    if (got == buf.size) moov = buf
+                }
+                break // moov funnet (eller uleselig) — vi trenger ikke resten
+            }
+            if (payload < 0) break // størrelse 0 (til EOF) / korrupt — gi opp trygt
+            if (skipFully(stream, payload) < payload) break
+        }
     }
 
-    // --- 1. Parse mvhd inside moov for total duration --------------------------
+    val file = moov ?: return Pair(emptyList(), null)
+    val fileEnd = file.size
+
+    // --- 2. mvhd i moov → total varighet -------------------------------------
+    // mvhd-layout: +8 ver/flags; v0: +12 creation(4) +16 modification(4) +20 timescale(4) +24 duration(4);
+    //              v1: +12 creation(8) +20 modification(8) +28 timescale(4) +32 duration(8)
     var pos = 0
-    var moovStart = -1
-    while (pos + 8 <= file.size && moovStart == -1) {
-        val atomSize = u32(file, pos)
-        val tag = asciiTag(file, pos + 4)
-        if (tag == "moov") { moovStart = pos; break }
-        if (atomSize < 8 || atomSize > file.size) break
-        pos += atomSize.toInt()
-    }
-    if (moovStart >= 0) {
-        var inside = moovStart + 8
-        while (inside + 8 <= file.size && inside < moovStart + u32(file, moovStart)) {
-            val aSize = u32(file, inside)
-            val aTag = asciiTag(file, inside + 4)
-            if (aTag == "mvhd" && aSize > 28) {
-                val ver = file[inside + 8].toInt() and 0xFF
-                val timeScale: Long
-                val duration: Long
-                if (ver == 1) {
-                    timeScale = u32(file, inside + 28)
-                    duration = if (inside + 36 < file.size) {
-                        ((file[inside + 28 + 4 + 4].toLong() and 0xFFL) shl 56) or
-                        ((file[inside + 28 + 4 + 5].toLong() and 0xFFL) shl 48) or
-                        ((file[inside + 28 + 4 + 6].toLong() and 0xFFL) shl 40) or
-                        ((file[inside + 28 + 4 + 7].toLong() and 0xFFL) shl 32) or
-                        ((file[inside + 28 + 4 + 8].toLong() and 0xFFL) shl 24) or
-                        ((file[inside + 28 + 4 + 9].toLong() and 0xFFL) shl 16) or
-                        ((file[inside + 28 + 4 + 10].toLong() and 0xFFL) shl 8) or
-                        (file[inside + 28 + 4 + 11].toLong() and 0xFFL)
-                    } else 0L
-                } else {
-                    timeScale = u32(file, inside + 12)
-                    duration = u32(file, inside + 16)
-                }
-                if (timeScale > 0 && duration > 0) {
-                    totalDurMs = (duration * 1000L) / timeScale
-                }
-                break
+    var mvhdFound = false
+    while (pos + 8 <= fileEnd) {
+        val aSize = u32(file, pos)
+        val aTag = asciiTag(file, pos + 4)
+        if (aTag == "mvhd" && aSize > 28) {
+            val ver = file[pos + 8].toInt() and 0xFF
+            if (ver == 1) {
+                val timeScale = u32(file, pos + 28)
+                val duration = u64At(file, pos + 32)
+                if (timeScale > 0 && duration > 0) totalDurMs = (duration * 1000L) / timeScale
+            } else {
+                val timeScale = u32(file, pos + 20)
+                val duration = u32(file, pos + 24)
+                if (timeScale > 0 && duration > 0) totalDurMs = (duration * 1000L) / timeScale
             }
-            if (aSize < 8L) break
-            inside += aSize.toInt()
+            break
         }
+        if (aSize < 8L || aSize > fileEnd) break
+        pos += aSize.toInt()
+    }
 
-        // --- 2. Locate chpl inside moov → udta → meta/ilst ----------------------
-        // Recursively walk atoms inside moov for the chpl (QuickTime Chapter List) marker.
-        fun walk(parentStart: Int, parentEnd: Int, depth: Int) {
-            if (depth > 8) return
-            var p = parentStart
-            while (p + 8 <= file.size && p < parentEnd) {
-                val s = u32(file, p)
-                val t = asciiTag(file, p + 4)
-                if (s < 8L || s > file.size || p + s > file.size) break
-                if (t == "chpl") {
-                    // Chapter list atom (QuickTime / nero / ffmpeg chapter atom).
-                    // Layout (simplified):
-                    //   header (atom_size + tag)  -> 8 bytes
-                    //   version + flags           -> 4 bytes (version at +8)
-                    //   4 bytes reserved          -> +12
-                    //   chapter_count             -> 1 byte at +16 for version 0, or 4 bytes u32 depending on muxer
-                    //
-                    // Some ffmpeg muxers use: version(1) + flags(3) + entry_count(uint32)
-                    // Apple iTunes chapter format:
-                    //   byte     version = 0
-                    //   3 bytes  flags = 0
-                    //   4 bytes  reserved
-                    //   1 byte   chapter_count
-                    //   then N chapters:
-                    //     8 bytes start time (uint64, milliseconds since start)
-                    //     1 byte  chapter_title length
-                    //     N bytes chapter_title (UTF-8)
-                    try {
-                        val ver = file[p + 8].toInt() and 0xFF
-                        var cur = p + 16
-                        var count = 0
-                        // Try 4 byte count first (ffmpeg/nero)
-                        val as4 = u32(file, p + 12).toInt()
-                        count = if (as4 in 1..2000) as4 else (file[p + 16].toInt() and 0xFF).also { cur = p + 17 }
-                        if (count > 4000) count = 0
-                        var index = 0
-                        while (index < count && cur + 8 <= p + s) {
-                            val hi = u32(file, cur).toLong()
-                            val lo = u32(file, cur + 4).toLong() and 0xFFFFFFFFL
-                            val startMs = (hi shl 32) or lo
-                            cur += 8
-                            if (cur + 1 > file.size) break
-                            val tLen = file[cur].toInt() and 0xFF
-                            cur += 1
-                            val title = if (cur + tLen <= file.size) {
-                                String(file, cur, tLen, Charsets.UTF_8)
-                            } else "Kapittel ${index + 1}"
-                            cur += tLen
-                            embeddedChapters.add(Pair(startMs, title))
-                            index++
-                            if (embeddedChapters.size >= 6000) break
+    // --- 3. chpl (moov → udta, rekursivt) -------------------------------------
+    fun walk(parentStart: Int, parentEnd: Int, depth: Int) {
+        if (depth > 8) return
+        var p = parentStart
+        while (p + 8 <= fileEnd && p < parentEnd) {
+            val s = u32(file, p)
+            val t = asciiTag(file, p + 4)
+            if (s < 8L || s > fileEnd || p + s > fileEnd) break
+            if (t == "chpl") {
+                /*
+                 * chpl-layout (Nero/QuickTime/ffmpeg):
+                 *   +8  version(1) + flags(3)
+                 *   nero/ffmpeg-variant: 4-byte count ved +12, oppføringer fra +16
+                 *   QuickTime: 4-byte reserved ved +12, 1-byte count ved +16, oppføringer fra +17
+                 *   Oppføring: uint64 starttid + titellengde (1 eller 2 byte) + UTF-8-tittel
+                 *   TIDSENHET: 100-nanosecond ticks (ms × 10 000) i Nero/QuickTime/ffmpeg-konvensjonen.
+                 */
+                try {
+                    val atomEnd = p + s.toInt()
+                    val count4 = u32(file, p + 12).toInt()
+                    val count1 = file[p + 16].toInt() and 0xFF
+                    fun validCount(c: Int) = c in 1..5000
+
+                    // Kandidater: (count, entryStartOffset, titleLengthBytes)
+                    val candidates = listOf(
+                        if (validCount(count4)) listOf(Triple(count4, p + 16, 1), Triple(count4, p + 16, 2)) else emptyList(),
+                        if (validCount(count1)) listOf(Triple(count1, p + 17, 1), Triple(count1, p + 17, 2)) else emptyList(),
+                    ).flatten()
+
+                    for ((count, cur0, lenBytes) in candidates) {
+                        val entries = tryParseEntries(file, atomEnd, cur0, count, lenBytes)
+                        if (entries != null) {
+                            embeddedChapters.addAll(entries)
+                            break
                         }
-                    } catch (_: Throwable) {}
-                    return
-                }
-                if (t in setOf("moov", "udta", "meta", "ilst", "\u00A9nam", "----")) {
-                    // descendable containers
-                    val dataSkip = if (t == "meta") 4 else 0 // meta has 4-byte version/flags before children
-                    walk(p + 8 + dataSkip, (p + s.toInt()), depth + 1)
-                }
-                p += s.toInt()
+                    }
+                } catch (_: Throwable) {}
+                return
             }
+            if (t in setOf("moov", "udta", "meta", "ilst", "\u00A9nam", "----")) {
+                val dataSkip = if (t == "meta") 4 else 0 // meta har 4-byte versjon/flags før barna
+                walk(p + 8 + dataSkip, p + s.toInt(), depth + 1)
+            }
+            p += s.toInt()
         }
-        walk(moovStart, moovStart + u32(file, moovStart).toInt(), 0)
     }
+    walk(0, fileEnd, 0)
 
-    // --- 3. Build ChapterInfo with proper [start, end) ranges
-    val chapters = embeddedChapters.mapIndexed { idx, (startMs, title) ->
+    // --- 4. Tidsskala-konvertering: 100-ns ticks → ms --------------------------
+    // Nero/QuickTime/ffmpeg skriver chpl-starttider i 100-nanosecond-enheter
+    // (ms × 10 000). ms-verdier for lydbøker er alltid < ~4e7 (11 t); verdier
+    // over ~1e9 kan derfor IKKE være ms — da er det ticks.
+    val maxStart = embeddedChapters.maxOfOrNull { it.first } ?: 0L
+    val isTicks = maxStart > 0L && (
+            (totalDurMs != null && maxStart > totalDurMs!!) ||
+            (totalDurMs == null && maxStart > 1_000_000_000L)
+            )
+    val scaledChapters = if (isTicks) {
+        embeddedChapters.map { (raw, title) -> (raw / 10_000L) to title }
+    } else embeddedChapters
+
+    // --- 5. Build ChapterInfo with proper [start, end) ranges
+    val chapters = scaledChapters.mapIndexed { idx, (startMs, title) ->
         ChapterInfo(
             index = idx,
             title = title.trim().ifBlank { "Kapittel ${idx + 1}" },
@@ -455,6 +468,71 @@ private fun parseMp4Chapters(stream: InputStream, size: Long): Pair<List<Chapter
         chapters[chapters.lastIndex] = chapters.last().copy(endMs = end)
     }
     return Pair(chapters, totalDurMs ?: chapters.lastOrNull()?.endMs?.takeIf { it > 0 })
+}
+
+/** Leser nøyaktig n bytes (eller færre ved EOF) fra en InputStream. */
+private fun readN(stream: InputStream, buf: ByteArray, want: Int): Int {
+    var read = 0
+    while (read < want) {
+        val n = stream.read(buf, read, want - read)
+        if (n < 0) break
+        read += n
+    }
+    return read
+}
+
+/** Skipper n bytes, med read-fallback når stream.skip er upålitelig (SAF-strømmer). */
+private fun skipFully(stream: InputStream, n: Long): Long {
+    var remaining = n
+    val buf = ByteArray(64 * 1024)
+    while (remaining > 0) {
+        val skipped = try { stream.skip(remaining) } catch (_: Exception) { 0L }
+        if (skipped > 0) {
+            remaining -= skipped
+            continue
+        }
+        val toRead = minOf(buf.size.toLong(), remaining).toInt()
+        val got = stream.read(buf, 0, toRead)
+        if (got < 0) break
+        remaining -= got
+    }
+    return n - remaining
+}
+
+/**
+ * Parser chpl-oppføringer: (uint64 start + [1|2]-byte titellengde + UTF-8-tittel).
+ * Validerer grenser og at starttidene er stigende — returnerer null ved
+ * gal layout slik at neste kandidat (4/1-byte count, 1/2-byte lengde) prøves.
+ */
+private fun tryParseEntries(
+    file: ByteArray,
+    atomEnd: Int,
+    cur0: Int,
+    count: Int,
+    lenBytes: Int,
+): List<Pair<Long, String>>? {
+    val out = mutableListOf<Pair<Long, String>>()
+    var p = cur0
+    var lastStart = -1L
+    for (i in 0 until count) {
+        if (p + 8 > atomEnd || p + 8 > file.size) return null
+        var start = 0L
+        for (k in 0 until 8) {
+            val byteVal = file[p + k].toLong() and 0xFFL
+            if (k == 0 && byteVal != 0L) return null // toppbyte != 0 → gal layout
+            start = (start shl 8) or byteVal
+        }
+        p += 8
+        if (p + lenBytes > atomEnd) return null
+        val len = if (lenBytes == 1) (file[p].toInt() and 0xFF) else (((file[p].toInt() and 0xFF) shl 8) or (file[p + 1].toInt() and 0xFF))
+        p += lenBytes
+        if (len < 0 || p + len > atomEnd) return null
+        val title = String(file, p, len, Charsets.UTF_8)
+        p += len
+        if (out.isNotEmpty() && start < out.last().first) return null // ikke stigende → feil layout
+        out.add(start to title)
+    }
+    return out
 }
 
 /**
