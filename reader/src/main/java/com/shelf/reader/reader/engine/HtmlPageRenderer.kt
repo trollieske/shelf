@@ -8,6 +8,7 @@ import android.graphics.Canvas as AndroidCanvas
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
@@ -33,6 +34,49 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.resume
 
 private const val TAG = "HtmlPageRenderer"
+
+/**
+ * Gated rendering-diagnostikk (AV som standard). Logger kun tekniske målinger:
+ * generasjon, sideindeks, renderKey, bitmap-dimensjoner/config, innholds-flagg
+ * (img/svg/picture/canvas/lenker som boolske flagg — aldri selve innholdet,
+ * filnavn, URL-er eller base64-data), tidsstempler og readiness-status.
+ */
+private const val RENDER_DIAG = false
+
+private fun renderDiag(msg: String) {
+    if (RENDER_DIAG) Log.d(TAG, msg)
+}
+
+/**
+ * Ren (JVM-testbar) generasjonsvakt: enhver asynkron WebView-callback (layout,
+ * asset-klarhet, offset-applicering, visuell-ramme-capture) for generasjon
+ * [reported] skal forkastes med mindre den stemmer med den aktive generasjonen.
+ * En stale callback må aldri publisere bitmap/layout for en nyere side/konfig.
+ */
+internal class RenderGenerationGate(private val activeGeneration: AtomicLong) {
+    fun accepts(reported: Long): Boolean = reported == activeGeneration.get()
+}
+
+/**
+ * Reader-CSS for stabil bildepaginering (gjelder generert leser-CSS KUN —
+ * EPUB-kildens egen CSS og lenkefarger berøres ikke):
+ *  - alle medie-elementer begrenses til kolonnebredden og beholder aspect ratio
+ *  - ett bilde skal aldri splittes over to genererte sider (kolonnebrudd)
+ *  - ingen beskjæring, ingen tvungne høyder, ingen enhets-/modellspesifikk CSS
+ */
+internal const val STABLE_IMAGE_CSS = """
+          img, svg, image, video, iframe {
+            max-width: 100% !important;
+            height: auto !important;
+            box-sizing: border-box !important;
+          }
+          img, svg {
+            display: block !important;
+            margin: 0.8em auto !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+"""
 
 data class HighlightData(
     val text: String,
@@ -67,103 +111,85 @@ class HtmlPageRenderer(
     val lastMetrics: StateFlow<String> = _lastMetrics.asStateFlow()
 
     private var pendingPrepareCont: CancellableContinuation<Int>? = null
-    private val pendingRenders = ConcurrentHashMap<Pair<Long, Int>, CancellableContinuation<Bitmap>>()
+
+    /** Venteende render: continuation + diagnostikk-nøkkel + start-tidsstempel. */
+    private class PendingRender(
+        val cont: CancellableContinuation<Bitmap>,
+        val diagKey: String,
+        val startMs: Long,
+    )
+
+    private val pendingRenders = ConcurrentHashMap<Pair<Long, Int>, PendingRender>()
+    private val generationGate = RenderGenerationGate(activeGeneration)
+
+    // Innholds-flagg for diagnostikk (beregnes én gang per prepare-generasjon;
+    // kun boolske flagg — aldri rå innholdstekst, filnavn, URL-er eller bildedata).
+    @Volatile private var contentHasImg = false
+    @Volatile private var contentHasSvg = false
+    @Volatile private var contentHasPicture = false
+    @Volatile private var contentHasCanvas = false
+    @Volatile private var contentHasLinks = false
+
+    /** Readiness-utfall for gjeldende generasjon (fonts/images) før capture. */
+    @Volatile private var lastReadiness = "unknown"
 
     private val jsInterface = object {
         @JavascriptInterface
+        fun onAssetsReady(gen: Long, fonts: String, images: String, imageCount: Int) {
+            Handler(Looper.getMainLooper()).post {
+                if (!generationGate.accepts(gen)) {
+                    Log.d(TAG, "onAssetsReady rejected: stale generation $gen (active=${activeGeneration.get()})")
+                    return@post
+                }
+                lastReadiness = "fonts=$fonts;images=$images;imgCount=$imageCount"
+                renderDiag("ASSETS-READY (gen=$gen): $lastReadiness")
+            }
+        }
+
+        @JavascriptInterface
         fun onLayoutCalculated(gen: Long, totalPages: Int, sw: Int, stride: Int) {
             Handler(Looper.getMainLooper()).post {
-                val activeGen = activeGeneration.get()
-                if (gen == activeGen) {
-                    val cont = pendingPrepareCont
-                    pendingPrepareCont = null
-                    _lastMetrics.value = "sw=$sw, stride=$stride, pages=$totalPages"
-                    Log.i(TAG, "Layout calculated (Gen $gen): $totalPages pages [sw=$sw, stride=$stride]")
-                    _totalPages = totalPages
-                    if (cont?.isActive == true) cont.resume(totalPages)
+                if (!generationGate.accepts(gen)) {
+                    Log.d(TAG, "onLayoutCalculated rejected: stale generation $gen (active=${activeGeneration.get()})")
+                    return@post
                 }
+                val cont = pendingPrepareCont
+                pendingPrepareCont = null
+                _lastMetrics.value = "sw=$sw, stride=$stride, pages=$totalPages"
+                Log.i(TAG, "Layout calculated (Gen $gen): $totalPages pages [sw=$sw, stride=$stride]")
+                _totalPages = totalPages
+                if (cont?.isActive == true) cont.resume(totalPages)
             }
         }
 
         @JavascriptInterface
         fun onPageOffsetApplied(gen: Long, pageIndex: Int) {
             Handler(Looper.getMainLooper()).post {
+                if (!generationGate.accepts(gen)) {
+                    Log.d(TAG, "onPageOffsetApplied rejected: stale generation $gen (active=${activeGeneration.get()}, page=$pageIndex)")
+                    return@post
+                }
                 val key = Pair(gen, pageIndex)
-                val cont = pendingRenders.remove(key)
-                if (cont?.isActive == true) {
-                    try {
-                        val bmp = Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
-                        val canvas = AndroidCanvas(bmp)
-                        webView?.draw(canvas)
-                        // — FIX E VERIFY — Pixel-sampling after WebView.draw(canvas) ———————————————
-                        // Distinguishes two possible root causes of duplicate/stale pages:
-                        //   (i)  WebView.draw genuinely produced a BLANK / UNIFORM bitmap because the
-                        //        HWUI dirty-rect rejection (see Motorola logs) corrupted the capture.
-                        //        In that case a layout fix (LayoutParams 0×0) would be needed.
-                        //   (ii) The bitmap has real content but the RACE from FIX B caused a
-                        //        wrong-key misroute, and a timeout produced a separate blank.
-                        // Samples 9 strategically-chosen pixels; if ALL share the same single color
-                        // we report the bitmap as suspiciously uniform.
-                        val sampleCount = 9
-                        val sampleCoords = IntArray(sampleCount * 2).also { c ->
-                            val w = pageWidth; val h = pageHeight
-                            val midW = w / 2; val midH = h / 2
-                            c[0]=0;         c[1]=0          // top-left
-                            c[2]=midW;      c[3]=0          // top
-                            c[4]=w-1;       c[5]=0          // top-right
-                            c[6]=0;         c[7]=midH       // mid-left
-                            c[8]=midW;      c[9]=midH       // center (most diagnostic for text)
-                            c[10]=w-1;      c[11]=midH      // mid-right
-                            c[12]=0;        c[13]=h-1       // bot-left
-                            c[14]=midW;     c[15]=h-1       // bot
-                            c[16]=w-1;      c[17]=h-1       // bot-right
-                        }
-                        var prevColor: Int? = null
-                        var allUniform = true
-                        var uniqueColors = 0
-                        var nonZeroAlpha = 0
-                        var centerPxColor: Int = 0
-                        val centerX = pageWidth / 2; val centerY = pageHeight / 2
-                        try {
-                            centerPxColor = bmp.getPixel(centerX, centerY)
-                            var i = 0
-                            while (i < sampleCount) {
-                                val px = sampleCoords[i * 2]; val py = sampleCoords[i * 2 + 1]
-                                val c = try { bmp.getPixel(px, py) } catch (_: Throwable) { 0 }
-                                if (c ushr 24 != 0) nonZeroAlpha++
-                                if (prevColor == null) { prevColor = c; uniqueColors = 1 }
-                                else if (prevColor != c) { allUniform = false; uniqueColors++ }
-                                i++
-                            }
-                        } catch (e: Throwable) {
-                            allUniform = false; uniqueColors = -1; centerPxColor = 0
-                        }
-                        val expectedBg: Int = try {
-                            (webView?.background as? android.graphics.drawable.ColorDrawable)?.color ?: 0
-                        } catch (_: Throwable) { 0 }
-                        Log.d(TAG, "Render bitmap analyze (gen=$gen, page=$pageIndex, fx=E_verify): " +
-                            "uniform9px=$allUniform " +
-                            "uniqueColors=$uniqueColors/$sampleCount " +
-                            "nonZeroAlphaPx=$nonZeroAlpha/$sampleCount " +
-                            "bgMatchesDrawable=${expectedBg != 0 && prevColor != null && expectedBg == prevColor} " +
-                            "centerPxARGB=0x${Integer.toHexString(centerPxColor)} " +
-                            "cornerPxARGB=0x${Integer.toHexString(prevColor ?: 0)} " +
-                            "w=$pageWidth h=$pageHeight")
-                        if (allUniform && uniqueColors == 1 && nonZeroAlpha == 0) {
-                            Log.w(TAG, "FIX E: Render bitmap appears GENUINELY BLANK (all 9 sampled pixels = 0x00000000 alpha=0). " +
-                                "This correlates with the HWUI dirty-rect warnings; a layout/translation fix is indicated. " +
-                                "(gen=$gen, page=$pageIndex)")
-                        } else if (allUniform) {
-                            Log.w(TAG, "FIX E: Render bitmap is UNIFORM (all 9 sampled pixels match). " +
-                                "Likely means the page really was blank or only background rendered. " +
-                                "(gen=$gen, page=$pageIndex)")
-                        }
-                        // — END FIX E VERIFY ———————————————————————————————————————————————————————
-                        cont.resume(bmp)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Render error (gen=$gen, page=$pageIndex)", e)
-                        cont.resume(Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888))
+                val pending = pendingRenders.remove(key)
+                if (pending != null && pending.cont.isActive) {
+                    // Capture først ETTER at WebView'en har tegnet ≥ 1 visuell ramme med
+                    // ny offset: postVisualStateCallback (API 23+, minSdk 26) fyres når
+                    // den ventende visuelle oppdateringen er tegnet — ingen faste
+                    // enhets-/produsent-sleeps. Callbacken revaktes mot generasjonen
+                    // (stale visuell callback må aldri publisere bitmap for en nyere
+                    // side/konfig), og det overordnede 3000 ms budgettet (se
+                    // withTimeoutOrNull i renderPage) er den generiske sikkerhetsgrensen
+                    // som beholder siste gyldige layout.
+                    val view = webView
+                    if (view == null) {
+                        pending.cont.resume(Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888))
+                        return@post
                     }
+                    view.postVisualStateCallback(0L, object : WebView.VisualStateCallback() {
+                        override fun onComplete(requestId: Long) {
+                            captureAndResume(gen, pageIndex, pending.diagKey, pending.startMs, pending.cont)
+                        }
+                    })
                 } else {
                     Log.d(TAG, "onPageOffsetApplied: No matching pending render for (gen=$gen, page=$pageIndex). activeKeys=${pendingRenders.keys}")
                 }
@@ -188,29 +214,77 @@ class HtmlPageRenderer(
         }
     }
 
+    /**
+     * Capturerer nåværende WebView-tilstand og løser den ventende continuationen.
+     * Kjøres på UI-tråden, kun etter ≥ 1 post-layout visuell ramme (se
+     * postVisualStateCallback i onPageOffsetApplied), og er generasjonsvaktet:
+     * en stale callback publisere aldri bitmap for en nyere side/konfig.
+     */
+    private fun captureAndResume(
+        gen: Long,
+        pageIndex: Int,
+        diagKey: String,
+        startMs: Long,
+        cont: CancellableContinuation<Bitmap>,
+    ) {
+        if (!generationGate.accepts(gen) || !cont.isActive) {
+            Log.d(TAG, "Capture rejected: stale generation $gen (active=${activeGeneration.get()}, page=$pageIndex)")
+            return
+        }
+        try {
+            val bmp = Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
+            val canvas = AndroidCanvas(bmp)
+            webView?.draw(canvas)
+            val endMs = SystemClock.uptimeMillis()
+            if (RENDER_DIAG) {
+                renderDiag(
+                    "CAPTURE gen=$gen page=$pageIndex key='$diagKey' " +
+                    "renderer=${pageWidth}x$pageHeight bmp=${bmp.width}x${bmp.height} cfg=${bmp.config} " +
+                    "content[img=$contentHasImg svg=$contentHasSvg picture=$contentHasPicture " +
+                    "canvas=$contentHasCanvas links=$contentHasLinks] " +
+                    "ready=$lastReadiness startMs=$startMs endMs=$endMs durMs=${endMs - startMs}"
+                )
+            }
+            cont.resume(bmp)
+        } catch (e: Exception) {
+            Log.e(TAG, "Render error (gen=$gen, page=$pageIndex)", e)
+            if (cont.isActive) {
+                cont.resume(Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888))
+            }
+        }
+    }
+
     suspend fun prepare(
         htmlContent: String,
         fontSizeSp: Int,
         theme: ReaderThemeColors,
         lang: String = "en",
     ): Int = withContext(Dispatchers.Main) {
-        val result = withTimeoutOrNull(5000L) {
+        val result = withTimeoutOrNull(8000L) {
             renderMutex.withLock {
                 val gen = activeGeneration.incrementAndGet()
                 _totalPages = 0
                 val wv = getOrCreateWebView(theme)
                 val sanitized = sanitizeHtmlContent(htmlContent)
 
+                // Diagnostikk-flagg (boolske, aldri rått innhold) for denne generasjonen.
+                contentHasImg = "<img" in sanitized
+                contentHasSvg = "<svg" in sanitized
+                contentHasPicture = "<picture" in sanitized
+                contentHasCanvas = "<canvas" in sanitized
+                contentHasLinks = "href=" in sanitized
+
                 suspendCancellableCoroutine { cont ->
                     wv.webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView, url: String) {
-                            if (gen != activeGeneration.get()) {
+                            if (!generationGate.accepts(gen)) {
                                 if (cont.isActive) cont.resume(1)
                                 return
                             }
                             view.evaluateJavascript(
                                 """
                                  (function() {
+                                     var GEN = $gen;
                                      function measure() {
                                          var wrapper = document.getElementById('content-wrapper');
                                          var sw = wrapper.scrollWidth;
@@ -219,23 +293,75 @@ class HtmlPageRenderer(
                                          var cols = Math.max(1, Math.ceil((sw - 1) / (stride || 1)));
                                          return {cols: cols, sw: sw, stride: stride};
                                      }
-                                     
-                                     // Robust retry logic for complex EPUB structures
-                                     var m = measure();
-                                     if (m.cols <= 1 && document.body.innerText.length > 500) {
-                                         setTimeout(function() {
-                                             var m2 = measure();
-                                             AndroidPageReady.onLayoutCalculated($gen, m2.cols, m2.sw, m2.stride);
-                                         }, 300);
-                                     } else {
-                                         AndroidPageReady.onLayoutCalculated($gen, m.cols, m.sw, m.stride);
+
+                                     // Generisk, begrenset venting på font- og bilde-klarhet FØR
+                                     // paginering: ingen enhets-/modellspecific sleeps. Ved timeout
+                                     // fortsetter vi med siste gyldige layout (et ødelagt bilde
+                                     // skal aldri blokkere lesingen for alltid).
+                                     function fontsSettled(timeoutMs) {
+                                         return new Promise(function(resolve) {
+                                             var timer = setTimeout(function(){ resolve('timeout'); }, timeoutMs);
+                                             try {
+                                                 if (document.fonts && document.fonts.ready && document.fonts.ready.then) {
+                                                     document.fonts.ready.then(
+                                                         function(){ clearTimeout(timer); resolve('ok'); },
+                                                         function(){ clearTimeout(timer); resolve('error'); });
+                                                 } else { clearTimeout(timer); resolve('na'); }
+                                             } catch (e) { clearTimeout(timer); resolve('error'); }
+                                         });
                                      }
+                                     function imageSettled(timeoutMs) {
+                                         return new Promise(function(resolve) {
+                                             var done = false;
+                                             var timer = setTimeout(function(){ finish('timeout'); }, timeoutMs);
+                                             var left = 0;
+                                             function finish(s) { if (!done) { done = true; clearTimeout(timer); resolve(s); } }
+                                             function one() { left -= 1; if (left <= 0) finish('all'); }
+                                             try {
+                                                 var imgs = Array.prototype.slice.call(document.images || []);
+                                                 var pending = imgs.filter(function(im){ return !im.complete; });
+                                                 left = pending.length;
+                                                 if (left === 0) { finish('all'); return; }
+                                                 for (var i = 0; i < pending.length; i++) {
+                                                     pending[i].addEventListener('load', one, {once:true});
+                                                     pending[i].addEventListener('error', one, {once:true});
+                                                 }
+                                             } catch (e) { finish('error'); }
+                                         });
+                                     }
+                                     Promise.all([fontsSettled(1200), imageSettled(2000)])
+                                         .then(function(res) {
+                                             try { AndroidPageReady.onAssetsReady(GEN, res[0], res[1], (document.images || []).length); } catch (e) {}
+                                             var m = measure();
+                                             // Robust retry logic for complex EPUB structures:
+                                             // én ekstra måling først når kolonnene ikke lot seg
+                                             // beregne — samme generasjon, rapporteres kun én gang.
+                                             if (m.cols <= 1 && document.body.innerText.length > 500) {
+                                                 setTimeout(function() {
+                                                     try {
+                                                         var m2 = measure();
+                                                         AndroidPageReady.onLayoutCalculated(GEN, m2.cols, m2.sw, m2.stride);
+                                                     } catch (e) {
+                                                         AndroidPageReady.onLayoutCalculated(GEN, m.cols, m.sw, m.stride);
+                                                     }
+                                                 }, 300);
+                                             } else {
+                                                 AndroidPageReady.onLayoutCalculated(GEN, m.cols, m.sw, m.stride);
+                                             }
+                                         })
+                                         .catch(function() {
+                                             // Aldri heng: fall tilbake til umiddelbar måling.
+                                             try {
+                                                 var m = measure();
+                                                 AndroidPageReady.onLayoutCalculated(GEN, m.cols, m.sw, m.stride);
+                                             } catch (e) {}
+                                         });
                                  })();
                                 """.trimIndent(), null
                             )
                         }
                     }
-                    val html = buildHtml(sanitized, fontSizeSp, theme, lang)
+                    val html = buildReaderHtml(sanitized, fontSizeSp, theme, lang, cssQuoteBorder)
                     pendingPrepareCont = cont
                     wv.loadDataWithBaseURL("https://shelf.app/r/", html, "text/html", "UTF-8", null)
                     cont.invokeOnCancellation { if (activeGeneration.get() == gen) pendingPrepareCont = null }
@@ -245,14 +371,16 @@ class HtmlPageRenderer(
         result ?: 1
     }
 
-    suspend fun renderPage(pageIndex: Int): Bitmap = withContext(Dispatchers.Main) {
+    suspend fun renderPage(pageIndex: Int, diagKey: String = ""): Bitmap = withContext(Dispatchers.Main) {
         val result = withTimeoutOrNull(3000L) {
             renderMutex.withLock {
                 val gen = activeGeneration.get()
                 val wv = webView ?: error("Not prepared")
+                val startMs = SystemClock.uptimeMillis()
                 suspendCancellableCoroutine { cont ->
                     val key = Pair(gen, pageIndex)
-                    pendingRenders[key] = cont
+                    val entry = PendingRender(cont, diagKey, startMs)
+                    pendingRenders[key] = entry
                     wv.evaluateJavascript(
                         """
                         (function(){
@@ -261,12 +389,21 @@ class HtmlPageRenderer(
                           el.style.transform = 'translateX(' + (-( ${pageIndex} * stride )) + 'px)';
                           // Force browser reflow to ensure sharp text
                           var f = el.offsetHeight;
-                          setTimeout(function() { AndroidPageReady.onPageOffsetApplied($gen, $pageIndex); }, 50);
+                          // Capture-signalet fyres først etter ≥ 1 post-layout visuell ramme:
+                          // dobbel requestAnimationFrame (fallback 50 ms) — ingen faste
+                          // enhets-/produsent-sleeps. Kotlin-siden venter deretter på
+                          // postVisualStateCallback før bitmapmen faktisk captureres.
+                          function fire() { AndroidPageReady.onPageOffsetApplied($gen, $pageIndex); }
+                          try {
+                            requestAnimationFrame(function() { requestAnimationFrame(fire); });
+                          } catch (e) {
+                            setTimeout(fire, 50);
+                          }
                         })();
                         """.trimIndent(), null
                     )
                     cont.invokeOnCancellation {
-                        pendingRenders.remove(key, cont)
+                        pendingRenders.remove(key, entry)
                     }
                 }
             }
@@ -276,7 +413,7 @@ class HtmlPageRenderer(
 
     fun release() {
         activeGeneration.incrementAndGet()
-        pendingRenders.values.forEach { it.cancel() }
+        pendingRenders.values.forEach { it.cont.cancel() }
         pendingRenders.clear()
         val wv = webView ?: return
         (wv.parent as? ViewGroup)?.removeView(wv)
@@ -319,7 +456,20 @@ class HtmlPageRenderer(
         .replace("&lsquo;", "‘").replace("&rsquo;", "’").replace("--", "—")
         .replace(Regex("<p>\\s*</p>"), "").replace(Regex("(<br\\s*/?>\\s*){3,}"), "<br/><br/>")
 
-    private fun buildHtml(content: String, fontSizeSp: Int, theme: ReaderThemeColors, lang: String): String {
+}
+
+/**
+ * Bygger hele leser-HTML-en. Top-nivå og internal for JVM-testbarhet.
+ * KILDE-EPUB-ens CSS inkluderes som en del av [content]; Shelf legger aldri
+ * til lenkefarging — blå lenker kommer fra kilden eller UA-default.
+ */
+internal fun buildReaderHtml(
+    content: String,
+    fontSizeSp: Int,
+    theme: ReaderThemeColors,
+    lang: String,
+    cssQuoteBorder: Float,
+): String {
         return """
         <!DOCTYPE html>
         <html lang="${lang.ifEmpty { "en" }}">
@@ -364,7 +514,7 @@ class HtmlPageRenderer(
           h2 { font-size: 1.3em !important; }
           h3 { font-size: 1.15em !important; }
           p { margin: 0 0 0.6em !important; text-align: justify !important; text-indent: 1.5em !important; line-height: 1.6 !important; }
-          img, svg { max-width: 100% !important; height: auto !important; display: block !important; margin: 0.8em auto !important; }
+$STABLE_IMAGE_CSS
           blockquote { border-left: ${cssQuoteBorder}px solid ${theme.headingColor}; padding-left: 1.2em; margin: 1.5em 0; font-style: italic; opacity: 0.9; }
           ::selection { background: rgba(255, 205, 90, 0.45); }
           .__hl_float { position: fixed; z-index: 9999; display: none; padding: 6px; background: rgba(30,30,32,0.96); border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.35); }
@@ -428,5 +578,4 @@ class HtmlPageRenderer(
         </body>
         </html>
     """.trimIndent()
-    }
 }

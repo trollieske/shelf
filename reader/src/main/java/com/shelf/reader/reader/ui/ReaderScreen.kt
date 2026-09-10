@@ -82,10 +82,17 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
+import kotlin.math.roundToInt
 
 // Fokusert diagnostikk for kant-krøllen (slås AV i endelig kode).
 private const val CURL_DIAG = false
 private fun curlDiag(msg: String) { if (CURL_DIAG) Log.d("CurlDiag", msg) }
+
+// Diagnostikk for blink-jakt (slås AV i release): logger kun hendelser som kan
+// påvirke synlig innhold — prepare-fullføring, cache-skriving, vindusendring,
+// indeks-remapping og grense-commit. Aldri rått bokinnhold.
+private const val READER_DIAG = false // gated: kun diagnostikkbygg
+private fun readerDiag(msg: String) { if (READER_DIAG) Log.d("ReaderDiag", msg) }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -648,6 +655,16 @@ private fun isUsableRenderBitmap(b: Bitmap): Boolean {
     return transparent != samples.size
 }
 
+/**
+ * Felles Paint-flagg for ALLE drawBitmap-kall av rendererte leser-sider:
+ * bilinær filtering ved skalering, dithering og antialiasing — aldri null-Paint.
+ * Konstant (ikke instans) slik at flagg-settet er JVM-enhetstestbart.
+ */
+internal const val PAGE_BITMAP_PAINT_FLAGS: Int =
+    android.graphics.Paint.ANTI_ALIAS_FLAG or
+    android.graphics.Paint.FILTER_BITMAP_FLAG or
+    android.graphics.Paint.DITHER_FLAG
+
 @OptIn(ExperimentalPageCurlApi::class)
 @Composable
 private fun RealBookSlideReader(
@@ -666,8 +683,14 @@ private fun RealBookSlideReader(
     val swPx = with(density) { configuration.screenWidthDp.dp.toPx() }.toInt()
     val shPx = with(density) { configuration.screenHeightDp.dp.toPx() }.toInt()
 
-    val effectiveWidthPx = swPx - with(density) { 32.dp.toPx() }.toInt() * 2
-    val sizeKey = "$effectiveWidthPx-$shPx"
+    // Sideinnholdsboksen (identisk med paddingen i CurlPageContent/lastGood):
+    // rendererens bitmapdimensjoner MÅ være nøyaktig disse — aldri en blanding
+    // av fullskjerm- og padde-mål (som gav vertikal skvis + skaleringsartefakter).
+    val pageHPad = 32.dp
+    val pageVPad = 48.dp
+    val effectiveWidthPx = swPx - with(density) { (pageHPad * 2).toPx() }.toInt()
+    val contentHeightPx = shPx - with(density) { (pageVPad * 2).toPx() }.toInt()
+    val sizeKey = "$effectiveWidthPx-$contentHeightPx"
     val fontKey = "${ui.fontSizeSp}-${ui.readerTheme}"
     val configKey = "$fontKey-$sizeKey"
     fun renderKey(ch: Int, page: Int): String = "$ch|$configKey|p$page"
@@ -679,12 +702,12 @@ private fun RealBookSlideReader(
     val hasPrevSect = chapIdx > 0
 
     // Én WebView-renderer per kapittel — eierskap håndheves av RenderCoordinator.
-    val renderers = remember(effectiveWidthPx, shPx) {
+    val renderers = remember(effectiveWidthPx, contentHeightPx) {
         java.util.concurrent.ConcurrentHashMap<Int, HtmlPageRenderer>()
     }
     fun rendererFor(ch: Int): HtmlPageRenderer =
-        renderers.getOrPut(ch) { HtmlPageRenderer(context, effectiveWidthPx, shPx, onHighlight) }
-    DisposableEffect(effectiveWidthPx, shPx) {
+        renderers.getOrPut(ch) { HtmlPageRenderer(context, effectiveWidthPx, contentHeightPx, onHighlight) }
+    DisposableEffect(effectiveWidthPx, contentHeightPx) {
         onDispose {
             renderers.values.forEach { it.release() }
             renderers.clear()
@@ -693,31 +716,32 @@ private fun RealBookSlideReader(
 
     // ── Bitmap-cache + klargjøringskart. Tømmes kun ved font/tema/størrelse —
     // ALDRI ved seksjonsbytte (kant-bitmapmer fra nabo-seksjoner skal overleve). ──
-    val cache = remember(effectiveWidthPx, shPx, fontKey) { PageBitmapCache(maxSize = 14) }
-    val lastKnownPages = remember(effectiveWidthPx, shPx) { mutableIntStateOf(1) }
-    val prepared = remember(effectiveWidthPx, shPx, fontKey) { mutableStateMapOf<Int, Int>() }
+    val cache = remember(effectiveWidthPx, contentHeightPx, fontKey) { PageBitmapCache(maxSize = 14) }
+    val lastKnownPages = remember(effectiveWidthPx, contentHeightPx) { mutableIntStateOf(1) }
+    val prepared = remember(effectiveWidthPx, contentHeightPx, fontKey) { mutableStateMapOf<Int, Int>() }
 
     // Gjør cache-ankomster observerbare i komposisjonen: økes KUN av
     // koordinator-callbacken etter en vellykket cache-skriving.
-    val cacheGeneration = remember(effectiveWidthPx, shPx, fontKey) { mutableIntStateOf(0) }
+    val cacheGeneration = remember(effectiveWidthPx, contentHeightPx, fontKey) { mutableIntStateOf(0) }
 
     // ── Render-koordinator: enkelt-eierskap, dedup på nøkkel, spesulativ lav prio ──
-    val coordinatorScope = remember(effectiveWidthPx, shPx, fontKey) {
+    val coordinatorScope = remember(effectiveWidthPx, contentHeightPx, fontKey) {
         CoroutineScope(SupervisorJob() + Dispatchers.Main)
     }
-    DisposableEffect(effectiveWidthPx, shPx, fontKey) {
+    DisposableEffect(effectiveWidthPx, contentHeightPx, fontKey) {
         onDispose { coordinatorScope.cancel() }
     }
     // Koordinatoren er ENESTE forfatter i cachen: callbacken validerer bitmapmen
     // (isUsable), skriver under den kanoniske nøkkelen (pageKey === renderKey) og
     // øker cacheGeneration — aldri spredte cache.put/generasjon-skrifter i UI-koden.
-    val coordinator = remember(effectiveWidthPx, shPx, fontKey) {
+    val coordinator = remember(effectiveWidthPx, contentHeightPx, fontKey) {
         RenderCoordinator<Bitmap>(
             scope = coordinatorScope,
             isUsable = ::isUsableRenderBitmap,
             onRendered = { _, key, bmp ->
                 cache.put(key, bmp)
                 cacheGeneration.intValue++
+                readerDiag("CACHE-PUT key='$key' gen=$cacheGeneration bmp=${bmp.width}x${bmp.height}")
             },
         )
     }
@@ -745,13 +769,19 @@ private fun RealBookSlideReader(
     val nextReadyRef = if (nextSectionReady) ReaderPageRef(chapIdx + 1, 0) else null
 
     val sectionPageCount = chapterPages.coerceAtLeast(1)
-    // Startvindu: kun reelle sider i seksjonen — null fantom-sider.
-    var window by remember(chapIdx) {
-        mutableStateOf(PageFlowState.initial(chapIdx, sectionPageCount))
-    }
-    LaunchedEffect(chapIdx, sectionPageCount) {
-        window = PageFlowState.initial(chapIdx, sectionPageCount)
-    }
+    // Startvindu: kun reelle sider i seksjonen — null fantom-sider. Vinduet
+    // PERSISTERER med vilje over seksjonsbyttet (ingen chapIdx-nøkkel): det gamle
+    // vinduet løser landingssiden korrekt via sin kant-referanse i commit-rammen,
+    // og remap-effekten skriver ny curl-indeks + nytt vindu i SAMME effekt-fase.
+    // PageCurl ser aldri (nytt count, stale indeks) — som tidligere ga én frames
+    // feil side/papir ("blink") ved hvert grensekryss.
+    var window by remember { mutableStateOf(PageFlowState.initial(chapIdx, sectionPageCount)) }
+
+    // Overgangstilstand: ventende commit-mål (seksjon + lokal side). Må ligge FØR
+    // vindus-effektene (de leger den for å la remap-effekten eie seksjonsskiftet).
+    var committing by remember { mutableStateOf(false) }
+    var pendingNavSection by remember { mutableStateOf<Int?>(null) }
+    var pendingNavTarget by remember { mutableStateOf<Int?>(null) }
 
     val curlState = rememberPageCurlState(initialCurrent = 0)
     val scope = rememberCoroutineScope()
@@ -760,6 +790,23 @@ private fun RealBookSlideReader(
     val updatedJump by rememberUpdatedState(onJumpToChapterPage)
     val updatedNextReady by rememberUpdatedState(nextReadyRef)
     val updatedPrevReady by rememberUpdatedState(prevReadyRef)
+
+    // Bygg vinduet på nytt ved sidetall-korrigering (prepare fullført) eller
+    // seksjonsskifte uten ventende commit-remap. Snap skjer FØR vindusskrivingen
+    // (samme effekt-fase, ingen blandet komposisjon).
+    LaunchedEffect(chapIdx, sectionPageCount, pendingNavTarget) {
+        if (pendingNavTarget != null) return@LaunchedEffect // remap-effekten eier overgangen
+        if (window.sectionIndex == chapIdx && window.sectionPageCount == sectionPageCount) {
+            return@LaunchedEffect
+        }
+        snapshotFlow { curlState.progress }.first { it == 0f } // aldri snap midt i gest
+        val local = updatedUi.currentPage.coerceIn(0, sectionPageCount - 1)
+        val fresh = PageFlowState.initial(chapIdx, sectionPageCount)
+        val idx = PageFlowState.curlIndexOfLocal(fresh, local)
+        if (curlState.current != idx) curlState.snapTo(idx)
+        window = fresh
+        readerDiag("WINDOW-RESET ch=$chapIdx count=$sectionPageCount snapTo=$idx")
+    }
 
     /** Kjerne uten lås — kalleren (koordinatoren) eier eier-låsen. */
     suspend fun prepareChapterUnlocked(ch: Int): Int {
@@ -791,7 +838,8 @@ private fun RealBookSlideReader(
             ownerKey = chapter,
             pageKey = key,
             page = target,
-        ) { p -> rendererFor(chapter).renderPage(p) }
+        ) { p -> rendererFor(chapter).renderPage(p, key) }
+        readerDiag("PREFETCH-DONE ch=$chapter page=$target")
     }
 
     // Klargjør nåværende seksjon (font/tema/størrelse re-klargjør) og
@@ -800,6 +848,7 @@ private fun RealBookSlideReader(
         if (chapterCount == 0) return@LaunchedEffect
         coordinator.cancelSpeculative()
         val count = prepareChapter(chapIdx)
+        readerDiag("PREPARE-DONE ch=$chapIdx pages=$count")
         if (count > 0 && chapIdx == updatedUi.currentChapterIndex) onTotalPages(count)
         if (hasPrevSect) scope.launch { runCatching { prefetchNeighbor(chapIdx - 1, -1) } }
         if (hasNextSect) scope.launch { runCatching { prefetchNeighbor(chapIdx + 1, 0) } }
@@ -811,7 +860,12 @@ private fun RealBookSlideReader(
         prepared.clear()
     }
 
-    val lastGood = remember(effectiveWidthPx, shPx) { mutableStateOf<Bitmap?>(null) }
+    val lastGood = remember(effectiveWidthPx, contentHeightPx) { mutableStateOf<Bitmap?>(null) }
+    // ÉN gjenbrukbar Paint for ALLE drawBitmap-kall av rendererte leser-sider:
+    // filtering + dithering + antialiasing (aldri null-Paint), opprettes ikke på nytt per ramme.
+    val pageBitmapPaint = remember(effectiveWidthPx, contentHeightPx, fontKey) {
+        android.graphics.Paint(PAGE_BITMAP_PAINT_FLAGS)
+    }
     val themeColors = readerThemeColors(ui.readerTheme)
     val paperColor = Color(themeColors.paperColorInt)
 
@@ -821,8 +875,6 @@ private fun RealBookSlideReader(
     //      i ro (progress == 0f: ingen gest, ingen animasjon) og bitmapmen er cachet,
     //   2. landing på en kant-ReaderPageRef (kun etter fullført krøll),
     //   3. nøyaktig ÉN jumpToChapterPage-commit per seksjonskryss.
-    var committing by remember { mutableStateOf(false) }
-    var pendingNavTarget by remember { mutableStateOf<Int?>(null) }
     // Reset committing først når den nye seksjonens tilstand er observert (ny chapIdx).
     LaunchedEffect(chapIdx) { committing = false }
     LaunchedEffect(chapIdx, sectionPageCount) {
@@ -846,7 +898,9 @@ private fun RealBookSlideReader(
                     // til mål-lokal-siden KUN når PageCurl er i ro.
                     committing = true
                     val pct = if (ref.sectionIndex > chapIdx) 0f else 1f
+                    pendingNavSection = ref.sectionIndex
                     pendingNavTarget = ref.localPageIndex
+                    readerDiag("COMMIT ${chapIdx} -> ${ref.sectionIndex}:${ref.localPageIndex} pct=$pct")
                     updatedJump(ref.sectionIndex, ref.localPageIndex, pct)
                 }
                 !crossing && !armed -> {
@@ -865,24 +919,38 @@ private fun RealBookSlideReader(
             if (!crossing && !committing && prog == 0f) {
                 val stabilized = PageFlowState.stabilize(window, cur, ready.first, ready.second)
                 if (stabilized != window) {
+                    readerDiag(
+                        "STABILIZE cur=$cur ${window.count}->${stabilized.count} " +
+                        "leading=${stabilized.leading != null} trailing=${stabilized.trailing != null}"
+                    )
                     window = stabilized
                     val sameRefIdx = stabilized.indexOfRef(ref)
-                    if (sameRefIdx != null && sameRefIdx != cur) curlState.snapTo(sameRefIdx)
+                    if (sameRefIdx != null && sameRefIdx != cur) {
+                        readerDiag("STABILIZE-REMAP cur=$cur -> $sameRefIdx")
+                        curlState.snapTo(sameRefIdx)
+                    }
                 }
             }
         }
     }
 
-    // Konsum av overgangsmål: snap til samme piksler i det nye vinduet (remappet
-    // indeks for mål-lokal-siden) — KUN når PageCurl er i ro. Effekten venter på
-    // ro (første progress == 0f) i stedet for å droppe konsumet.
-    LaunchedEffect(pendingNavTarget, window) {
+    // Konsum av overgangsmål: remapp curl-indeksen til mål-lokal-siden og bygg
+    // vinduet på nytt i SAMME effekt-fase (begge skrivene før neste komposisjon —
+    // ingen blandet (nytt count, gammel indeks)-ramme = ingen blink). Kjøres kun
+    // når PageCurl er i ro og den nye seksjonens tilstand er observert.
+    LaunchedEffect(pendingNavTarget, chapIdx, sectionPageCount) {
         val t = pendingNavTarget ?: return@LaunchedEffect
+        val targetSection = pendingNavSection ?: return@LaunchedEffect
+        if (updatedUi.currentChapterIndex != targetSection) return@LaunchedEffect // vent på ny seksjon
         snapshotFlow { curlState.progress }.first { it == 0f } // aldri snap midt i gest/animasjon
-        val idx = PageFlowState.curlIndexOfLocal(window, t)
-        if (idx in 0 until window.count && curlState.current != idx) {
+        val fresh = PageFlowState.initial(targetSection, sectionPageCount)
+        val idx = t.coerceIn(0, sectionPageCount - 1)
+        if (curlState.current != idx) {
+            readerDiag("REMAP-SNAP ${curlState.current} -> $idx (fresh window count=${fresh.count})")
             curlState.snapTo(idx)
         }
+        window = fresh
+        pendingNavSection = null
         pendingNavTarget = null
     }
 
@@ -895,6 +963,7 @@ private fun RealBookSlideReader(
         val page = ui.currentPage.coerceAtLeast(0).coerceIn(0, (window.count - 1).coerceAtLeast(0))
         val target = PageFlowState.curlIndexOfLocal(window, page)
         if (window.count > 0 && curlState.current != target) {
+            readerDiag("NAV-SNAP page=$page target=$target (window=${window.count})")
             curlState.snapTo(target)
         }
         lastNavHandled = navEpoch
@@ -910,7 +979,7 @@ private fun RealBookSlideReader(
                 ownerKey = chapIdx,
                 pageKey = renderKey(chapIdx, next),
                 page = next,
-            ) { p -> rendererFor(chapIdx).renderPage(p) }
+            ) { p -> rendererFor(chapIdx).renderPage(p, renderKey(chapIdx, next)) }
         }
     }
 
@@ -948,7 +1017,7 @@ private fun RealBookSlideReader(
                     ownerKey = ref.sectionIndex,
                     pageKey = renderK,
                     page = ref.localPageIndex,
-                ) { p -> rendererFor(ref.sectionIndex).renderPage(p) }
+                ) { p -> rendererFor(ref.sectionIndex).renderPage(p, renderK) }
                 if (bmp != null) bitmap = bmp
             }
             if (ref != null && ref.sectionIndex == chapIdx) {
@@ -957,14 +1026,20 @@ private fun RealBookSlideReader(
         }
         // Synlig side uten ferdig bitmap → spinner. Krøllklaff/annet uten bitmap → papir.
         val isVisiblePage = pageIdx == curlState.current
-        Box(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 48.dp)) {
+        Box(Modifier.fillMaxSize().padding(horizontal = pageHPad, vertical = pageVPad)) {
             val b = bitmap
             if (b != null) {
                 Canvas(Modifier.fillMaxSize()) {
                     drawIntoCanvas {
                         val native = it.nativeCanvas
                         if (!b.isRecycled) {
-                            native.drawBitmap(b, null, android.graphics.RectF(0f, 0f, size.width, size.height), null)
+                            native.drawBitmap(
+                                b, null,
+                                // Heltalls-destinasjon, nøyaktig målt innholdsdimsjon (aldri
+                                // blanding av fullskjerm- og renderer-mål), felles filtrert Paint.
+                                android.graphics.RectF(0f, 0f, size.width.roundToInt().toFloat(), size.height.roundToInt().toFloat()),
+                                pageBitmapPaint
+                            )
                         }
                     }
                 }
@@ -977,11 +1052,15 @@ private fun RealBookSlideReader(
     Box(Modifier.fillMaxSize().background(paperColor)) {
         // lastGood under PageCurl: papir + sist viste side, aldri svart.
         lastGood.value?.let { b ->
-            Canvas(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 48.dp)) {
+            Canvas(Modifier.fillMaxSize().padding(horizontal = pageHPad, vertical = pageVPad)) {
                 drawIntoCanvas {
                     val native = it.nativeCanvas
                     if (!b.isRecycled) {
-                        native.drawBitmap(b, null, android.graphics.RectF(0f, 0f, size.width, size.height), null)
+                        native.drawBitmap(
+                            b, null,
+                            android.graphics.RectF(0f, 0f, size.width.roundToInt().toFloat(), size.height.roundToInt().toFloat()),
+                            pageBitmapPaint
+                        )
                     }
                 }
             }

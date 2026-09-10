@@ -43,3 +43,4 @@ $RECYCLE.BIN/
 # Tests & coverage
 .coverlet/
 coverage/
+.kotlin/
