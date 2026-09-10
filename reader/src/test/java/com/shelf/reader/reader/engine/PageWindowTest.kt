@@ -134,4 +134,56 @@ class PageWindowTest {
         assertEquals(3, movedBack.count)
         assertEquals(ref(1, 1), PageFlowState.resolve(movedBack, 1))
     }
+
+    // 8) windowFor med null-ready-referanser: count == antall reelle sider, ingen fantom
+    @Test
+    fun `windowFor med null-ready-refs gir kun reelle sider`() {
+        val w = PageFlowState.windowFor(
+            sectionIndex = 3,
+            sectionPageCount = 5,
+            previousReady = null,
+            nextReady = null,
+        )
+        assertEquals(5, w.count)
+        assertNull(w.leading)
+        assertNull(w.trailing)
+        assertNull(PageFlowState.resolve(w, 5))
+        assertNull(PageFlowState.resolve(w, -1))
+        for (p in 0..4) assertEquals(ref(3, p), PageFlowState.resolve(w, p))
+    }
+
+    // 9) Innledende kapittel (seksjon 0): aldri fantom-sider i første vindu
+    @Test
+    fun `innledende kapittel-vindu har null fantom-sider`() {
+        val w = PageFlowState.windowFor(
+            sectionIndex = 0,
+            sectionPageCount = 4,
+            previousReady = null,
+            nextReady = null,
+        )
+        assertEquals(4, w.count)
+        assertEquals(4, PageFlowState.initial(0, 4).count)
+        // side 0 på indeks 0 (ingen leading som forskyver), ingen trailing
+        assertEquals(ref(0, 0), PageFlowState.resolve(w, 0))
+        assertNull(PageFlowState.resolve(w, 4))
+    }
+
+    // 10) windowFor legger KANT-sider KUN via eksplisitte, allerede-klare referanser —
+    //     og kant-sidene løses til nøyaktig den referansen som ble sendt inn
+    @Test
+    fun `windowFor bruker kun eksplisitte ready-referanser som kanter`() {
+        val w = PageFlowState.windowFor(
+            sectionIndex = 2,
+            sectionPageCount = 3,
+            previousReady = ref(1, 9),
+            nextReady = ref(3, 0),
+        )
+        assertEquals(5, w.count)
+        assertEquals(ref(1, 9), PageFlowState.resolve(w, 0))
+        assertEquals(ref(3, 0), PageFlowState.resolve(w, 4))
+        assertNull(PageFlowState.resolve(w, 5))
+        // ready-refs er always eksplisitte: aldri en generert (section±1, sidetall)-gjett
+        assertNull(PageFlowState.windowFor(2, 3, null, ref(3, 0)).leading)
+        assertNull(PageFlowState.windowFor(2, 3, ref(1, 9), null).trailing)
+    }
 }

@@ -97,22 +97,25 @@ object PageFlowState {
         PageWindow(sectionIndex = sectionIndex, sectionPageCount = sectionPageCount)
 
     /**
-     * Vindu for en seksjon med KANT-sider (forrige seksjons siste side foran,
-     * neste seksjons side 1 bak). Mappingen er konstant for hele seksjonen —
-     * indeksene skifter aldri midt i lesingen.
+     * Vindu for en seksjon med allerede KLARE (cachete) kant-referanser.
+     *
+     * [previousReady] er forrige seksjons SISTE side og [nextReady] er neste
+     * seksjons side 0 — begge KUN når bitmapmen allerede finnes i cachen
+     * (kalleren sjekker PageBitmapCache med den kanoniske renderKey). Ingen
+     * boolean hasNext, ingen fallback forrige sidetall: er bitmapmen ikke klar,
+     * sendes null og vinduet får da ALDRI en fantom-kant-side.
      */
     fun windowFor(
         sectionIndex: Int,
         sectionPageCount: Int,
-        prevSectionLastPage: Int?,
-        hasNext: Boolean,
-    ): PageWindow {
-        val leading = if (sectionIndex > 0 && prevSectionLastPage != null) {
-            ReaderPageRef(sectionIndex - 1, prevSectionLastPage)
-        } else null
-        val trailing = if (hasNext) ReaderPageRef(sectionIndex + 1, 0) else null
-        return PageWindow(sectionIndex, sectionPageCount, leading, trailing)
-    }
+        previousReady: ReaderPageRef?,
+        nextReady: ReaderPageRef?,
+    ): PageWindow = PageWindow(
+        sectionIndex = sectionIndex,
+        sectionPageCount = sectionPageCount,
+        leading = previousReady,
+        trailing = nextReady,
+    )
 
     /**
      * Justerer kant-sidene etter curl-posisjonen:
