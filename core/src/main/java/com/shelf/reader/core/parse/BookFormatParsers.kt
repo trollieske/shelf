@@ -30,7 +30,10 @@ data class ParsedChapter(
     val title: String,
     val htmlContent: String,
     val startByte: Int,
-    val byteLength: Int
+    val byteLength: Int,
+    /** true = nav/NCX-drevet TOC-oppføring (ekte kapittel). false = frontmatter-seksjon. */
+    val inToc: Boolean = true,
+    val kind: SectionKind = SectionKind.BODY,
 )
 
 data class ManifestItem(val id: String, val href: String, val mediaType: String, val properties: String = "")
@@ -383,78 +386,45 @@ class EpubRealParser {
             Log.w(TAG, "Error parsing EPUB3 nav toc", t)
         }
 
-        // 4. Assemble chapters
-        val chapters = mutableListOf<ParsedChapter>()
-        var cumulativeStart = 0
+        // 4. Samle seksjoner: nav/NCX-grenser driver kapitlene; frontmatter-filer
+        //    (cover/tittel/opphavsrett/innholdsfortegnelse …) grupperes i én seksjon.
+        val combinedNav = epub3NavPoints + navPoints
+        val spineHrefs = spineOrder.mapNotNull { manifest[it]?.href }
 
-        spineOrder.forEachIndexed { i, manifestId ->
-            val manifestItem = manifest[manifestId]
-            val chapterHtml = if (manifestItem != null) {
-                try {
-                    val resolvedPath = resolveZipPath(opfPath, manifestItem.href)
-                    val entry = zip.getEntry(resolvedPath)
-                        ?: zip.getEntry(resolvedPath.trimStart('/'))
-                        ?: zip.entries().asSequence().firstOrNull {
-                            it.name.equals(resolvedPath, ignoreCase = true) || it.name.equals(resolvedPath.trimStart('/'), ignoreCase = true)
-                        }
-                    if (entry != null) {
-                        val raw = zip.getInputStream(entry).bufferedReader().use { it.readText() }
-                        val rawWithImages = embedImagesInHtml(raw, zip, resolvedPath)
-                        cleanXhtmlBody(rawWithImages)
-                    } else {
-                        Log.d(TAG, "Could not find chapter entry for $resolvedPath")
-                        ""
+        // Les og rens alle ryggradsfiler først (bilder embeddes som data-URI).
+        val htmlByHref = mutableMapOf<String, String>()
+        spineOrder.forEach { manifestId ->
+            val manifestItem = manifest[manifestId] ?: return@forEach
+            val href = manifestItem.href
+            if (htmlByHref.containsKey(href)) return@forEach
+            try {
+                val resolvedPath = resolveZipPath(opfPath, manifestItem.href)
+                val entry = zip.getEntry(resolvedPath)
+                    ?: zip.getEntry(resolvedPath.trimStart('/'))
+                    ?: zip.entries().asSequence().firstOrNull {
+                        it.name.equals(resolvedPath, ignoreCase = true) || it.name.equals(resolvedPath.trimStart('/'), ignoreCase = true)
                     }
-                } catch (t: Throwable) {
-                    Log.e(TAG, "Error reading chapter entry for manifestId=$manifestId", t)
-                    ""
+                if (entry != null) {
+                    val raw = zip.getInputStream(entry).bufferedReader().use { it.readText() }
+                    val rawWithImages = embedImagesInHtml(raw, zip, resolvedPath)
+                    htmlByHref[href] = cleanXhtmlBody(rawWithImages)
+                } else {
+                    Log.d(TAG, "Could not find chapter entry for $resolvedPath")
+                    htmlByHref[href] = ""
                 }
-            } else ""
-
-            val cleanedHtml = if (chapterHtml.isNotBlank()) {
-                "<section>$chapterHtml</section>"
-            } else {
-                "<section></section>"
+            } catch (t: Throwable) {
+                Log.e(TAG, "Error reading chapter entry for manifestId=$manifestId", t)
+                htmlByHref[href] = ""
             }
-
-            val byteLength = cleanedHtml.toByteArray().size
-            fun matchNav(points: List<NavPoint>): NavPoint? {
-                val mHref = manifestItem?.href?.substringBefore('#')?.replace('\\', '/')?.trimStart('/')?.lowercase()
-                    ?: return null
-                return points.firstOrNull { np ->
-                    val npSrc = np.srcHref.substringBefore('#').replace('\\', '/').trimStart('/').lowercase()
-                    npSrc.isNotEmpty() && (npSrc == mHref || npSrc.endsWith("/$mHref") || mHref.endsWith("/$npSrc"))
-                }
-            }
-            val inHtmlTitle = extractTitleFromHtml(cleanedHtml)
-            // Semantiske filnavn (cover/titlepage/copyright/…) får fornuftige etiketter;
-            // rå filnavn som "chapter_01" vises aldri — da heller "Kapittel N".
-            val semanticLabel = manifestItem?.href?.let { h ->
-                val f = h.substringAfterLast('/').substringBeforeLast('.')
-                if (isSemanticFallbackName(f)) formatFallbackTitle(f) else null
-            }
-            val chapterTitle = matchNav(epub3NavPoints)?.title?.takeIf { it.isNotBlank() }
-                ?: matchNav(navPoints)?.title?.takeIf { it.isNotBlank() }
-                ?: inHtmlTitle
-                ?: semanticLabel
-                ?: "Kapittel ${i + 1}"
-
-            chapters.add(
-                ParsedChapter(
-                    index = i,
-                    title = chapterTitle,
-                    htmlContent = cleanedHtml,
-                    startByte = cumulativeStart,
-                    byteLength = byteLength
-                )
-            )
-            cumulativeStart += byteLength
         }
+
+        val sections = EpubSectionBuilder.build(spineHrefs, combinedNav) { href -> htmlByHref[href] }
+        var cumulativeStart = 0
 
         return ParsedBook(
             title = title,
             author = author,
-            chapters = chapters,
+            chapters = sections,
             language = language,
             description = description,
             publisher = publisher,

@@ -37,7 +37,9 @@ data class ReaderChapter(
     val title: String,
     val htmlContent: String,
     val startByte: Int,
-    val endByte: Int? = null
+    val endByte: Int? = null,
+    /** true = nav/NCX-drevet TOC-oppføring; false = frontmatter-seksjon. */
+    val inToc: Boolean = true
 )
 
 data class ReaderBookState(
@@ -137,7 +139,7 @@ class BookLoaderEngine(
 
         if (parsed != null && parsed.chapters.isNotEmpty()) {
             val readerChapters = parsed.chapters.map {
-                ReaderChapter(it.index, it.title, it.htmlContent, it.startByte, it.startByte + it.byteLength)
+                ReaderChapter(it.index, it.title, it.htmlContent, it.startByte, it.startByte + it.byteLength, it.inToc)
             }
             // Oppdater chaptersJson når titlene har endret seg (bedre TOC-navn fra
             // nav/NCX/h1 etter parserforbedring) — gamle importerer får navn ved neste
@@ -499,7 +501,7 @@ class BookLoaderEngine(
 
         if (parsed != null && parsed.chapters.isNotEmpty()) {
             val readerChapters = parsed.chapters.map {
-                ReaderChapter(it.index, it.title, it.htmlContent, it.startByte, it.startByte + it.byteLength)
+                ReaderChapter(it.index, it.title, it.htmlContent, it.startByte, it.startByte + it.byteLength, it.inToc)
             }
             // Oppdater chaptersJson når titlene har endret seg (bedre TOC-navn fra
             // nav/NCX/h1 etter parserforbedring) — gamle importerer får navn ved neste
