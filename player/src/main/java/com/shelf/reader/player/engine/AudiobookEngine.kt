@@ -224,7 +224,11 @@ class AudiobookEngine(
             return Discovery(chapters, chaptersToJson(chapters), ChapterDiscoverySource.FOLDER, cum)
         }
 
-        // 2/3) Innebygde kapitler i enkeltfil
+        // 2) CUE-sheet ved siden av lydfilen (f.eks. torrent-utpakket MP3 + .cue)
+        val sourceUri = playableSourceUri(book) ?: return null
+        discoverCueChapters(book, sourceUri)?.let { return it }
+
+        // 3/4) Innebygde kapitler i enkeltfil
         val coreFormat = when (book.format) {
             FormatEntity.M4B -> com.shelf.reader.core.domain.model.BookFormat.M4B
             FormatEntity.M4A -> com.shelf.reader.core.domain.model.BookFormat.M4A
@@ -232,7 +236,6 @@ class AudiobookEngine(
             FormatEntity.AAC -> com.shelf.reader.core.domain.model.BookFormat.AAC
             else -> return null
         }
-        val sourceUri = playableSourceUri(book) ?: return null
         val uri = if (sourceUri.startsWith("/")) Uri.fromFile(File(sourceUri)) else Uri.parse(sourceUri)
         val meta = runCatching {
             com.shelf.reader.core.parse.getParserFor(coreFormat).parse(ctx, uri, book.title, 0L, null)
@@ -247,6 +250,104 @@ class AudiobookEngine(
         val chapters = chaptersFromDiscovered(list, duration, sourceUri)
         return Discovery(chapters, chaptersToJson(chapters), source, duration)
     }
+
+    /**
+     * CUE-oppdagelse: finn «<sammeBase>.cue» ved siden av lydfilen, parse den.
+     * Filsti → direkte filsøsken; SAF-URI → visningsnavn + MediaStore-oppslag av
+     * søsken-dokument innenfor samme tre (begrenset, billig, én gang per identitet).
+     */
+    private suspend fun discoverCueChapters(book: BookEntity, sourceUri: String): Discovery? {
+        val cueUri = findCueSibling(sourceUri) ?: return null
+        val text = runCatching {
+            ctx.contentResolver.openInputStream(cueUri)?.bufferedReader()?.use { it.readText() }
+        }.getOrNull() ?: return null
+        val cue = com.shelf.reader.core.parse.CueParser.parse(text)
+        if (cue.size <= 1) return null
+        val duration = book.durationMs?.takeIf { it > 0L } ?: 0L
+        val list = cue.map {
+            com.shelf.reader.core.domain.model.ChapterInfo(
+                index = it.index,
+                title = it.title,
+                startMs = it.startMs,
+                endMs = null,
+                href = null,
+            )
+        }
+        val chapters = chaptersFromDiscovered(list, duration, sourceUri)
+        return Discovery(chapters, chaptersToJson(chapters), ChapterDiscoverySource.CUE, duration)
+    }
+
+    private fun findCueSibling(sourceUri: String): android.net.Uri? {
+        // 1) Direkte filsti: søsken med samme basenavn
+        if (sourceUri.startsWith("/")) {
+            val f = File(sourceUri)
+            val cue = File(f.parentFile, f.nameWithoutExtension + ".cue")
+            return if (cue.exists()) Uri.fromFile(cue) else null
+        }
+
+        val uri = runCatching { Uri.parse(sourceUri) }.getOrNull() ?: return null
+        val docId = runCatching { android.provider.DocumentsContract.getDocumentId(uri) }.getOrNull()
+            ?: return null
+        val treeId = runCatching { android.provider.DocumentsContract.getTreeDocumentId(uri) }.getOrNull()
+            ?: return null
+        val displayName = runCatching {
+            ctx.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+        }.getOrNull() ?: return null
+        val base = displayName.substringBeforeLast('.')
+        val audioStoreId = docId.substringAfter(':').toLongOrNull()
+
+        // 2) MediaStore: finn «<base>.cue» (samme mappe hvis mulig), bygg dokument-URI
+        //    innenfor det allerede gitte treet.
+        val prefix = docId.substringBefore(':') + ":" // f.eks. "msf:"
+        for (collection in listOf(
+            android.provider.MediaStore.Downloads.getContentUri("external"),
+            android.provider.MediaStore.Files.getContentUri("external"),
+        )) {
+            runCatching {
+                ctx.contentResolver.query(
+                    collection,
+                    arrayOf("_id", "_display_name", "relative_path"),
+                    "_display_name = ? COLLATE NOCASE",
+                    arrayOf("$base.cue"),
+                    null,
+                )?.use { c ->
+                    var fallbackId: Long? = null
+                    while (c.moveToNext()) {
+                        val id = c.getLong(0)
+                        if (fallbackId == null) fallbackId = id
+                        val rowPath = c.getString(2)
+                        if (audioStoreId != null && id == audioStoreId) continue // aldri lydfilen selv
+                        // Samme mappe som lydfilen er foretrukket, men ikke påkrevd
+                        if (rowPath != null && audioStoreId != null) {
+                            val audioPath = queryRelativePath(audioStoreId)
+                            if (audioPath != null && rowPath != audioPath) continue
+                        }
+                        val cueDocId = prefix + id
+                        val treeUri = android.provider.DocumentsContract.buildTreeDocumentUri(uri.authority, treeId)
+                        return android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, cueDocId)
+                    }
+                    if (fallbackId != null && fallbackId != audioStoreId) {
+                        val treeUri = android.provider.DocumentsContract.buildTreeDocumentUri(uri.authority, treeId)
+                        return android.provider.DocumentsContract.buildDocumentUriUsingTree(
+                            treeUri, prefix + fallbackId
+                        )
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    private fun queryRelativePath(mediaStoreId: Long): String? = runCatching {
+        ctx.contentResolver.query(
+            android.provider.MediaStore.Files.getContentUri("external"),
+            arrayOf("relative_path"),
+            "_id = ?",
+            arrayOf(mediaStoreId.toString()),
+            null,
+        )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+    }.getOrNull()
 
     private fun playableSourceUri(book: BookEntity): String? {
         book.filePath?.let { p ->

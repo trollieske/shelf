@@ -10,7 +10,7 @@ import android.util.Log
  */
 
 /** Hvor en reell kapittelliste ble funnet. */
-enum class ChapterDiscoverySource { NONE, FOLDER, MP4_CHPL, ID3_CHAP }
+enum class ChapterDiscoverySource { NONE, FOLDER, MP4_CHPL, ID3_CHAP, CUE }
 
 /** Hvorfor lagret kapittelmetadata er utdatert/utilstrekkelig. */
 enum class ChapterStaleReason {
@@ -156,7 +156,8 @@ object AudiobookTimeline {
 }
 
 /** Gated diagnostikk (AV som standard) — aldri filstier, rå metadata eller innhold. */
-private const val CHAPTER_REFRESH_DIAG = false
+// MIDERTIDIG PÅ for live feilsøking på telefon — skru AV før release!
+private const val CHAPTER_REFRESH_DIAG = true
 internal fun chapterDiag(msg: String) {
     if (CHAPTER_REFRESH_DIAG) Log.d(ChapterRefresh.DIAG_TAG, msg)
 }

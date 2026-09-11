@@ -202,6 +202,12 @@ class TextMetadataParser : FormatMetadataParser {
 }
 
 class AudioMetadataParser : FormatMetadataParser {
+    companion object {
+        // MIDERTIDIG PÅ for live feilsøking på telefon — skru AV før release!
+        private const val AUDIO_META_DIAG = true
+        private const val AUDIO_META_TAG = "AudioMeta"
+    }
+
     override suspend fun parse(
         ctx: Context,
         uri: Uri?,
@@ -247,7 +253,16 @@ class AudioMetadataParser : FormatMetadataParser {
                         streamDurMs = ch.second
                     }
                 }
-            } catch (_: Exception) {}
+            } catch (t: Exception) {
+                if (AUDIO_META_DIAG) android.util.Log.d(AUDIO_META_TAG, "mp4 chapter parse failed", t)
+            }
+        }
+
+        if (AUDIO_META_DIAG) {
+            android.util.Log.d(
+                AUDIO_META_TAG,
+                "audio meta: ext=${'$'}{filename.substringAfterLast('.')} embeddedChapters=${'$'}embeddedChapters.size streamDurMs=${'$'}streamDurMs"
+            )
         }
 
         try {

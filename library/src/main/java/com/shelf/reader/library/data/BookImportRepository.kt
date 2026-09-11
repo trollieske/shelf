@@ -333,9 +333,35 @@ class BookImportRepository(
         folderName: String,
         source: ImportSourceEntity,
         serverId: Long? = null,
-        remotePath: String? = null
+        remotePath: String? = null,
+        cueFiles: List<Pair<Uri, String>> = emptyList()
     ): Long = withContext(dispatchers.io) {
         if (files.isEmpty()) return@withContext -1L
+
+        // CUE-sheets i mappen: kapitler for lydfiler uten innebygd kapittelinfo.
+        // Nøkkel = basenavn (lavere), matchet mot TRACK-navnets FILE-referanse
+        // eller selve cue-filnavnet.
+        val cueChaptersByBase: Map<String, List<com.shelf.reader.core.domain.model.ChapterInfo>> =
+            cueFiles.mapNotNull { (cueUri, cueName) ->
+                runCatching {
+                    val text = ctx.contentResolver.openInputStream(cueUri)
+                        ?.bufferedReader()?.use { it.readText() } ?: return@runCatching null
+                    val parsed = com.shelf.reader.core.parse.CueParser.parse(text)
+                    if (parsed.size <= 1) return@runCatching null
+                    val ref = com.shelf.reader.core.parse.CueParser.referencedAudioFile(text)
+                        ?.substringBeforeLast('.')?.lowercase()
+                        ?: cueName.substringBeforeLast('.').lowercase()
+                    ref to parsed.map {
+                        com.shelf.reader.core.domain.model.ChapterInfo(
+                            index = it.index,
+                            title = it.title,
+                            startMs = it.startMs,
+                            endMs = null,
+                            href = null
+                        )
+                    }
+                }.getOrNull()
+            }.toMap()
 
         var detectedAlbum: String? = null
         var detectedAuthor: String? = null
@@ -366,7 +392,9 @@ class BookImportRepository(
                 ?: AudiobookNormalizer.normalizeTitle(name)
 
             val localPath = if (uri.scheme == "file") uri.path else null
-            val embeddedChapters = meta?.chapters.orEmpty()
+            val embeddedChapters = meta?.chapters.orEmpty().ifEmpty {
+                cueChaptersByBase[name.substringBeforeLast('.').lowercase()].orEmpty()
+            }
 
             parsedTracks.add(
                 ParsedTrack(
@@ -823,6 +851,7 @@ class BookImportRepository(
 
         val subFolders = mutableListOf<Uri>()
         val audioTracksHere = mutableListOf<Pair<Uri, String>>()
+        val cueSheetsHere = mutableListOf<Pair<Uri, String>>()
         val ebooksHere = mutableListOf<Pair<Uri, String>>()
         var folderName = nodeUri.lastPathSegment?.substringAfterLast('/') ?: "Folder"
 
@@ -840,6 +869,7 @@ class BookImportRepository(
                 } else {
                     val fmt = BookFormat.fromFilename(name)
                     when {
+                        name.lowercase().endsWith(".cue") -> cueSheetsHere.add(childDocUri to name)
                         fmt.isAudio -> audioTracksHere.add(childDocUri to name)
                         fmt != BookFormat.UNKNOWN && fmt != BookFormat.ZIP -> ebooksHere.add(childDocUri to name)
                         name.lowercase().endsWith(".zip") -> {
@@ -858,7 +888,8 @@ class BookImportRepository(
             val abId = importAudiobookFolder(
                 files = audioTracksHere,
                 folderName = folderName,
-                source = ImportSourceEntity.FOLDER_IMPORT
+                source = ImportSourceEntity.FOLDER_IMPORT,
+                cueFiles = cueSheetsHere
             )
             if (abId > 0L) count++
         }
@@ -909,6 +940,7 @@ class BookImportRepository(
             }
         }
 
+        val cueFiles = allFiles.filter { it.name.lowercase().endsWith(".cue") }
         val (audioFiles, nonAudioFiles) = allFiles
             .filterNot { it.name.lowercase().endsWith(".zip") || it.name.lowercase().endsWith(".cbz") }
             .partition { BookFormat.fromFilename(it.name).isAudio }
@@ -918,12 +950,16 @@ class BookImportRepository(
             for ((folderPath, filesInFolder) in audioByFolder) {
                 val folderName = File(folderPath).name.ifBlank { dirToScan.name }
                 val tracks = filesInFolder.map { Uri.fromFile(it) to it.name }
+                val cuesInFolder = cueFiles
+                    .filter { it.parentFile?.absolutePath == folderPath }
+                    .map { Uri.fromFile(it) to it.name }
                 val abId = importAudiobookFolder(
                     files = tracks,
                     folderName = folderName,
                     source = source,
                     serverId = serverId,
-                    remotePath = remotePath
+                    remotePath = remotePath,
+                    cueFiles = cuesInFolder
                 )
                 if (abId > 0L) insertedIds.add(abId)
             }

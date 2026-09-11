@@ -607,6 +607,12 @@ private fun SeekProgressSection(
 
     Column(Modifier.fillMaxWidth()) {
         // ── 1. GLOBAL BOKTIDSLINJE (primær navigasjon for lange bøker) ──
+        Text(
+            "HELE BOKEN",
+            style = ShelfTypography.LabelSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
         val bookPct = AudiobookTimeline.globalFraction(state.currentMs, bookDuration)
         var bookSlider by remember(state.currentMs, bookDuration) { mutableFloatStateOf(bookPct) }
         Slider(
@@ -632,7 +638,7 @@ private fun SeekProgressSection(
             )
         }
 
-        // ── 2. Kompakt KAPITTEL-tidslinje (kun > 1 reelle kapitler) ──
+        // ── 2. KAPITTEL-TIDSLINJE med egen teller (kun > 1 reelle kapitler) ──
         if (hasChapters) {
             Spacer(Modifier.height(12.dp))
             val idx = AudiobookTimeline.currentChapterIndex(chapters, state.currentMs)
@@ -640,6 +646,25 @@ private fun SeekProgressSection(
             val chLen = (chEnd - chStart).coerceAtLeast(1L)
             val chElapsed = (state.currentMs - chStart).coerceIn(0L, chLen)
             val chapter = chapters.getOrNull(idx)
+
+            // Tydelig at denne linjen/telleren gjelder KUN inne i kapittelet
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "I KAPITTELLET",
+                    style = ShelfTypography.LabelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    "Kapittel ${idx + 1} av ${chapters.size}",
+                    style = ShelfTypography.LabelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             var chSlider by remember(state.currentMs, chStart, chEnd) {
                 mutableFloatStateOf(chElapsed.toFloat() / chLen.toFloat())
             }
@@ -651,25 +676,30 @@ private fun SeekProgressSection(
                     onSeek(chStart + (chSlider * chLen).toLong())
                 }
             )
+            // Teller for posisjon INNENFOR kapittelet
             Row(
                 Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    chapter?.title.orEmpty(),
+                    "I kapittelet: ${formatDuration(chElapsed / 1_000L)}",
                     style = ShelfTypography.LabelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.width(8.dp))
                 Text(
-                    "Kapittel ${idx + 1} av ${chapters.size}",
+                    "- ${formatDuration(max(0L, (chEnd - state.currentMs) / 1_000L))} igjen",
                     style = ShelfTypography.LabelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            Text(
+                chapter?.title.orEmpty(),
+                style = ShelfTypography.LabelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
