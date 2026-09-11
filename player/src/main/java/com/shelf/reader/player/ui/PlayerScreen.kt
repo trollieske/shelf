@@ -1,11 +1,11 @@
 package com.shelf.reader.player.ui
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.rememberScrollState
@@ -97,7 +97,6 @@ fun PlayerScreen(
     }
     val showToast by prefs.handoffToastEnabled.collectAsStateWithLifecycle(initialValue = true)
     var animatingToggle by remember { mutableStateOf(false) }
-    var carMode by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(bookId) {
         // #region debug-point UI:player-screen-enter
@@ -210,12 +209,34 @@ fun PlayerScreen(
                             )
                         }
                     }
-                    IconButton(onClick = { showSleep = true }) {
-                        Icon(
-                            Icons.Default.Bedtime,
-                            contentDescription = "Søvntimer",
-                            tint = if (state.sleepTimerMinutes != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                        )
+                    if (state.sleepTimerRemainingMs > 0L) {
+                        // Aktiv søvntimer: kompakt live-nedtelling øverst til høyre.
+                        // Én linje, HUD-stil, åpner eksisterende søvntimer-kontroller ved trykk.
+                        Surface(
+                            onClick = { showSleep = true },
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color.Black.copy(alpha = 0.85f),
+                            modifier = Modifier.padding(end = 6.dp)
+                        ) {
+                            Text(
+                                "☾ ${formatSleepCountdown(state.sleepTimerRemainingMs / 1000L)}",
+                                style = ShelfTypography.LabelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Clip,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = { showSleep = true }) {
+                            Icon(
+                                Icons.Default.Bedtime,
+                                contentDescription = "Søvntimer",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                     IconButton(onClick = { showChapters = true }) {
                         Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Kapitler")
@@ -235,7 +256,7 @@ fun PlayerScreen(
 
             ElevatedCard(
                 shape = RoundedCornerShape(24.dp),
-                modifier = Modifier.size(260.dp),
+                modifier = Modifier.size(200.dp),
                 elevation = CardDefaults.elevatedCardElevation(defaultElevation = 16.dp),
                 colors = CardDefaults.elevatedCardColors(containerColor = ShelfColors.SpineBurgundy)
             ) {
@@ -322,7 +343,7 @@ fun PlayerScreen(
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(12.dp))
 
             if (!playerReady) {
                 ElevatedCard(
@@ -392,14 +413,14 @@ fun PlayerScreen(
                 )
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(12.dp))
 
             SeekProgressSection(
                 state = state,
                 onSeek = { ms -> scope.launch { vm.seekTo(ms) } },
             )
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(10.dp))
 
             Row(
                 Modifier.fillMaxWidth(),
@@ -445,64 +466,64 @@ fun PlayerScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            // Kompakte store hopp + avspillingshastighet — alltid synlig i én rad.
+            // Bunnen: ÉN alltid-synlig hurtigrad — store hopp + hastighet.
+            // (Søvntimer og kapitler lever utelukkende i toppbaren.)
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = { scope.launch { vm.skipBack(5 * 60_000L) } }) {
-                    Text("−5 min", style = ShelfTypography.LabelMedium)
-                }
-                Spacer(Modifier.width(10.dp))
-                AssistChip(
-                    onClick = { showSpeedDialog = true },
-                    leadingIcon = { Icon(Icons.Default.Speed, null, Modifier.size(18.dp)) },
-                    label = { Text(formatSpeed(state.playbackSpeed), fontWeight = FontWeight.SemiBold) }
-                )
-                Spacer(Modifier.width(10.dp))
-                TextButton(onClick = { scope.launch { vm.skipForward(5 * 60_000L) } }) {
-                    Text("+5 min", style = ShelfTypography.LabelMedium)
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                AssistChip(
-                    onClick = { showSleep = true },
-                    leadingIcon = { Icon(Icons.Default.Bedtime, null, Modifier.size(18.dp)) },
-                    label = {
-                        val s = state.sleepTimerMinutes
-                        Text(if (s == null) "Søvntimer: Av" else "Søvntimer: ${s}m")
-                    }
-                )
-                AssistChip(
-                    onClick = { showChapters = true },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.List, null, Modifier.size(18.dp)) },
-                    label = { Text("Kapitler (${state.chapters.size})") }
-                )
-                AssistChip(
-                    onClick = {
-                        carMode = !carMode
-                        android.widget.Toast.makeText(
-                            ctx,
-                            if (carMode) "Bilmodus på: forenklet UI, større knapper" else "Bilmodus av",
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
-                    },
-                    leadingIcon = { Icon(Icons.Default.DirectionsCar, null, Modifier.size(18.dp)) },
-                    label = { Text(if (carMode) "Bilmodus: PÅ" else "Bilmodus") },
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = if (carMode) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surface
+                TextButton(
+                    onClick = { scope.launch { vm.skipBack(5 * 60_000L) } },
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp)
+                ) {
+                    Text(
+                        "−5 min",
+                        style = ShelfTypography.LabelMedium,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip
                     )
-                )
+                }
+                // Hastighetsknapp: kompakt boks der ikon + «1×» er sentrert i midten.
+                // (AssistChip+weight(1f) trakk boksen ut til 1/3 av raden, og
+                //  M3s ledende ikon-padding + weight(1f)-label venstrestilte innholdet.)
+                Surface(
+                    onClick = { showSpeedDialog = true },
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier.heightIn(min = 44.dp)
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 14.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Speed, contentDescription = null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            formatPlaybackSpeed(state.playbackSpeed),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Clip
+                        )
+                    }
+                }
+                TextButton(
+                    onClick = { scope.launch { vm.skipForward(5 * 60_000L) } },
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp)
+                ) {
+                    Text(
+                        "+5 min",
+                        style = ShelfTypography.LabelMedium,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip
+                    )
+                }
             }
         }
     }
@@ -519,7 +540,14 @@ fun PlayerScreen(
         val chs = state.chapters
         ModalBottomSheet(onDismissRequest = { showChapters = false }) {
             Column(Modifier.padding(24.dp)) {
-                Text("Kapitler", style = ShelfTypography.TitleLarge, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (chs.size > 1) "Kapitler · ${chs.size}" else "Kapitler",
+                    style = ShelfTypography.TitleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Spacer(Modifier.height(12.dp))
                 if (chs.isEmpty()) {
                     Text("Ingen kapitler tilgjengelig ennå.",
@@ -803,17 +831,25 @@ private fun SpeedDialog(
         title = { Text("Avspillingshastighet", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                speeds.chunked(4).forEach { row ->
+                // 3 kolonner: bredere celler, aldri multi-linjehastighets-etiketter.
+                speeds.chunked(3).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         row.forEach { s ->
                             FilterChip(
                                 selected = kotlin.math.abs(s - current) < 0.001f,
                                 onClick = { onPick(s); onDismiss() },
-                                label = { Text(formatSpeed(s)) },
+                                label = {
+                                    Text(
+                                        formatPlaybackSpeed(s),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Clip
+                                    )
+                                },
                                 modifier = Modifier.weight(1f)
                             )
                         }
-                        repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
@@ -823,10 +859,6 @@ private fun SpeedDialog(
         }
     )
 }
-
-/** «1×», «1.25×», «3×» — uten unødige desimaler. */
-private fun formatSpeed(speed: Float): String =
-    if (speed % 1f == 0f) "${'$'}{speed.toInt()}×" else "${'$'}{speed}×"
 
 private fun formatDuration(totalSeconds: Long): String {
     val s = totalSeconds.coerceAtLeast(0L)
