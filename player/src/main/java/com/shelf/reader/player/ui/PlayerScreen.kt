@@ -445,7 +445,7 @@ fun PlayerScreen(
 
             Spacer(Modifier.height(8.dp))
 
-            // Kompakte store hopp for lange bøker (global boktid, clampet).
+            // Kompakte store hopp + avspillingshastighet — alltid synlig i én rad.
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
@@ -454,7 +454,13 @@ fun PlayerScreen(
                 TextButton(onClick = { scope.launch { vm.skipBack(5 * 60_000L) } }) {
                     Text("−5 min", style = ShelfTypography.LabelMedium)
                 }
-                Spacer(Modifier.width(24.dp))
+                Spacer(Modifier.width(10.dp))
+                AssistChip(
+                    onClick = { showSpeedDialog = true },
+                    leadingIcon = { Icon(Icons.Default.Speed, null, Modifier.size(18.dp)) },
+                    label = { Text(formatSpeed(state.playbackSpeed), fontWeight = FontWeight.SemiBold) }
+                )
+                Spacer(Modifier.width(10.dp))
                 TextButton(onClick = { scope.launch { vm.skipForward(5 * 60_000L) } }) {
                     Text("+5 min", style = ShelfTypography.LabelMedium)
                 }
@@ -469,11 +475,6 @@ fun PlayerScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                AssistChip(
-                    onClick = { showSpeedDialog = true },
-                    leadingIcon = { Icon(Icons.Default.Speed, null, Modifier.size(18.dp)) },
-                    label = { Text(formatSpeed(state.playbackSpeed)) }
-                )
                 AssistChip(
                     onClick = { showSleep = true },
                     leadingIcon = { Icon(Icons.Default.Bedtime, null, Modifier.size(18.dp)) },
