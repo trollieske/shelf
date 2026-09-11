@@ -58,27 +58,9 @@ class AudiobookEngine(
 
         val durationMs = book.durationMs ?: estimateDuration(ctx, book, mediaUri)
 
-        // Kapitler fra chaptersJson; ved ≤ 1 kapittel prøver vi å HELE boken ved å
-        // re-parse innebygde kapitler (chpl/CHAP) fra kildefilen og oppdatere DB-en.
-        // Dette reparerer bøker importert før chpl-parsingen ble fikset — uten
-        // re-import, og uten å røre fremdrift/posisjon.
-        var chapters = book.chaptersJson?.let { parseChapters(it) }
-            ?: buildStubChapters(book.title, durationMs)
-        if (book.type == BookTypeEntity.AUDIOBOOK && chapters.size <= 1) {
-            rescanEmbeddedChapters(book, mediaUri)?.let { (fixed, json) ->
-                chapters = fixed
-                runCatching {
-                    db.bookDao().update(
-                        book.copy(
-                            chaptersJson = json,
-                            chapterCount = fixed.size,
-                            durationMs = book.durationMs?.takeIf { it > 0L } ?: estimateDuration(ctx, book, mediaUri),
-                            lastModifiedAt = System.currentTimeMillis()
-                        )
-                    )
-                }
-            }
-        }
+        // KANONISK kapitteloppdatering: oppdager og persisterer reelle kapitler for
+        // eksisterende importerte lydbøker uten re-import (se ensureFreshChapters).
+        val chapters = ensureFreshChapters(book)
 
         val currentMs = (prog * durationMs).toLong()
             .coerceAtMost(max(durationMs - 5_000L, 0L))
@@ -139,58 +121,157 @@ class AudiobookEngine(
     }
 
     /**
-     * Auto-reparasjon: hvis en lydbok har ≤ 1 kapittel i DB-en, prøv å re-parse
-     * innebygde kapitler fra kildefilen (M4B chpl / MP3 ID3 CHAP). Returnerer
-     * (kapitler, chaptersJson) ved suksess (> 1 kapitler), ellers null.
-     * Endrer aldri fremdrift, aldrig avspillingsposisjon — kun kapittelmetadata.
+     * KANONISK «sørg for ferske lydbok-kapitler»-sti. Kalles av både [loadBook]
+     * og AudiobookPlaybackService — aldri fra PlayerScreen.
+     *
+     * 1. Les lagret chaptersJson.
+     * 2. Vurder stale via [ChapterRefresh.evaluateStoredChapters] (blank, ødelagt,
+     *    tom, én syntetisk stub-oppføring, chapterCount-uenighet).
+     * 3. Ved stale: kjør oppdagelse via samme pipeline som import:
+     *    mappe/flerfil (én kapittel per fil, naturlig sortering) → M4B/M4A chpl →
+     *    MP3 ID3 CHAP. Ingen falske kapitler lages for lange bøker.
+     * 4. Persister KUN hvis funnet liste har > 1 reelle kapitler (og flere enn
+     *    lagret). Én ekte kapittelfil beholder nøyaktig én kapittel med boktittel.
+     * 5. Vellykket refresh persisteres; re-parse skjer aldri per avspillings-tick,
+     *    og aldri to ganger for samme filidentitet (størrelse + lastModified).
      */
-    private suspend fun rescanEmbeddedChapters(
-        book: BookEntity,
-        mediaUri: String?,
-    ): Pair<List<AudiobookChapter>, String>? {
-        val source = mediaUri?.takeIf { it.isNotBlank() } ?: return null
-        val coreFormat = when (book.format) {
-            com.shelf.reader.data.local.entity.FormatEntity.M4B -> com.shelf.reader.core.domain.model.BookFormat.M4B
-            com.shelf.reader.data.local.entity.FormatEntity.M4A -> com.shelf.reader.core.domain.model.BookFormat.M4A
-            com.shelf.reader.data.local.entity.FormatEntity.MP3 -> com.shelf.reader.core.domain.model.BookFormat.MP3
-            com.shelf.reader.data.local.entity.FormatEntity.AAC -> com.shelf.reader.core.domain.model.BookFormat.AAC
-            else -> return null
+    suspend fun ensureFreshChapters(book: BookEntity): List<AudiobookChapter> {
+        val jsonBlank = book.chaptersJson.isNullOrBlank()
+        val stored = parseChapters(book.chaptersJson ?: "")
+        val rows = stored.map { StoredChapterRow(it.title, it.startMs) }
+        val reason = ChapterRefresh.evaluateStoredChapters(jsonBlank, rows, book.title, book.chapterCount)
+        val ext = (book.filePath?.substringAfterLast('.', "")
+            ?.takeIf { it.isNotBlank() && it.length <= 5 }
+            ?: book.format.name.lowercase())
+
+        if (reason == null) {
+            chapterDiag("FRESH id=${book.id} ext=$ext stored=${stored.size}")
+            return stored.ifEmpty { buildStubChapters(book.title, book.durationMs ?: 0L) }
         }
-        val uri = if (source.startsWith("/")) Uri.fromFile(File(source)) else Uri.parse(source)
-        return runCatching {
-            val parser = com.shelf.reader.core.parse.getParserFor(coreFormat)
-            val meta = parser.parse(ctx, uri, book.title, 0L, null)
-            val list = meta?.chapters.orEmpty().filter { it.startMs >= 0L }
-            if (list.size <= 1) return null
-            val duration = meta?.durationMs ?: 0L
-            val arr = org.json.JSONArray()
-            list.forEachIndexed { idx, ch ->
-                val end = list.getOrNull(idx + 1)?.startMs?.takeIf { it > list[idx].startMs }
-                    ?: (duration.takeIf { it > list[idx].startMs })
-                    ?: (list[idx].endMs?.takeIf { it > list[idx].startMs })
-                    ?: (list[idx].startMs + 10L * 60L * 1000L)
-                val obj = org.json.JSONObject().apply {
-                    put("index", idx)
-                    put("title", list[idx].title.ifBlank { "Kapittel ${idx + 1}" })
-                    put("startMs", list[idx].startMs)
-                    put("endMs", end)
-                    put("mediaUri", source)
-                    put("durationMs", (end - list[idx].startMs).coerceAtLeast(1L))
-                }
-                arr.put(obj)
-            }
-            val chapters = (0 until arr.length()).map { i ->
-                val obj = arr.getJSONObject(i)
-                AudiobookChapter(
-                    index = i,
-                    title = obj.optString("title", "Kapittel ${i + 1}"),
-                    startMs = obj.optLong("startMs", 0L),
-                    endMs = obj.optLong("endMs", 0L).takeIf { it > 0L },
-                    mediaUri = source
+
+        // Unngå gjentatt parsing av samme filidentitet: kun én discovery per
+        // (størrelse, sistEndret) per app-prosess.
+        val identity = "${book.fileSizeBytes}:${book.lastModifiedAt}"
+        val alreadyAttempted = attemptedRefresh.put(book.id, identity) == identity
+        if (alreadyAttempted) {
+            chapterDiag("SKIP id=${book.id} ext=$ext reason=$reason (samme identitet forsøkt)")
+            return stored.ifEmpty { buildStubChapters(book.title, book.durationMs ?: 0L) }
+        }
+        chapterDiag("STALE id=${book.id} ext=$ext stored=${stored.size} reason=$reason")
+
+        val discovery = discoverChapters(book)
+        val found = discovery?.chapters.orEmpty()
+        if (discovery != null && found.size > 1 && found.size > stored.size) {
+            runCatching {
+                db.bookDao().update(
+                    book.copy(
+                        chaptersJson = discovery.json,
+                        chapterCount = found.size,
+                        durationMs = book.durationMs?.takeIf { it > 0L } ?: discovery.durationMs.takeIf { it > 0L },
+                        lastModifiedAt = System.currentTimeMillis(),
+                    )
                 )
             }
-            Pair(chapters, arr.toString())
+            chapterDiag("REFRESHED id=${book.id} source=${discovery.source} found=${found.size}")
+            return found
+        }
+        chapterDiag("KEEP id=${book.id} source=${discovery?.source ?: ChapterDiscoverySource.NONE} found=${found.size}")
+        // Én ekte kapittelfil uten metadata: behold nøyaktig én kapittel med boktittel.
+        return stored.ifEmpty { buildStubChapters(book.title, book.durationMs ?: 0L) }
+    }
+
+    private val attemptedRefresh = java.util.concurrent.ConcurrentHashMap<Long, String>()
+
+    private data class Discovery(
+        val chapters: List<AudiobookChapter>,
+        val json: String,
+        val source: ChapterDiscoverySource,
+        val durationMs: Long = 0L,
+    )
+
+    /**
+     * Kapittel-oppdagelse med samme prioritet som import:
+     * 1. Mappe/flerfil: én kapittel per lydfil (naturlig sortering: 1, 2, 10).
+     * 2. M4B/M4A: QuickTime/iTunes chpl.
+     * 3. MP3: ID3v2 CHAP.
+     * Ingen metadata → null (kalleren beholder én ekte/stub-kapittel).
+     */
+    private suspend fun discoverChapters(book: BookEntity): Discovery? {
+        // 1) Flerfil/mappe-lydbok
+        val tracks = runCatching { db.audioTrackDao().getTracksForBook(book.id) }.getOrDefault(emptyList())
+        if (tracks.size >= 2) {
+            // trackNumber følger import-rekkefølgen; naturlig filnavn-tiebreak.
+            val ordered = tracks.sortedWith(
+                compareBy({ it.trackNumber.takeIf { n -> n > 0 } ?: Int.MAX_VALUE })
+            ).let { sorted ->
+                if (sorted.all { it.trackNumber == sorted.first().trackNumber }) {
+                    ChapterRefresh.sortedNaturally(sorted) { it.title.ifBlank { it.fileUri ?: it.filePath ?: "" } }
+                } else sorted
+            }
+            var cum = 0L
+            val chapters = ordered.mapIndexed { i, t ->
+                val dur = t.durationMs.takeIf { it > 0L } ?: 300_000L
+                val ch = AudiobookChapter(
+                    index = i,
+                    title = t.title.ifBlank { "Kapittel ${i + 1}" },
+                    startMs = cum,
+                    endMs = cum + dur,
+                    mediaUri = t.fileUri?.takeIf { it.isNotBlank() } ?: t.filePath,
+                )
+                cum += dur
+                ch
+            }
+            return Discovery(chapters, chaptersToJson(chapters), ChapterDiscoverySource.FOLDER, cum)
+        }
+
+        // 2/3) Innebygde kapitler i enkeltfil
+        val coreFormat = when (book.format) {
+            FormatEntity.M4B -> com.shelf.reader.core.domain.model.BookFormat.M4B
+            FormatEntity.M4A -> com.shelf.reader.core.domain.model.BookFormat.M4A
+            FormatEntity.MP3 -> com.shelf.reader.core.domain.model.BookFormat.MP3
+            FormatEntity.AAC -> com.shelf.reader.core.domain.model.BookFormat.AAC
+            else -> return null
+        }
+        val sourceUri = playableSourceUri(book) ?: return null
+        val uri = if (sourceUri.startsWith("/")) Uri.fromFile(File(sourceUri)) else Uri.parse(sourceUri)
+        val meta = runCatching {
+            com.shelf.reader.core.parse.getParserFor(coreFormat).parse(ctx, uri, book.title, 0L, null)
         }.getOrNull()
+        val list = meta?.chapters.orEmpty().filter { it.startMs >= 0L }
+        if (list.size <= 1) return null
+        val duration = meta?.durationMs ?: 0L
+        val source = when (coreFormat) {
+            com.shelf.reader.core.domain.model.BookFormat.MP3 -> ChapterDiscoverySource.ID3_CHAP
+            else -> ChapterDiscoverySource.MP4_CHPL
+        }
+        val chapters = chaptersFromDiscovered(list, duration, sourceUri)
+        return Discovery(chapters, chaptersToJson(chapters), source, duration)
+    }
+
+    private fun playableSourceUri(book: BookEntity): String? {
+        book.filePath?.let { p ->
+            if (p.isNotBlank() && File(p).canRead()) return p
+        }
+        return book.fileUri?.takeIf { it.isNotBlank() }
+    }
+
+
+    /** Samme JSON-format som import-pipelinen skriver. */
+    private fun chaptersToJson(chapters: List<AudiobookChapter>): String {
+        val arr = org.json.JSONArray()
+        chapters.forEach { ch ->
+            arr.put(
+                org.json.JSONObject().apply {
+                    put("index", ch.index)
+                    put("title", ch.title)
+                    put("startMs", ch.startMs)
+                    put("endMs", ch.endMs ?: org.json.JSONObject.NULL)
+                    ch.mediaUri?.let { put("mediaUri", it) }
+                    put("durationMs", ((ch.endMs ?: ch.startMs) - ch.startMs).coerceAtLeast(1L))
+                }
+            )
+        }
+        return arr.toString()
     }
 
     private fun parseChapters(json: String): List<AudiobookChapter> {
@@ -236,5 +317,27 @@ class AudiobookEngine(
 
     suspend fun readDurationStub(book: BookEntity, uri: String?): Long {
         return book.durationMs ?: (120L * 60L * 1000L)
+    }
+}
+
+/** Ren konvertering av oppdagede kapitler → AudiobookChapter (JVM-testbar). */
+internal fun chaptersFromDiscovered(
+    list: List<com.shelf.reader.core.domain.model.ChapterInfo>,
+    durationMs: Long,
+    sourceUri: String?,
+): List<AudiobookChapter> {
+    val sorted = list.sortedBy { it.startMs }
+    return sorted.mapIndexed { idx, ch ->
+        val end = sorted.getOrNull(idx + 1)?.startMs?.takeIf { it > ch.startMs }
+            ?: durationMs.takeIf { it > ch.startMs }
+            ?: ch.endMs?.takeIf { it > ch.startMs }
+            ?: (ch.startMs + 10L * 60L * 1000L)
+        AudiobookChapter(
+            index = idx,
+            title = ch.title.ifBlank { "Kapittel ${idx + 1}" },
+            startMs = ch.startMs,
+            endMs = end,
+            mediaUri = sourceUri,
+        )
     }
 }

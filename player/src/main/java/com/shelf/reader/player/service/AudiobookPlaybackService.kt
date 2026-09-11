@@ -63,7 +63,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
         const val NOTIFICATION_ID = 8888
         const val ACTION_LOAD_BOOK = "com.shelf.reader.player.LOAD_BOOK"
         const val EXTRA_BOOK_ID = "extra_book_id"
-        const val SEEK_BACK_MS = 10_000L
+        const val SEEK_BACK_MS = 30_000L
         const val SEEK_FORWARD_MS = 30_000L
 
         const val CMD_SPEED = "CMD_SET_SPEED"
@@ -81,6 +81,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
     private var librarySession: MediaLibraryService.MediaLibrarySession? = null
     private var currentBookId: Long = -1L
     private var db: ShelfDatabase? = null
+    private var chapterEngine: com.shelf.reader.player.engine.AudiobookEngine? = null
     private val binder = LocalBinder()
     private var sleepTimer: android.os.CountDownTimer? = null
 
@@ -98,6 +99,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
         super.onCreate()
         ensureChannel()
         db = ShelfDatabase.getInstance(applicationContext)
+        chapterEngine = com.shelf.reader.player.engine.AudiobookEngine(applicationContext, db!!)
         val exo = ExoPlayer.Builder(this)
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -415,7 +417,10 @@ class AudiobookPlaybackService : MediaLibraryService() {
             val cover = withContext(Dispatchers.IO) { coverArtworkFor(book.id, book.coverPath) }
             currentCoverBitmap = cover?.bitmap
 
-            activeChapters = parseChapters(book.chaptersJson ?: "")
+            // KANONISK oppfriskning: oppdager/persisterer reelle kapitler for
+            // eksisterende bøker med utdatert metadata (samme sti som ViewModel).
+            activeChapters = chapterEngine?.ensureFreshChapters(book)
+                ?: parseChapters(book.chaptersJson ?: "")
 
             if (activeChapters.isNotEmpty()) {
                 // Flere kapitler i SAMME fil (M4B/MP3 med innebygde kapitler) får

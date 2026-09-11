@@ -42,6 +42,7 @@ import com.shelf.reader.data.repository.ResolvedHandoff
 import com.shelf.reader.designsystem.theme.ShelfColors
 import com.shelf.reader.designsystem.theme.ShelfTypography
 import com.shelf.reader.player.engine.AudiobookState
+import com.shelf.reader.player.engine.AudiobookTimeline
 import com.shelf.reader.player.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -396,12 +397,16 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { scope.launch { vm.skipBack(10_000L) } }) {
+                IconButton(onClick = { scope.launch { vm.skipBack(30_000L) } }) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.Replay10, contentDescription = "10s tilbake", Modifier.size(28.dp))
+                        Icon(Icons.Default.Replay30, contentDescription = "30s tilbake", Modifier.size(28.dp))
                     }
                 }
-                IconButton(onClick = { scope.launch { vm.prevChapter() } }) {
+                IconButton(
+                    onClick = { scope.launch { vm.prevChapter() } },
+                    // Kapittelnavigasjon kun ved > 1 reelle kapitler — aldri døde kontroller.
+                    enabled = state.chapters.size > 1,
+                ) {
                     Icon(Icons.Default.SkipPrevious, contentDescription = "Forrige kapittel", Modifier.size(34.dp))
                 }
                 FilledTonalIconButton(
@@ -415,13 +420,34 @@ fun PlayerScreen(
                         Modifier.size(40.dp)
                     )
                 }
-                IconButton(onClick = { scope.launch { vm.nextChapter() } }) {
+                IconButton(
+                    onClick = { scope.launch { vm.nextChapter() } },
+                    enabled = state.chapters.size > 1 &&
+                        state.currentChapterIndex < state.chapters.size - 1,
+                ) {
                     Icon(Icons.Default.SkipNext, contentDescription = "Neste kapittel", Modifier.size(34.dp))
                 }
                 IconButton(onClick = { scope.launch { vm.skipForward(30_000L) } }) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.Forward30, contentDescription = "30s frem", Modifier.size(28.dp))
                     }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Kompakte store hopp for lange bøker (global boktid, clampet).
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = { scope.launch { vm.skipBack(5 * 60_000L) } }) {
+                    Text("−5 min", style = ShelfTypography.LabelMedium)
+                }
+                Spacer(Modifier.width(24.dp))
+                TextButton(onClick = { scope.launch { vm.skipForward(5 * 60_000L) } }) {
+                    Text("+5 min", style = ShelfTypography.LabelMedium)
                 }
             }
 
@@ -560,144 +586,88 @@ fun PlayerScreen(
  *  - «Hele boken»: spoler over hele bokens varighet (som tidligere).
  * Standard: kapittelvisning når boken har > 1 kapittel. Valget huskes per sesjon.
  */
+/**
+ * GLOBAL boktidslinje (primær) + kompakt KAPITTEL-tidslinje (kun ved > 1 reelle
+ * kapitler).
+ *
+ *  - Global slider: hele bokens varighet. Venstre = global elapsed, høyre =
+ *    global total. Alt søk går gjennom ÉN global søk-callback.
+ *  - Kapittelraden: finmasket spoling INNENFOR kapittelet (aldri utover
+ *    kapittelets grenser) + «Kapittel X av Y». Skjules helt ved én reell
+ *    kapittelfil — aldri «1 av 1».
+ */
 @Composable
 private fun SeekProgressSection(
     state: AudiobookState,
     onSeek: (Long) -> Unit,
 ) {
     val chapters = state.chapters
-    val bookDuration = state.durationMs.coerceAtLeast(0L)
+    val bookDuration = AudiobookTimeline.globalDurationMs(chapters, state.durationMs)
     val hasChapters = chapters.size > 1
-    var chapterMode by rememberSaveable { mutableStateOf(true) }
 
     Column(Modifier.fillMaxWidth()) {
-        if (hasChapters) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = chapterMode,
-                    onClick = { chapterMode = true },
-                    label = { Text("Kapittel", fontWeight = FontWeight.SemiBold) },
-                    modifier = Modifier.weight(1f)
-                )
-                FilterChip(
-                    selected = !chapterMode,
-                    onClick = { chapterMode = false },
-                    label = { Text("Hele boken") },
-                    modifier = Modifier.weight(1f)
-                )
+        // ── 1. GLOBAL BOKTIDSLINJE (primær navigasjon for lange bøker) ──
+        val bookPct = AudiobookTimeline.globalFraction(state.currentMs, bookDuration)
+        var bookSlider by remember(state.currentMs, bookDuration) { mutableFloatStateOf(bookPct) }
+        Slider(
+            value = bookSlider,
+            onValueChange = { bookSlider = it },
+            onValueChangeFinished = {
+                onSeek((bookSlider * bookDuration.coerceAtLeast(1L)).toLong())
             }
-            Spacer(Modifier.height(10.dp))
+        )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                formatDuration(state.currentMs / 1_000L),
+                style = ShelfTypography.LabelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                formatDuration(bookDuration / 1_000L),
+                style = ShelfTypography.LabelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
-        val useChapterScrub = hasChapters && chapterMode
-        if (useChapterScrub) {
-            val chapter = chapters.getOrNull(state.currentChapterIndex)
-            val chStart = chapter?.startMs?.coerceAtLeast(0L) ?: 0L
-            val chEnd = chapter?.endMs?.takeIf { it > chStart }
-                ?: state.durationMs.takeIf { it > chStart }
-                ?: (chStart + 1L)
+        // ── 2. Kompakt KAPITTEL-tidslinje (kun > 1 reelle kapitler) ──
+        if (hasChapters) {
+            Spacer(Modifier.height(12.dp))
+            val idx = AudiobookTimeline.currentChapterIndex(chapters, state.currentMs)
+            val (chStart, chEnd) = AudiobookTimeline.chapterBoundsMs(chapters, idx, bookDuration)
             val chLen = (chEnd - chStart).coerceAtLeast(1L)
             val chElapsed = (state.currentMs - chStart).coerceIn(0L, chLen)
-            val chPct = chElapsed.toFloat() / chLen.toFloat()
-            var slider by remember(state.currentMs, chStart, chEnd) { mutableFloatStateOf(chPct) }
-
-            Slider(
-                value = slider,
-                onValueChange = { slider = it },
-                onValueChangeFinished = {
-                    val ms = chStart + (slider * chLen).toLong()
-                    onSeek(ms)
-                }
-            )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(
-                    formatDuration(chElapsed / 1_000L),
-                    style = ShelfTypography.LabelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    "- ${formatDuration(max(0L, (chEnd - state.currentMs) / 1_000L))}",
-                    style = ShelfTypography.LabelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            val chapter = chapters.getOrNull(idx)
+            var chSlider by remember(state.currentMs, chStart, chEnd) {
+                mutableFloatStateOf(chElapsed.toFloat() / chLen.toFloat())
             }
-
-            Spacer(Modifier.height(10.dp))
-
-            // Hel-bok-kontekst: tynn, ikke-skrubbar linje + kapittelnummer/prosent
-            val bookPct = if (bookDuration > 0) (state.currentMs.toFloat() / bookDuration).coerceIn(0f, 1f) else 0f
-            LinearProgressIndicator(
-                progress = { bookPct },
-                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp))
+            Slider(
+                value = chSlider,
+                onValueChange = { chSlider = it },
+                onValueChangeFinished = {
+                    // Forblir alltid innenfor kapittelets grenser (start + fraksjon av lengde).
+                    onSeek(chStart + (chSlider * chLen).toLong())
+                }
             )
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Kapittel ${state.currentChapterIndex + 1} av ${chapters.size} · ${chapter?.title.orEmpty()}".trim(),
+                    chapter?.title.orEmpty(),
                     style = ShelfTypography.LabelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )
+                Spacer(Modifier.width(8.dp))
                 Text(
-                    "${(bookPct * 100).toInt()}% av boken",
+                    "Kapittel ${idx + 1} av ${chapters.size}",
                     style = ShelfTypography.LabelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
-            val currentSec = state.currentMs / 1_000L
-            val durSec = bookDuration / 1_000L
-            val pctF = if (bookDuration > 0) state.currentMs.toFloat() / bookDuration.toFloat() else 0f
-            var slider by remember(state.currentMs, bookDuration) { mutableFloatStateOf(pctF) }
-
-            Slider(
-                value = slider,
-                onValueChange = { slider = it },
-                onValueChangeFinished = {
-                    val ms = (slider * bookDuration.coerceAtLeast(1L)).toLong()
-                    onSeek(ms)
-                }
-            )
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    formatDuration(currentSec),
-                    style = ShelfTypography.LabelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    "- ${formatDuration(max(0L, durSec - currentSec))}",
-                    style = ShelfTypography.LabelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            if (hasChapters) {
-                Spacer(Modifier.height(10.dp))
-                val chapter = chapters.getOrNull(state.currentChapterIndex)
-                val chStart = chapter?.startMs?.coerceAtLeast(0L) ?: 0L
-                val chEnd = chapter?.endMs?.takeIf { it > chStart } ?: bookDuration.coerceAtLeast(chStart + 1)
-                val chLen = (chEnd - chStart).coerceAtLeast(1L)
-                val chPct = ((state.currentMs - chStart).coerceIn(0L, chLen)).toFloat() / chLen.toFloat()
-                LinearProgressIndicator(
-                    progress = { chPct },
-                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp))
-                )
-                Text(
-                    "Kapittel ${state.currentChapterIndex + 1} av ${chapters.size} · ${chapter?.title.orEmpty()}".trim(),
-                    style = ShelfTypography.LabelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }

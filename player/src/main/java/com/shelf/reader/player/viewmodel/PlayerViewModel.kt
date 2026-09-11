@@ -21,6 +21,7 @@ import com.shelf.reader.data.local.entity.FormatEntity
 import com.shelf.reader.data.local.entity.ReadingProgressEntity
 import com.shelf.reader.player.engine.AudiobookEngine
 import com.shelf.reader.player.engine.AudiobookState
+import com.shelf.reader.player.engine.ChapterRefresh
 import com.shelf.reader.player.service.AudiobookPlaybackService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -276,37 +277,54 @@ class PlayerViewModel(
         syncStateFromService()
     }
 
-    fun seekTo(ms: Long) {
+    /**
+     * GLOBAL søk: mål på hele boktidslinjen (0..global varighet). Løses i
+     * service: global tid → kapittel/MediaItem → klipp-relativ posisjon. All
+     * spoling (±30 s, ±5 min, kapittelliste, slider) går hit — ÉN metode.
+     */
+    fun seekToGlobal(ms: Long) {
         val duration = _state.value.durationMs
-        val clamped = ms.coerceIn(0L, max(duration, 0L))
+        val clamped = ChapterRefresh.quickSeekTarget(ms, 0L, duration)
         service?.seekTo(clamped)
         syncStateFromService()
     }
 
+    fun seekTo(ms: Long) = seekToGlobal(ms)
+
+    /** Hurtigsøk på GLOBAL boktid: +30 s / +5 min (stort hopp i lange bøker). */
     fun skipForward(ms: Long = 30_000L) {
-        seekTo(_state.value.currentMs + ms)
+        val s = _state.value
+        seekToGlobal(ChapterRefresh.quickSeekTarget(s.currentMs, ms, s.durationMs))
     }
 
-    fun skipBack(ms: Long = 10_000L) {
-        seekTo(_state.value.currentMs - ms)
+    /** Hurtigsøk på GLOBAL boktid: −30 s / −5 min, clampet til 0. */
+    fun skipBack(ms: Long = 30_000L) {
+        val s = _state.value
+        seekToGlobal(ChapterRefresh.quickSeekTarget(s.currentMs, -ms, s.durationMs))
     }
 
-    fun nextChapter() {
-        val current = _state.value
-        val nextStart = current.chapters
-            .getOrNull(current.currentChapterIndex + 1)
-            ?.startMs
-            ?: current.durationMs
-        seekTo(nextStart)
-    }
-
+    /**
+     * Forrige kapittel: litt inne i kapittelet → kapittelstart; ved start →
+     * forrige kapittels start. Kun meningsfullt med > 1 reelle kapitler.
+     */
     fun prevChapter() {
         val current = _state.value
-        val prevStart = current.chapters
-            .getOrNull(current.currentChapterIndex - 1)
-            ?.startMs
-            ?: 0L
-        seekTo(prevStart)
+        if (current.chapters.size <= 1) return
+        val idx = current.currentChapterIndex.coerceIn(0, current.chapters.size - 1)
+        val ch = current.chapters[idx]
+        if (current.currentMs - ch.startMs > 3_000L) {
+            seekToGlobal(ch.startMs)
+        } else {
+            seekToGlobal(current.chapters.getOrNull(idx - 1)?.startMs ?: ch.startMs)
+        }
+    }
+
+    /** Neste kapittel; deaktivert (no-op) i siste kapittel. */
+    fun nextChapter() {
+        val current = _state.value
+        if (current.chapters.size <= 1) return
+        if (current.currentChapterIndex >= current.chapters.size - 1) return
+        seekToGlobal(current.chapters.getOrNull(current.currentChapterIndex + 1)?.startMs ?: return)
     }
 
     fun setSpeed(speed: Float) {
