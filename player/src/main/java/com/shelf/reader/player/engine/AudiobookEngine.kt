@@ -205,9 +205,20 @@ class AudiobookEngine(
         if (!isStub && !wantsTitles) return base
 
         val identity = "${book.fileSizeBytes}:${book.lastModifiedAt}"
+        // Persistent huskemarkør: aldri mer enn én nett-attempt per filidentitet,
+        // også på tvers av app-omstarter (unødvendig nettverk ellers).
+        val netPrefs = ctx.getSharedPreferences("chapter_net_lookup", Context.MODE_PRIVATE)
+        val netKey = "${book.id}:$identity"
+        if (netPrefs.getStringSet("attempted", emptySet())?.contains(netKey) == true) {
+            chapterDiag("NET-SKIP id=${book.id} (allerede forsøkt)")
+            return base
+        }
         if (netLookupAttempted.put(book.id, identity) == identity) return base
 
         val updated = lookupOnlineChapters(this, book, base, playableSourceUri(book))
+        netPrefs.edit()
+            .putStringSet("attempted", (netPrefs.getStringSet("attempted", emptySet())!! + netKey))
+            .apply()
         if (updated != base && updated.size > 1) {
             runCatching {
                 db.bookDao().update(
