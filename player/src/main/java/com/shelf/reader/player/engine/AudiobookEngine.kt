@@ -194,9 +194,13 @@ class AudiobookEngine(
      * Persisteres umiddelbart; maks ÉN nett-attempt per filidentitet per prosess.
      */
     private suspend fun netEnhance(book: BookEntity, base: List<AudiobookChapter>): List<AudiobookChapter> {
-        val isStub = base.size == 1 &&
-            base[0].startMs == 0L &&
-            base[0].title.equals(book.title.trim(), ignoreCase = true)
+        // Stub-deteksjon: identisk tittel, «Forfatter - Tittel»-form, eller generisk.
+        val chapterTitle = base[0].title.trim()
+        val bookTitle = book.title.trim()
+        val isStub = base.size == 1 && base[0].startMs == 0L &&
+            (chapterTitle.equals(bookTitle, ignoreCase = true) ||
+                (bookTitle.isNotBlank() && chapterTitle.contains(bookTitle, ignoreCase = true)) ||
+                AudibleChapterLookup.looksGeneric(chapterTitle))
         val wantsTitles = base.size >= 2 && base.any { AudibleChapterLookup.looksGeneric(it.title) }
         if (!isStub && !wantsTitles) return base
 

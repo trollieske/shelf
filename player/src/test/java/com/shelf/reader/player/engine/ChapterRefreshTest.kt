@@ -40,6 +40,18 @@ class ChapterRefreshTest {
     }
 
     @Test
+    fun `2c author-prefixed single entry counts as stub`() {
+        // Ekte tilfelle: 'Andy Weir - Project Hail Mary' mot boktittel 'Project Hail Mary'
+        val reason = ChapterRefresh.evaluateStoredChapters(
+            jsonBlank = false,
+            parsedChapters = listOf(row("Andy Weir - Project Hail Mary", 0L)),
+            bookTitle = "Project Hail Mary",
+            storedChapterCount = 1,
+        )
+        assertEquals(ChapterStaleReason.SINGLE_STUB, reason)
+    }
+
+    @Test
     fun `2b blank-titled single entry counts as stub`() {
         val reason = ChapterRefresh.evaluateStoredChapters(
             jsonBlank = false,

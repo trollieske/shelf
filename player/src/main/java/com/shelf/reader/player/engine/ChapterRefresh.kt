@@ -52,8 +52,10 @@ object ChapterRefresh {
         if (parsedChapters.isEmpty()) return ChapterStaleReason.EMPTY
         if (parsedChapters.size == 1) {
             val only = parsedChapters[0]
-            val titleMatchesBook = bookTitle.isNotBlank() &&
-                only.title.trim().equals(bookTitle.trim(), ignoreCase = true)
+            val bookT = bookTitle.trim()
+            val titleMatchesBook = bookT.isNotBlank() &&
+                (only.title.trim().equals(bookT, ignoreCase = true) ||
+                    only.title.contains(bookT, ignoreCase = true))
             val syntheticStub = (titleMatchesBook && only.startMs == 0L) || only.title.isBlank()
             if (syntheticStub) return ChapterStaleReason.SINGLE_STUB
         }
