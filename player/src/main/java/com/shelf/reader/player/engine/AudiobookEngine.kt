@@ -146,7 +146,8 @@ class AudiobookEngine(
 
         if (reason == null) {
             chapterDiag("FRESH id=${book.id} ext=$ext stored=${stored.size}")
-            return stored.ifEmpty { buildStubChapters(book.title, book.durationMs ?: 0L) }
+            val fallback = stored.ifEmpty { buildStubChapters(book.title, book.durationMs ?: 0L) }
+            return netEnhance(book, fallback)
         }
 
         // Unngå gjentatt parsing av samme filidentitet: kun én discovery per
@@ -173,11 +174,50 @@ class AudiobookEngine(
                 )
             }
             chapterDiag("REFRESHED id=${book.id} source=${discovery.source} found=${found.size}")
-            return found
+            return netEnhance(book, found)
         }
         chapterDiag("KEEP id=${book.id} source=${discovery?.source ?: ChapterDiscoverySource.NONE} found=${found.size}")
         // Én ekte kapittelfil uten metadata: behold nøyaktig én kapittel med boktittel.
-        return stored.ifEmpty { buildStubChapters(book.title, book.durationMs ?: 0L) }
+        val fallback = stored.ifEmpty { buildStubChapters(book.title, book.durationMs ?: 0L) }
+        return netEnhance(book, fallback)
+    }
+
+    private val netLookupAttempted = java.util.concurrent.ConcurrentHashMap<Long, String>()
+
+    /**
+     * Nett-fase: hent reelle kapittelnavn/grenser fra Audible-metadata når våre
+     * egne kilder ikke ga dem:
+     *  - stub (én generisk kapittel) → kapitler kan OPPRETTES fra Audibles
+     *    varigheter (validert mot vår totale varighet, ±5 %).
+     *  - > 1 kapittel med generiske titler («Chapter N») → titler erstattes
+     *    KUN ved nøyaktig likt antall (indeks-til-indeks).
+     * Persisteres umiddelbart; maks ÉN nett-attempt per filidentitet per prosess.
+     */
+    private suspend fun netEnhance(book: BookEntity, base: List<AudiobookChapter>): List<AudiobookChapter> {
+        val isStub = base.size == 1 &&
+            base[0].startMs == 0L &&
+            base[0].title.equals(book.title.trim(), ignoreCase = true)
+        val wantsTitles = base.size >= 2 && base.any { AudibleChapterLookup.looksGeneric(it.title) }
+        if (!isStub && !wantsTitles) return base
+
+        val identity = "${book.fileSizeBytes}:${book.lastModifiedAt}"
+        if (netLookupAttempted.put(book.id, identity) == identity) return base
+
+        val updated = lookupOnlineChapters(this, book, base, playableSourceUri(book))
+        if (updated != base && updated.size > 1) {
+            runCatching {
+                db.bookDao().update(
+                    book.copy(
+                        chaptersJson = chaptersToJson(updated),
+                        chapterCount = updated.size,
+                        durationMs = book.durationMs?.takeIf { it > 0L },
+                        lastModifiedAt = System.currentTimeMillis(),
+                    )
+                )
+            }
+            chapterDiag("NET-PERSISTED id=${book.id} chapters=${updated.size}")
+        }
+        return updated
     }
 
     private val attemptedRefresh = java.util.concurrent.ConcurrentHashMap<Long, String>()

@@ -157,7 +157,7 @@ object AudiobookTimeline {
 
 /** Gated diagnostikk (AV som standard) — aldri filstier, rå metadata eller innhold. */
 // MIDERTIDIG PÅ for live feilsøking på telefon — skru AV før release!
-private const val CHAPTER_REFRESH_DIAG = true
+internal const val CHAPTER_REFRESH_DIAG = true
 internal fun chapterDiag(msg: String) {
     if (CHAPTER_REFRESH_DIAG) Log.d(ChapterRefresh.DIAG_TAG, msg)
 }
