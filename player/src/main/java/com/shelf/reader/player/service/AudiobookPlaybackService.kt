@@ -680,7 +680,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
 
     fun setSpeed(speed: Float) {
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
-            player?.setPlaybackSpeed(speed.coerceIn(0.5f, 2f))
+            player?.setPlaybackSpeed(speed.coerceIn(0.5f, 3f))
         } else {
             serviceScope.launch(Dispatchers.Main) { setSpeed(speed) }
         }

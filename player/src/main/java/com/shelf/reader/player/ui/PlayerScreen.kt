@@ -6,6 +6,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,14 +21,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -49,6 +56,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.max
 
@@ -70,6 +78,7 @@ fun PlayerScreen(
     val prefs = remember { com.shelf.reader.data.prefs.UserPreferencesRepository(ctx.applicationContext as android.app.Application) }
     val handoffRepo = remember { HandoffRepository(ShelfDatabase.getInstance(ctx.applicationContext as android.app.Application)) }
     var showChapters by rememberSaveable { mutableStateOf(false) }
+    var showSpeedDialog by rememberSaveable { mutableStateOf(false) }
     var showSleep by rememberSaveable { mutableStateOf(false) }
     val playerReady = serviceBound && state.mediaUri != null && state.error == null
 
@@ -461,14 +470,9 @@ fun PlayerScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 AssistChip(
-                    onClick = {
-                        val speeds = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
-                        val i = speeds.indexOf(state.playbackSpeed)
-                        val next = if (i < 0) 1f else speeds[(i + 1) % speeds.size]
-                        scope.launch { vm.setSpeed(next) }
-                    },
+                    onClick = { showSpeedDialog = true },
                     leadingIcon = { Icon(Icons.Default.Speed, null, Modifier.size(18.dp)) },
-                    label = { Text("${String.format("%.2f", state.playbackSpeed)}×") }
+                    label = { Text(formatSpeed(state.playbackSpeed)) }
                 )
                 AssistChip(
                     onClick = { showSleep = true },
@@ -500,6 +504,14 @@ fun PlayerScreen(
                 )
             }
         }
+    }
+
+    if (showSpeedDialog) {
+        SpeedDialog(
+            current = state.playbackSpeed,
+            onPick = { s -> scope.launch { vm.setSpeed(s) } },
+            onDismiss = { showSpeedDialog = false }
+        )
     }
 
     if (showChapters) {
@@ -596,6 +608,14 @@ fun PlayerScreen(
  *    kapittelets grenser) + «Kapittel X av Y». Skjules helt ved én reell
  *    kapittelfil — aldri «1 av 1».
  */
+/**
+ * GLOBAL boktidslinje (kompakt, øverst — for store hopp i lange bøker) +
+ * KAPITTEL-tidslinje (primær, de fleste spoler her) + hastighets-avhengige
+ * tellere.
+ *
+ *  - «HELE BOKEN»: tynn scratch-linje med global elapsed/total ved siden av.
+ *  - «I KAPITTELLET»: full slider med egen teller; kan aldri forlate kapittelet.
+ */
 @Composable
 private fun SeekProgressSection(
     state: AudiobookState,
@@ -606,41 +626,33 @@ private fun SeekProgressSection(
     val hasChapters = chapters.size > 1
 
     Column(Modifier.fillMaxWidth()) {
-        // ── 1. GLOBAL BOKTIDSLINJE (primær navigasjon for lange bøker) ──
-        Text(
-            "HELE BOKEN",
-            style = ShelfTypography.LabelSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-        val bookPct = AudiobookTimeline.globalFraction(state.currentMs, bookDuration)
-        var bookSlider by remember(state.currentMs, bookDuration) { mutableFloatStateOf(bookPct) }
-        Slider(
-            value = bookSlider,
-            onValueChange = { bookSlider = it },
-            onValueChangeFinished = {
-                onSeek((bookSlider * bookDuration.coerceAtLeast(1L)).toLong())
-            }
-        )
+        // ── 1. GLOBAL BOKTIDSLINJE — kompakt scratch-linje øverst ──
         Row(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                formatDuration(state.currentMs / 1_000L),
+                "HELE BOKEN",
                 style = ShelfTypography.LabelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
             Text(
-                formatDuration(bookDuration / 1_000L),
+                "${formatDuration(state.currentMs / 1_000L)} / ${formatDuration(bookDuration / 1_000L)}",
                 style = ShelfTypography.LabelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        val bookPct = AudiobookTimeline.globalFraction(state.currentMs, bookDuration)
+        CompactTimeline(
+            fraction = bookPct,
+            onSeekFraction = { f -> onSeek((f * bookDuration.coerceAtLeast(1L)).toLong()) },
+            modifier = Modifier.padding(top = 2.dp, bottom = 6.dp)
+        )
 
         // ── 2. KAPITTEL-TIDSLINJE med egen teller (kun > 1 reelle kapitler) ──
         if (hasChapters) {
-            Spacer(Modifier.height(12.dp))
             val idx = AudiobookTimeline.currentChapterIndex(chapters, state.currentMs)
             val (chStart, chEnd) = AudiobookTimeline.chapterBoundsMs(chapters, idx, bookDuration)
             val chLen = (chEnd - chStart).coerceAtLeast(1L)
@@ -703,6 +715,117 @@ private fun SeekProgressSection(
         }
     }
 }
+
+/**
+ * Tynn, kompakt søk-linje (tap + horisontal drag) for hele boken.
+ * Mindre visuell vekt enn kapittel-slideren — «scratch»-linjen.
+ */
+@Composable
+private fun CompactTimeline(
+    fraction: Float,
+    onSeekFraction: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var trackWidthPx by remember { mutableFloatStateOf(1f) }
+    var dragging by remember { mutableStateOf(false) }
+    var dragFraction by remember { mutableFloatStateOf(0f) }
+    val shown = (if (dragging) dragFraction else fraction).coerceIn(0f, 1f)
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant
+    val activeColor = MaterialTheme.colorScheme.primary
+    val thumbColor = MaterialTheme.colorScheme.primary
+
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(26.dp)
+            .onSizeChanged { if (it.width > 0) trackWidthPx = it.width.toFloat() }
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    onSeekFraction((offset.x / trackWidthPx).coerceIn(0f, 1f))
+                }
+            }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { offset ->
+                        dragging = true
+                        dragFraction = (offset.x / trackWidthPx).coerceIn(0f, 1f)
+                    },
+                    onDragEnd = {
+                        dragging = false
+                        onSeekFraction(dragFraction)
+                    },
+                    onDragCancel = { dragging = false },
+                ) { change, _ ->
+                    change.consume()
+                    dragFraction = (change.position.x / trackWidthPx).coerceIn(0f, 1f)
+                }
+            }
+    ) {
+        Canvas(
+            Modifier
+                .fillMaxWidth()
+                .height(5.dp)
+                .align(Alignment.CenterStart)
+        ) {
+            val r = size.height / 2f
+            drawRoundRect(color = trackColor, cornerRadius = CornerRadius(r, r))
+            drawRoundRect(
+                color = activeColor,
+                size = Size(size.width * shown, size.height),
+                cornerRadius = CornerRadius(r, r),
+            )
+        }
+        val thumbPx = with(LocalDensity.current) { 12.dp.toPx() }
+        Box(
+            Modifier
+                .align(Alignment.CenterStart)
+                .offset { IntOffset(((trackWidthPx - thumbPx) * shown).roundToInt(), 0) }
+                .size(12.dp)
+                .background(thumbColor, RoundedCornerShape(6.dp))
+        )
+    }
+}
+
+/**
+ * Avspillingshastighet: skikkelig velger (filter-chips) i stedet for sykling.
+ * 0,5×–3,0× — ExoPlayer håndterer pitch-korreksjon automatisk.
+ */
+@Composable
+private fun SpeedDialog(
+    current: Float,
+    onPick: (Float) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val speeds = listOf(0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Avspillingshastighet", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                speeds.chunked(4).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        row.forEach { s ->
+                            FilterChip(
+                                selected = kotlin.math.abs(s - current) < 0.001f,
+                                onClick = { onPick(s); onDismiss() },
+                                label = { Text(formatSpeed(s)) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Lukk") }
+        }
+    )
+}
+
+/** «1×», «1.25×», «3×» — uten unødige desimaler. */
+private fun formatSpeed(speed: Float): String =
+    if (speed % 1f == 0f) "${'$'}{speed.toInt()}×" else "${'$'}{speed}×"
 
 private fun formatDuration(totalSeconds: Long): String {
     val s = totalSeconds.coerceAtLeast(0L)

@@ -328,7 +328,7 @@ class PlayerViewModel(
     }
 
     fun setSpeed(speed: Float) {
-        val clamped = speed.coerceIn(0.5f, 2.0f)
+        val clamped = speed.coerceIn(0.5f, 3.0f)
         service?.setSpeed(clamped)
         syncStateFromService()
     }
