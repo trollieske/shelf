@@ -41,6 +41,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,6 +63,7 @@ import com.shelf.reader.reader.engine.PageWindow
 import com.shelf.reader.reader.engine.ReaderBookState
 import com.shelf.reader.reader.engine.ReaderPageRef
 import com.shelf.reader.reader.pageturn.*
+import com.shelf.reader.reader.R
 import com.shelf.reader.reader.viewmodel.ReaderViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -193,8 +195,7 @@ fun ReaderScreen(
         when {
             ui.error != null -> ErrorView(ui.error!!, onBack)
             ui.chapters.isEmpty() && ui.bookTitle.isNotBlank() -> ErrorView(
-                message = "Fant ingen lesbare kapitler i boken.\n\n" +
-                    "Filen kan være tom, skadet, ha en DRM-beskyttelse, eller ha et støttet format som ikke kunne tolkes korrekt. Prøv å importere boken på nytt, eller konvertere til en ren DRM-fri EPUB først.",
+                message = stringResource(R.string.rdr_no_chapters),
                 onBack = onBack,
             )
             ui.chapters.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
@@ -247,7 +248,7 @@ fun ReaderScreen(
                             }
                             android.widget.Toast.makeText(
                                 context,
-                                if (orientationLocked) "Skjerm låst i nåværende rotasjon" else "Skjerm låst opp",
+                                if (orientationLocked) context.getString(R.string.rdr_screen_locked) else context.getString(R.string.rdr_screen_unlocked),
                                 android.widget.Toast.LENGTH_SHORT
                             ).show()
                         },
@@ -286,30 +287,36 @@ fun ReaderScreen(
             AlertDialog(
                 onDismissRequest = { showThemesSheet = false },
                 title = {
-                    Text("Themes & Settings", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.rdr_themes_settings), fontWeight = FontWeight.Bold)
                 },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Text("Font Size", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.rdr_font_size), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             FilledTonalIconButton(onClick = { vm.setFontSize(ui.fontSizeSp - 1); navEpoch++ }, modifier = Modifier.size(42.dp)) { Text("A-", fontSize = 11.sp) }
                             Text("${ui.fontSizeSp} sp", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                             FilledTonalIconButton(onClick = { vm.setFontSize(ui.fontSizeSp + 1); navEpoch++ }, modifier = Modifier.size(42.dp)) { Text("A+", fontSize = 14.sp) }
                         }
                         Spacer(Modifier.height(6.dp))
-                        Text("Theme", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.rdr_theme), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("Light", "Sepia", "Dark", "Black").forEach { theme ->
-                                val isSelected = ui.readerTheme.equals(theme, ignoreCase = true)
+                            val themes = listOf(
+                                "light" to stringResource(R.string.rdr_theme_light),
+                                "sepia" to stringResource(R.string.rdr_theme_sepia),
+                                "dark" to stringResource(R.string.rdr_theme_dark),
+                                "black" to stringResource(R.string.rdr_theme_black)
+                            )
+                            themes.forEach { (storageKey, label) ->
+                                val isSelected = ui.readerTheme == storageKey
                                 Surface(
-                                    onClick = { vm.setTheme(theme.lowercase()); navEpoch++ },
+                                    onClick = { vm.setTheme(storageKey); navEpoch++ },
                                     shape = RoundedCornerShape(14.dp),
                                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                                     modifier = Modifier.height(40.dp).weight(1f)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(
-                                            theme,
+                                            label,
                                             style = MaterialTheme.typography.labelMedium,
                                             color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                                             fontWeight = FontWeight.SemiBold
@@ -321,7 +328,7 @@ fun ReaderScreen(
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = { showThemesSheet = false }) { Text("Close", fontWeight = FontWeight.Bold) }
+                    TextButton(onClick = { showThemesSheet = false }) { Text(stringResource(R.string.rdr_close), fontWeight = FontWeight.Bold) }
                 }
             )
         }
@@ -354,7 +361,7 @@ fun ReaderScreen(
                                 modifier = Modifier.weight(1f)
                             )
                             IconButton(onClick = { scope.launch { sheetState.hide(); showContentsSheet = false } }) {
-                                Icon(Icons.Default.Close, contentDescription = "Close")
+                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.rdr_close))
                             }
                         }
                         Spacer(Modifier.height(10.dp))
@@ -417,29 +424,29 @@ fun ReaderScreen(
                         if (searchQuery.isNotBlank()) {
                             android.widget.Toast.makeText(
                                 context,
-                                "Søk etter \"$searchQuery\" er ikke tilgjengelig i bitmap-visningen ennå.",
+                                context.getString(R.string.rdr_search_unavailable, searchQuery),
                                 android.widget.Toast.LENGTH_LONG
                             ).show()
                         }
                         showSearchDialog = false
-                    }) { Text("Søk") }
+                    }) { Text(stringResource(R.string.rdr_search)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showSearchDialog = false }) { Text("Avbryt") }
+                    TextButton(onClick = { showSearchDialog = false }) { Text(stringResource(R.string.rdr_cancel)) }
                 },
-                title = { Text("Søk i kapittel") },
+                title = { Text(stringResource(R.string.rdr_search_in_chapter)) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            label = { Text("Ord eller setning") },
+                            label = { Text(stringResource(R.string.rdr_search_label)) },
                             singleLine = true,
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
                         )
                         Text(
-                            "Søk søker i nåværende kapitteltekst og lister treff som kompakt HUD.",
+                            stringResource(R.string.rdr_search_body),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -951,7 +958,7 @@ private fun RealBookSlideReader(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        "Rendering: $metrics",
+                        "${stringResource(R.string.rdr_rendering)}: $metrics",
                         color = Color.White,
                         modifier = Modifier.padding(12.dp),
                         style = MaterialTheme.typography.labelSmall
@@ -1007,7 +1014,7 @@ private fun ReaderControlsOverlay(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Tilbake", modifier = Modifier.size(26.dp))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.rdr_back), modifier = Modifier.size(26.dp))
                     }
                     Text(
                         ui.bookTitle,
@@ -1019,23 +1026,23 @@ private fun ReaderControlsOverlay(
                         modifier = Modifier.weight(1f).padding(horizontal = 6.dp)
                     )
                     IconButton(onClick = onOpenSearch) {
-                        Icon(Icons.Default.Search, "Søk", modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.Search, stringResource(R.string.rdr_search), modifier = Modifier.size(24.dp))
                     }
                     IconButton(onClick = {
                         val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             val pct = ((ui.percent.coerceIn(0f, 1f)) * 100).toInt()
-                            val chapTitle = ui.chapters.getOrNull(ui.currentChapterIndex)?.title?.takeIf { it.isNotBlank() } ?: "Kapittel ${ui.currentChapterIndex + 1}"
+                            val chapTitle = ui.chapters.getOrNull(ui.currentChapterIndex)?.title?.takeIf { it.isNotBlank() } ?: ctx.getString(R.string.rdr_chapter, ui.currentChapterIndex + 1)
                             putExtra(
                                 android.content.Intent.EXTRA_TEXT,
-                                "Jeg lser nå \"${ui.bookTitle}\" — $chapTitle (side ${ui.currentPage + 1} av ${ui.totalPages.coerceAtLeast(1)}, $pct%)\n#ShelfApp"
+                                ctx.getString(R.string.rdr_share_text, ui.bookTitle, chapTitle, ui.currentPage + 1, ui.totalPages.coerceAtLeast(1), pct)
                             )
                             putExtra(android.content.Intent.EXTRA_TITLE, ui.bookTitle)
                             addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                         }
-                        ctx.startActivity(android.content.Intent.createChooser(shareIntent, "Del lesefremgang"))
+                        ctx.startActivity(android.content.Intent.createChooser(shareIntent, ctx.getString(R.string.rdr_share_progress)))
                     }) {
-                        Icon(Icons.Outlined.Share, "Del", modifier = Modifier.size(24.dp))
+                        Icon(Icons.Outlined.Share, stringResource(R.string.rdr_share), modifier = Modifier.size(24.dp))
                     }
                 }
             }
@@ -1064,7 +1071,7 @@ private fun ReaderControlsOverlay(
                         .padding(top = 6.dp, bottom = 8.dp)
                 ) {
                     Text(
-                        "$pagesLeftInChapter pages left · $pctStr · ${ui.currentPage + 1} of ${ui.totalPages.coerceAtLeast(1)}",
+                        stringResource(R.string.rdr_pages_left, pagesLeftInChapter, pctStr, ui.currentPage + 1, ui.totalPages.coerceAtLeast(1)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
                         textAlign = TextAlign.Center,
@@ -1083,7 +1090,7 @@ private fun ReaderControlsOverlay(
                             selected = false,
                             onClick = onOpenContents,
                             icon = { Icon(Icons.AutoMirrored.Filled.List, null, modifier = Modifier.size(26.dp)) },
-                            label = { Text("Contents", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
+                            label = { Text(stringResource(R.string.rdr_contents), fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
                         )
                         NavigationBarItem(
                             selected = false,
@@ -1094,13 +1101,13 @@ private fun ReaderControlsOverlay(
                                     Text("A", fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 1.dp))
                                 }
                             },
-                            label = { Text("Themes", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
+                            label = { Text(stringResource(R.string.rdr_themes), fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
                         )
                         NavigationBarItem(
                             selected = false,
                             onClick = onToggleBookmark,
                             icon = { Icon(Icons.Outlined.BookmarkBorder, null, modifier = Modifier.size(26.dp)) },
-                            label = { Text("Bookmark", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
+                            label = { Text(stringResource(R.string.rdr_bookmark), fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
                         )
                         NavigationBarItem(
                             selected = orientationLocked,
@@ -1113,7 +1120,7 @@ private fun ReaderControlsOverlay(
                                     tint = if (orientationLocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             },
-                            label = { Text(if (orientationLocked) "Låst" else "Lock", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
+                            label = { Text(if (orientationLocked) stringResource(R.string.rdr_locked) else stringResource(R.string.rdr_lock), fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
                         )
                     }
                 }
@@ -1133,7 +1140,7 @@ private fun ErrorView(message: String, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Icon(Icons.Default.ErrorOutline, null, Modifier.size(64.dp), tint = MaterialTheme.colorScheme.error)
         Spacer(Modifier.height(16.dp)); Text(message, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(24.dp)); Button(onClick = onBack) { Text("Go Back") }
+        Spacer(Modifier.height(24.dp)); Button(onClick = onBack) { Text(stringResource(R.string.rdr_go_back)) }
     }
 }
 

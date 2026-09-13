@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lib_books">Bøger</string>
+    <string name="lib_audiobooks">Lydbøger</string>
+    <string name="lib_search_a11y">Søg</string>
+    <string name="lib_sources_a11y">FTP og synk</string>
+    <string name="lib_import_a11y">Importer</string>
+    <string name="lib_settings_a11y">Indstillinger</string>
+    <string name="lib_search_hint">Søg i biblioteket...</string>
+    <string name="lib_clear_a11y">Ryd</string>
+    <string name="lib_continue">Fortsæt</string>
+    <string name="lib_empty_title">Dit bibliotek er tomt</string>
+    <string name="lib_empty_desc">Tilføj e-bøger og lydbøger ved at importere filer fra din enhed eller synkronisere fra FTP/seedbox.</string>
+    <string name="lib_sync_button">Synkroniser fra FTP / seedbox</string>
+    <string name="lib_import_button">Importer fra enhed</string>
+    <string name="lib_sort_shelf">Hylde</string>
+    <string name="lib_sort_series">Serie</string>
+    <string name="lib_sort_author">Forfatter</string>
+    <string name="lib_sort_recent">Seneste</string>
+    <string name="lib_sort_title">Titel</string>
+    <string name="lib_sort_added">Tilføjet</string>
+</resources>

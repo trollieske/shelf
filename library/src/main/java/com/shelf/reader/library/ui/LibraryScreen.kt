@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -37,6 +38,7 @@ import com.shelf.reader.core.domain.model.LibrarySortMode
 import com.shelf.reader.core.domain.model.SortDirection
 import com.shelf.reader.designsystem.components.BookCoverCard
 import com.shelf.reader.designsystem.theme.ShelfTypography
+import com.shelf.reader.library.R
 import com.shelf.reader.library.sort.ResumeSelector
 import com.shelf.reader.library.viewmodel.GridEntry
 import com.shelf.reader.library.viewmodel.LibraryMode
@@ -131,8 +133,8 @@ fun LibraryScreen(
                     ) {
                         Text(
                             when (mode) {
-                                LibraryMode.Books -> "Bøker"
-                                LibraryMode.Audio -> "Lydbøker"
+                                LibraryMode.Books -> stringResource(R.string.lib_books)
+                                LibraryMode.Audio -> stringResource(R.string.lib_audiobooks)
                             },
                             style = ShelfTypography.TitleLarge,
                             color = LibFgBright,
@@ -141,16 +143,16 @@ fun LibraryScreen(
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { showSearchField = !showSearchField }, modifier = Modifier.size(36.dp)) {
-                                Icon(Icons.Default.Search, contentDescription = "Søk", tint = if (search.isNotEmpty() || showSearchField) LibAccent else LibDim, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Search, contentDescription = stringResource(R.string.lib_search_a11y), tint = if (search.isNotEmpty() || showSearchField) LibAccent else LibDim, modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = onFtpClick, modifier = Modifier.size(36.dp)) {
-                                Icon(Icons.Default.CloudSync, contentDescription = "FTP & Synk", tint = LibDim, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.CloudSync, contentDescription = stringResource(R.string.lib_sources_a11y), tint = LibDim, modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = onImportClick, modifier = Modifier.size(36.dp)) {
-                                Icon(Icons.Default.Add, contentDescription = "Importer", tint = LibFgBright, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.lib_import_a11y), tint = LibFgBright, modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = onSettingsClick, modifier = Modifier.size(36.dp)) {
-                                Icon(Icons.Default.Settings, contentDescription = "Innstillinger", tint = LibDim, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.lib_settings_a11y), tint = LibDim, modifier = Modifier.size(20.dp))
                             }
                         }
                     }
@@ -174,7 +176,7 @@ fun LibraryScreen(
                                     Spacer(Modifier.width(6.dp))
                                     Box(modifier = Modifier.weight(1f)) {
                                         if (search.isEmpty()) {
-                                            Text("Søk i biblioteket...", color = LibDim, fontSize = 12.sp, maxLines = 1)
+                                            Text(stringResource(R.string.lib_search_hint), color = LibDim, fontSize = 12.sp, maxLines = 1)
                                         }
                                         androidx.compose.foundation.text.BasicTextField(
                                             value = search,
@@ -185,7 +187,7 @@ fun LibraryScreen(
                                     }
                                     if (search.isNotEmpty()) {
                                         IconButton(onClick = { search = "" }, modifier = Modifier.size(20.dp)) {
-                                            Icon(Icons.Default.Close, contentDescription = "Tøm", tint = LibDim)
+                                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.lib_clear_a11y), tint = LibDim)
                                         }
                                     }
                                 }
@@ -276,7 +278,7 @@ fun LibraryScreen(
                 tonalElevation = 0.dp
             ) {
                 Text(
-                    "Fortsett",
+                    stringResource(R.string.lib_continue),
                     style = ShelfTypography.TitleMedium,
                     color = LibFgBright,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -334,6 +336,16 @@ fun LibraryScreen(
 
 /** Sort Rail: kompakt terminal/HUD-selector over rutenettet. Ingen Material-chips. */
 @Composable
+private fun LibrarySortMode.sortLabel(): String = when (this) {
+    LibrarySortMode.HYLLE -> stringResource(R.string.lib_sort_shelf)
+    LibrarySortMode.SERIE -> stringResource(R.string.lib_sort_series)
+    LibrarySortMode.FORFATTER -> stringResource(R.string.lib_sort_author)
+    LibrarySortMode.NYLIG -> stringResource(R.string.lib_sort_recent)
+    LibrarySortMode.TITTEL -> stringResource(R.string.lib_sort_title)
+    LibrarySortMode.LAGT_TIL -> stringResource(R.string.lib_sort_added)
+}
+
+@Composable
 private fun SortRail(
     activeMode: LibrarySortMode,
     direction: SortDirection,
@@ -359,7 +371,7 @@ private fun SortRail(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    mode.label,
+                    mode.sortLabel(),
                     color = if (active) LibAccent else LibDim,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp,
@@ -531,7 +543,7 @@ private fun CleanEmptyState(
             Spacer(Modifier.height(20.dp))
 
             Text(
-                "Biblioteket er tomt",
+                stringResource(R.string.lib_empty_title),
                 style = ShelfTypography.TitleLarge,
                 color = LibFgBright,
                 fontWeight = FontWeight.Bold
@@ -540,7 +552,7 @@ private fun CleanEmptyState(
             Spacer(Modifier.height(8.dp))
 
             Text(
-                "Legg til e-bøker og lydbøker ved å importere filer fra enheten eller synkronisere fra FTP/Seedbox.",
+                stringResource(R.string.lib_empty_desc),
                 style = ShelfTypography.BodyMedium,
                 color = LibDim,
                 textAlign = TextAlign.Center
@@ -560,7 +572,7 @@ private fun CleanEmptyState(
             ) {
                 Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Synkroniser fra FTP / Seedbox", fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.lib_sync_button), fontWeight = FontWeight.Medium)
             }
 
             Spacer(Modifier.height(10.dp))
@@ -573,7 +585,7 @@ private fun CleanEmptyState(
             ) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Importer fra enhet")
+                Text(stringResource(R.string.lib_import_button))
             }
         }
     }

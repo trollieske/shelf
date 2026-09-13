@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wdav_title">WebDAV (Nextcloud usw.)</string>
+    <string name="wdav_back">Zurück</string>
+    <string name="wdav_downloading">%1$d Datei(en) werden heruntergeladen…</string>
+    <string name="wdav_download">Herunterladen (%1$d)</string>
+    <string name="wdav_server_deleted">Server gelöscht</string>
+    <string name="wdav_saved">Gespeichert</string>
+    <string name="wdav_syncing">Ordner wird synchronisiert…</string>
+    <string name="wdav_sync_folder">Ordner synchronisieren</string>
+    <string name="wdav_folder_empty">Der Ordner ist leer</string>
+    <string name="wdav_saved_servers">Gespeicherte Server</string>
+    <string name="wdav_connection">Serververbindung</string>
+    <string name="wdav_display_name">Anzeigename (optional)</string>
+    <string name="wdav_base_url">Basis-URL (z. B. https://cloud.example.com)</string>
+    <string name="wdav_auth">Authentifizierung</string>
+    <string name="wdav_username">Benutzername</string>
+    <string name="wdav_password">Passwort</string>
+    <string name="wdav_bearer">Bearer-Token (App-Passwort in Nextcloud)</string>
+    <string name="wdav_dav_path">DAV-Pfad (z. B. /remote.php/dav/files/)</string>
+    <string name="wdav_trust_ssl">Allen SSL-Zertifikaten vertrauen</string>
+    <string name="wdav_save_server">Server speichern</string>
+    <string name="wdav_server_name">Servername</string>
+    <string name="wdav_save">Speichern</string>
+    <string name="wdav_cancel">Abbrechen</string>
+    <string name="wdav_notif_title">WebDAV-Sync</string>
+    <string name="wdav_notif_channel_desc">Nextcloud/Owncloud/WebDAV-Sync</string>
+    <string name="wdav_notif_text">Suche nach neuen Büchern in Cloud-Diensten…</string>
+</resources>

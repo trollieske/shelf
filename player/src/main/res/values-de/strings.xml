@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ply_title">Hörbuch</string>
+    <string name="ply_read_switch">📖 Lesen</string>
+    <string name="ply_sleep_a11y">Schlaftimer</string>
+    <string name="ply_chapters_a11y">Kapitel</string>
+    <string name="ply_prev_chapter">Vorheriges Kapitel</string>
+    <string name="ply_next_chapter">Nächstes Kapitel</string>
+    <string name="ply_skip_back">%1$d s zurück</string>
+    <string name="ply_skip_forward">%1$d s vor</string>
+    <string name="ply_play">Abspielen</string>
+    <string name="ply_pause">Pause</string>
+    <string name="ply_no_chapters">Noch keine Kapitel verfügbar.</string>
+    <string name="ply_speed_title">Wiedergabegeschwindigkeit</string>
+    <string name="ply_close">Schließen</string>
+    <string name="ply_sleep_title">Schlaftimer</string>
+    <string name="ply_sleep_active">⏱️ Aktiver Countdown: %1$d Min. %2$d Sek.</string>
+    <string name="ply_sleep_off">Ausschalten</string>
+    <string name="ply_sleep_custom_min">Eigene Zeit (Minuten)</string>
+    <string name="ply_sleep_hint">z. B. 25</string>
+    <string name="ply_sleep_set">Timer einstellen</string>
+    <string name="ply_sleep_presets">Schnellauswahl</string>
+    <string name="ply_sleep_turn_off_timer">Schlaftimer ausschalten</string>
+    <string name="ply_sleep_minutes">%1$d Minuten</string>
+    <string name="ply_continue_toast">Wird in etwa an derselben Stelle fortgesetzt</string>
+    <string name="ply_estimate_toast">Kapitelschätzung: %1$s</string>
+    <string name="ply_notif_loading">Hörbuch wird geladen…</string>
+    <string name="ply_notif_prev">Zurück</string>
+    <string name="ply_notif_skip_back">10 s zurück</string>
+    <string name="ply_notif_play">Abspielen</string>
+    <string name="ply_notif_skip_forward">30 s vor</string>
+    <string name="ply_notif_next">Weiter</string>
+    <string name="ply_library_root">Shelf-Bibliothek</string>
+    <string name="ply_notif_title">Hörbuch</string>
+    <string name="ply_notif_channel">Wiedergabe</string>
+    <string name="ply_notif_channel_desc">Benachrichtigungen zur Hörbuch-Wiedergabe</string>
+</resources>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rdr_themes_settings">Thèmes et réglages</string>
+    <string name="rdr_font_size">Taille de police</string>
+    <string name="rdr_theme">Thème</string>
+    <string name="rdr_theme_light">Clair</string>
+    <string name="rdr_theme_sepia">Sépia</string>
+    <string name="rdr_theme_dark">Sombre</string>
+    <string name="rdr_theme_black">Noir</string>
+    <string name="rdr_close">Fermer</string>
+    <string name="rdr_search">Rechercher</string>
+    <string name="rdr_cancel">Annuler</string>
+    <string name="rdr_search_in_chapter">Rechercher dans le chapitre</string>
+    <string name="rdr_search_label">Mot ou phrase</string>
+    <string name="rdr_search_body">La recherche parcourt le texte du chapitre actuel et affiche les résultats sous forme de HUD compact.</string>
+    <string name="rdr_search_unavailable">La recherche de « %1$s » n\'est pas encore disponible dans la vue bitmap.</string>
+    <string name="rdr_search_hits">Chapitre : %1$s · Résultat %2$d sur %3$d</string>
+    <string name="rdr_back">Retour</string>
+    <string name="rdr_share">Partager</string>
+    <string name="rdr_share_progress">Partager la progression</string>
+    <string name="rdr_share_text">Je lis « %1$s » — %2$s (page %3$d sur %4$d, %5$d%%)
+#ShelfApp</string>
+    <string name="rdr_chapter">Chapitre %1$d</string>
+    <string name="rdr_pages_left">%1$d pages restantes · %2$s · %3$d sur %4$d</string>
+    <string name="rdr_contents">Sommaire</string>
+    <string name="rdr_themes">Thèmes</string>
+    <string name="rdr_bookmark">Signet</string>
+    <string name="rdr_lock">Verrouiller</string>
+    <string name="rdr_locked">Verrouillé</string>
+    <string name="rdr_go_back">Revenir en arrière</string>
+    <string name="rdr_screen_locked">Écran verrouillé dans la rotation actuelle</string>
+    <string name="rdr_screen_unlocked">Écran déverrouillé</string>
+    <string name="rdr_no_chapters">Aucun chapitre lisible trouvé dans le livre.
+
+Le fichier peut être vide, corrompu, protégé par DRM ou dans un format pris en charge qui n\'a pas pu être analysé correctement. Réessayez d\'importer le livre ou convertissez-le d\'abord en EPUB propre sans DRM.</string>
+    <string name="rdr_rendering">Rendu</string>
+</resources>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rdr_themes_settings">Оформлення та налаштування</string>
+    <string name="rdr_font_size">Розмір шрифту</string>
+    <string name="rdr_theme">Оформлення</string>
+    <string name="rdr_theme_light">Світле</string>
+    <string name="rdr_theme_sepia">Сепія</string>
+    <string name="rdr_theme_dark">Темне</string>
+    <string name="rdr_theme_black">Чорне</string>
+    <string name="rdr_close">Закрити</string>
+    <string name="rdr_search">Пошук</string>
+    <string name="rdr_cancel">Скасувати</string>
+    <string name="rdr_search_in_chapter">Пошук у розділі</string>
+    <string name="rdr_search_label">Слово або фраза</string>
+    <string name="rdr_search_body">Пошук переглядає текст поточного розділу й показує результати як компактний HUD.</string>
+    <string name="rdr_search_unavailable">Пошук «%1$s» у режимі растрового перегляду поки недоступний.</string>
+    <string name="rdr_search_hits">Розділ: %1$s · Результат %2$d із %3$d</string>
+    <string name="rdr_back">Назад</string>
+    <string name="rdr_share">Поділитися</string>
+    <string name="rdr_share_progress">Поділитися прогресом читання</string>
+    <string name="rdr_share_text">Читаю «%1$s» — %2$s (сторінка %3$d із %4$d, %5$d%%)
+#ShelfApp</string>
+    <string name="rdr_chapter">Розділ %1$d</string>
+    <string name="rdr_pages_left">Залишилось сторінок: %1$d · %2$s · %3$d із %4$d</string>
+    <string name="rdr_contents">Зміст</string>
+    <string name="rdr_themes">Оформлення</string>
+    <string name="rdr_bookmark">Закладка</string>
+    <string name="rdr_lock">Заблокувати</string>
+    <string name="rdr_locked">Заблоковано</string>
+    <string name="rdr_go_back">Назад</string>
+    <string name="rdr_screen_locked">Екран заблоковано в поточній орієнтації</string>
+    <string name="rdr_screen_unlocked">Екран розблоковано</string>
+    <string name="rdr_no_chapters">У книзі не знайдено читабельних розділів.
+
+Файл може бути порожнім, пошкодженим, захищеним DRM або мати підтримуваний формат, який не вдалося коректно розібрати. Спробуйте імпортувати книгу ще раз або спочатку конвертувати її в чистий EPUB без DRM.</string>
+    <string name="rdr_rendering">Рендеринг</string>
+</resources>

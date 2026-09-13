@@ -1,5 +1,7 @@
 package com.shelf.reader.smb.ui
 
+import com.shelf.reader.smb.R
+
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -14,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -40,6 +43,7 @@ fun SmbScreen(
     val state by vm.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
     var showSaveDialog by remember { mutableStateOf(false) }
     var showPassword by remember { mutableStateOf(false) }
 
@@ -53,16 +57,16 @@ fun SmbScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("SMB / Windows-nettverk", style = ShelfTypography.HeadlineSmall, fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.smbu_title), style = ShelfTypography.HeadlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Tilbake")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.smbu_back))
                     }
                 },
                 actions = {
                     if (state.host.isNotBlank()) {
                         IconButton(onClick = { showSaveDialog = true }) {
-                            Icon(if (state.activeServerId != null) Icons.Default.Edit else Icons.Default.Save, "Lagre server")
+                            Icon(if (state.activeServerId != null) Icons.Default.Edit else Icons.Default.Save, stringResource(R.string.smbu_save_server))
                         }
                     }
                 }
@@ -74,10 +78,10 @@ fun SmbScreen(
                 ExtendedFloatingActionButton(
                     onClick = {
                         vm.downloadAndImportSelected()
-                        scope.launch { snackbarHostState.showSnackbar("Laster ned ${state.selected.size} fil(er)…") }
+                        scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.smbu_downloading, state.selected.size)) }
                     },
                     icon = { Icon(Icons.Default.Download, null) },
-                    text = { Text("Last ned (${state.selected.size})") }
+                    text = { Text(stringResource(R.string.smbu_download, state.selected.size)) }
                 )
             }
         }
@@ -91,7 +95,7 @@ fun SmbScreen(
                     onConnect = { vm.loadServer(it); vm.connect() },
                     onDelete = { id ->
                         vm.deleteSaved(id)
-                        scope.launch { snackbarHostState.showSnackbar("Server slettet") }
+                        scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.smbu_server_deleted)) }
                     }
                 )
                 Spacer(Modifier.height(16.dp))
@@ -122,7 +126,7 @@ fun SmbScreen(
                     onSave = { name ->
                         vm.saveCurrentAs(name)
                         showSaveDialog = false
-                        scope.launch { snackbarHostState.showSnackbar("Lagret") }
+                        scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.smbu_saved)) }
                     }
                 )
             }
@@ -138,8 +142,8 @@ fun SmbScreen(
                     PathBreadcrumb(currentPath = state.currentPath, onNavigateUp = vm::navigateUp)
                     TextButton(onClick = {
                         vm.downloadAndImportCurrentFolder()
-                        scope.launch { snackbarHostState.showSnackbar("Synkroniserer mappe…") }
-                    }) { Text("Synk mappe") }
+                        scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.smbu_syncing)) }
+                    }) { Text(stringResource(R.string.smbu_sync_folder)) }
                 }
 
                 val selectedCount = state.selected.size
@@ -157,7 +161,7 @@ fun SmbScreen(
                     Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                 } else if (state.entries.isEmpty()) {
                     Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
-                        Text("Mappen er tom", style = ShelfTypography.BodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.smbu_folder_empty), style = ShelfTypography.BodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -193,7 +197,7 @@ private fun SavedSmbServersPanel(
 ) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Text("Lagrede servere", style = ShelfTypography.TitleSmall, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.smbu_saved_servers), style = ShelfTypography.TitleSmall, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
             saved.forEach { s ->
                 Row(
@@ -251,12 +255,12 @@ private fun SmbServerCard(
 ) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Text("Serveroppkobling", style = ShelfTypography.TitleSmall, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.smbu_connection), style = ShelfTypography.TitleSmall, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = state.displayName,
                 onValueChange = onDisplayNameChange,
-                label = { Text("Visningsnavn (valgfritt)") },
+                label = { Text(stringResource(R.string.smbu_display_name)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -265,14 +269,14 @@ private fun SmbServerCard(
                 OutlinedTextField(
                     value = state.host,
                     onValueChange = onHostChange,
-                    label = { Text("Vert / IP") },
+                    label = { Text(stringResource(R.string.smbu_host)) },
                     singleLine = true,
                     modifier = Modifier.weight(3f)
                 )
                 OutlinedTextField(
                     value = state.port.toString(),
                     onValueChange = onPortChange,
-                    label = { Text("Port") },
+                    label = { Text(stringResource(R.string.smbu_port)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f)
@@ -282,7 +286,7 @@ private fun SmbServerCard(
             OutlinedTextField(
                 value = state.shareName,
                 onValueChange = onShareNameChange,
-                label = { Text("Navn på delt ressurs (share)") },
+                label = { Text(stringResource(R.string.smbu_share_name)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -290,7 +294,7 @@ private fun SmbServerCard(
             OutlinedTextField(
                 value = state.domain,
                 onValueChange = onDomainChange,
-                label = { Text("Domene (valgfritt, f.eks. WORKGROUP)") },
+                label = { Text(stringResource(R.string.smbu_domain)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -298,7 +302,7 @@ private fun SmbServerCard(
             OutlinedTextField(
                 value = state.username,
                 onValueChange = onUsernameChange,
-                label = { Text("Brukernavn") },
+                label = { Text(stringResource(R.string.smbu_username)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -306,7 +310,7 @@ private fun SmbServerCard(
             OutlinedTextField(
                 value = state.password,
                 onValueChange = onPasswordChange,
-                label = { Text("Passord") },
+                label = { Text(stringResource(R.string.smbu_password)) },
                 singleLine = true,
                 visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {
@@ -318,7 +322,7 @@ private fun SmbServerCard(
             )
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("SMB-versjon", Modifier.weight(1f), style = ShelfTypography.BodyMedium)
+                Text(stringResource(R.string.smbu_version), Modifier.weight(1f), style = ShelfTypography.BodyMedium)
                 var expanded by remember { mutableStateOf(false) }
                 ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
                     OutlinedTextField(
@@ -340,7 +344,7 @@ private fun SmbServerCard(
             }
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("SMB 3-kryptering", Modifier.weight(1f), style = ShelfTypography.BodyMedium)
+                Text(stringResource(R.string.smbu_encryption), Modifier.weight(1f), style = ShelfTypography.BodyMedium)
                 Switch(checked = state.enableEncryption, onCheckedChange = onEnableEncryptionChange)
             }
             Spacer(Modifier.height(12.dp))
@@ -442,20 +446,20 @@ private fun SaveServerDialog(initialName: String, onDismiss: () -> Unit, onSave:
     var name by remember { mutableStateOf(initialName) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Lagre server") },
+        title = { Text(stringResource(R.string.smbu_save_server)) },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Navn på server") },
+                label = { Text(stringResource(R.string.smbu_server_name)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
         },
         confirmButton = {
-            TextButton(onClick = { onSave(name) }, enabled = name.isNotBlank()) { Text("Lagre") }
+            TextButton(onClick = { onSave(name) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.smbu_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Avbryt") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.smbu_cancel)) } }
     )
 }
 

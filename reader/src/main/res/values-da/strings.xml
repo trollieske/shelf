@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rdr_themes_settings">Tema og indstillinger</string>
+    <string name="rdr_font_size">Skriftstørrelse</string>
+    <string name="rdr_theme">Tema</string>
+    <string name="rdr_theme_light">Lys</string>
+    <string name="rdr_theme_sepia">Sepia</string>
+    <string name="rdr_theme_dark">Mørk</string>
+    <string name="rdr_theme_black">Sort</string>
+    <string name="rdr_close">Luk</string>
+    <string name="rdr_search">Søg</string>
+    <string name="rdr_cancel">Annuller</string>
+    <string name="rdr_search_in_chapter">Søg i kapitel</string>
+    <string name="rdr_search_label">Ord eller sætning</string>
+    <string name="rdr_search_body">Søgning gennemsøger den aktuelle kapiteltekst og viser træffene som en kompakt HUD.</string>
+    <string name="rdr_search_unavailable">Søgning efter "%1$s" er endnu ikke tilgængelig i bitmap-visningen.</string>
+    <string name="rdr_search_hits">Kapitel: %1$s · Træf %2$d af %3$d</string>
+    <string name="rdr_back">Tilbage</string>
+    <string name="rdr_share">Del</string>
+    <string name="rdr_share_progress">Del læsefremskridt</string>
+    <string name="rdr_share_text">Jeg læser "%1$s" — %2$s (side %3$d af %4$d, %5$d%%)
+#ShelfApp</string>
+    <string name="rdr_chapter">Kapitel %1$d</string>
+    <string name="rdr_pages_left">%1$d sider tilbage · %2$s · %3$d af %4$d</string>
+    <string name="rdr_contents">Indhold</string>
+    <string name="rdr_themes">Temaer</string>
+    <string name="rdr_bookmark">Bogmærke</string>
+    <string name="rdr_lock">Lås</string>
+    <string name="rdr_locked">Låst</string>
+    <string name="rdr_go_back">Gå tilbage</string>
+    <string name="rdr_screen_locked">Skærm låst i nuværende rotation</string>
+    <string name="rdr_screen_unlocked">Skærm låst op</string>
+    <string name="rdr_no_chapters">Fandt ingen læsbare kapitler i bogen.
+
+Filen kan være tom, beskadiget, DRM-beskyttet eller i et understøttet format, der ikke kunne fortolkes korrekt. Prøv at importere bogen igen eller konvertere den til en ren DRM-fri EPUB først.</string>
+    <string name="rdr_rendering">Gengiver</string>
+</resources>

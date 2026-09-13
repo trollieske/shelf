@@ -27,6 +27,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
@@ -44,6 +45,7 @@ import com.shelf.reader.designsystem.theme.ShelfColors
 import com.shelf.reader.designsystem.theme.ShelfTypography
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
+import com.shelf.reader.R
 import com.shelf.reader.core.di.AppDependenciesProvider
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -354,6 +356,14 @@ private fun defaultSettingsVmFactory(): ViewModelProvider.Factory {
     }
 }
 
+/** Těkst current language label for the Settings Language row (System default or autonym). */
+@Composable
+fun activeLanguageDisplayLabel(): String {
+    val tag = currentAppLanguageTag()
+    return if (tag == null) stringResource(R.string.lang_system_default)
+    else stringResource(ShelfLanguages.displayNameRes(tag))
+}
+
 @Composable
 private fun SettingsSection(
     title: String,
@@ -395,10 +405,10 @@ private fun SyncSourceRow(
     onChargingOnlyChange: (Boolean) -> Unit
 ) {
     val intervalOptions = listOf(
-        15 to "15 min",
-        60 to "1 time",
-        360 to "6 timer",
-        1440 to "24 timer"
+        15 to stringResource(R.string.settings_sync_interval_15m),
+        60 to stringResource(R.string.settings_sync_interval_1h),
+        360 to stringResource(R.string.settings_sync_interval_6h),
+        1440 to stringResource(R.string.settings_sync_interval_24h)
     )
     val selectedLabel = intervalOptions.firstOrNull { it.first == intervalMinutes }?.second
         ?: "${intervalMinutes / 60}t"
@@ -445,7 +455,7 @@ private fun SyncSourceRow(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Intervall",
+                        stringResource(R.string.settings_sync_interval),
                         style = ShelfTypography.BodyMedium,
                         modifier = Modifier.weight(1f)
                     )
@@ -496,7 +506,7 @@ private fun SyncSourceRow(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Kun på Wi-Fi",
+                        stringResource(R.string.settings_sync_only_wifi),
                         style = ShelfTypography.BodyMedium,
                         modifier = Modifier.weight(1f)
                     )
@@ -511,7 +521,7 @@ private fun SyncSourceRow(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Kun under lading",
+                        stringResource(R.string.settings_sync_only_charging),
                         style = ShelfTypography.BodyMedium,
                         modifier = Modifier.weight(1f)
                     )
@@ -548,14 +558,15 @@ fun SettingsScreen(
         activeNumDialog = which
     }
 
-    val importDbLauncher = rememberLauncherForActivityResult(
+        val importDbLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         vm.importDb(ctx, uri)
         if (uri != null) {
-            scope.launch { snackbarHostState.showSnackbar("Databasen er importert") }
+            scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.settings_db_imported)) }
         }
     }
+    var showLanguagePicker by rememberSaveable { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -565,7 +576,7 @@ fun SettingsScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "Innstillinger",
+                        stringResource(R.string.settings_title),
                         style = ShelfTypography.HeadlineSmall,
                         fontWeight = FontWeight.Bold,
                         color = com.shelf.reader.designsystem.theme.OmarchyColors.FgBright
@@ -573,7 +584,7 @@ fun SettingsScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Tilbake", tint = com.shelf.reader.designsystem.theme.OmarchyColors.Fg)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back), tint = com.shelf.reader.designsystem.theme.OmarchyColors.Fg)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -612,14 +623,14 @@ fun SettingsScreen(
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "Kilder & synkronisering",
+                        stringResource(R.string.sources_title),
                         style = ShelfTypography.BodyLarge,
                         fontWeight = FontWeight.Medium,
                         color = com.shelf.reader.designsystem.theme.OmarchyColors.FgBright
                     )
                     Spacer(Modifier.height(1.dp))
                     Text(
-                        "FTP, SMB, WebDAV, Torrent, Calibre, OPDS",
+                        stringResource(R.string.settings_sources_row_sub),
                         style = ShelfTypography.BodySmall,
                         color = com.shelf.reader.designsystem.theme.OmarchyColors.Dim
                     )
@@ -632,7 +643,52 @@ fun SettingsScreen(
                 )
             }
 
-            SettingsSection("Leser") {
+            // ── Språk: rolig rad nær toppen; høyre side viser valgt språk. ──
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        com.shelf.reader.designsystem.theme.OmarchyColors.Panel,
+                        RoundedCornerShape(4.dp)
+                    )
+                    .clickable { showLanguagePicker = true }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.Language,
+                    contentDescription = null,
+                    tint = com.shelf.reader.designsystem.theme.OmarchyColors.Fg,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.settings_language),
+                        style = ShelfTypography.BodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = com.shelf.reader.designsystem.theme.OmarchyColors.FgBright,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    activeLanguageDisplayLabel(),
+                    style = ShelfTypography.BodySmall,
+                    color = com.shelf.reader.designsystem.theme.OmarchyColors.Dim,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = com.shelf.reader.designsystem.theme.OmarchyColors.Dim
+                )
+            }
+
+            SettingsSection(stringResource(R.string.settings_reader)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
 
                     Row(
@@ -640,7 +696,7 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Skriftstørrelse",
+                            stringResource(R.string.reader_font_size),
                             style = ShelfTypography.BodyLarge,
                             modifier = Modifier.weight(1f)
                         )
@@ -665,7 +721,7 @@ fun SettingsScreen(
                     HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
                     Text(
-                        "Lesertema",
+                        stringResource(R.string.reader_theme_selector),
                         style = ShelfTypography.TitleSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -677,7 +733,7 @@ fun SettingsScreen(
                     ) {
                         AssistChip(
                             onClick = { vm.setReaderTheme("light") },
-                            label = { Text("Lys") },
+                            label = { Text(stringResource(R.string.reader_theme_light)) },
                             leadingIcon = {
                                 Icon(
                                     Icons.Default.LightMode,
@@ -693,7 +749,7 @@ fun SettingsScreen(
                         )
                         AssistChip(
                             onClick = { vm.setReaderTheme("sepia") },
-                            label = { Text("Seppia") },
+                            label = { Text(stringResource(R.string.reader_theme_sepia)) },
                             leadingIcon = {
                                 Icon(
                                     Icons.Default.WbSunny,
@@ -709,7 +765,7 @@ fun SettingsScreen(
                         )
                         AssistChip(
                             onClick = { vm.setReaderTheme("dark") },
-                            label = { Text("Mørk") },
+                            label = { Text(stringResource(R.string.reader_theme_dark)) },
                             leadingIcon = {
                                 Icon(
                                     Icons.Default.DarkMode,
@@ -727,11 +783,11 @@ fun SettingsScreen(
                 }
             }
 
-            SettingsSection("Lydbok avspilling") {
+            SettingsSection(stringResource(R.string.settings_audio_section)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
 
                     Text(
-                        "Avspillingshastighet",
+                        stringResource(R.string.settings_playback_speed),
                         style = ShelfTypography.TitleSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -767,7 +823,7 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Tilbake-spole",
+                            stringResource(R.string.settings_rewind),
                             style = ShelfTypography.BodyLarge,
                             modifier = Modifier.weight(1f)
                         )
@@ -794,7 +850,7 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Frem-spole",
+                            stringResource(R.string.settings_forward),
                             style = ShelfTypography.BodyLarge,
                             modifier = Modifier.weight(1f)
                         )
@@ -824,11 +880,11 @@ fun SettingsScreen(
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                "Ton ut ved automatisk søvn",
+                                stringResource(R.string.settings_fade_out),
                                 style = ShelfTypography.BodyLarge
                             )
                             Text(
-                                "Reduserer volumet gradvis før pause",
+                                stringResource(R.string.settings_fade_out_sub),
                                 style = ShelfTypography.BodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -846,11 +902,11 @@ fun SettingsScreen(
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                "Spill neste bok i serie automatisk",
+                                stringResource(R.string.settings_autoplay_next),
                                 style = ShelfTypography.BodyLarge
                             )
                             Text(
-                                "Når siste kapittel er ferdig",
+                                stringResource(R.string.settings_autoplay_next_sub),
                                 style = ShelfTypography.BodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -864,7 +920,7 @@ fun SettingsScreen(
                 }
             }
 
-            SettingsSection("Lagring & synkronisering") {
+            SettingsSection(stringResource(R.string.settings_sync_storage_title)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -873,9 +929,9 @@ fun SettingsScreen(
                                 val path = vm.exportDb(ctx)
                                 scope.launch {
                                     if (path != null) {
-                                        snackbarHostState.showSnackbar("Eksportert til: $path")
+                                        snackbarHostState.showSnackbar(ctx.getString(R.string.settings_db_exported, path))
                                     } else {
-                                        snackbarHostState.showSnackbar("Eksport feilet")
+                                        snackbarHostState.showSnackbar(ctx.getString(R.string.settings_db_export_failed))
                                     }
                                 }
                             },
@@ -883,7 +939,7 @@ fun SettingsScreen(
                         ) {
                             Icon(Icons.Default.FileDownload, null, Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Eksporter database")
+                            Text(stringResource(R.string.settings_export))
                         }
                         Spacer(Modifier.width(8.dp))
                         OutlinedButton(
@@ -894,7 +950,7 @@ fun SettingsScreen(
                         ) {
                             Icon(Icons.Default.FileUpload, null, Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Importer")
+                            Text(stringResource(R.string.settings_import_button))
                         }
                     }
 
@@ -906,11 +962,11 @@ fun SettingsScreen(
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                "Overvåk bibliotekmappe for nye filer",
+                                stringResource(R.string.settings_watch_folder),
                                 style = ShelfTypography.BodyLarge
                             )
                             Text(
-                                "Legger bøker til automatisk",
+                                stringResource(R.string.settings_watch_folder_sub),
                                 style = ShelfTypography.BodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -925,19 +981,19 @@ fun SettingsScreen(
                     HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
                     Text(
-                        "Synkronisering",
+                        stringResource(R.string.settings_sync_section_title),
                         style = ShelfTypography.TitleSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "Velg hvilke kilder som skal synkroniseres automatisk. Alle synkjobber bruker WorkManager for bakgrunnskjøring som er optimalisert for Android.",
+                        stringResource(R.string.settings_sync_strategy_desc),
                         style = ShelfTypography.BodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     SyncSourceRow(
-                        label = "FTP / SFTP",
-                        subtitle = "Vanlig filoverføring",
+                        label = stringResource(R.string.ftp_title),
+                        subtitle = stringResource(R.string.ftp_subtitle),
                         icon = Icons.Default.CloudSync,
                         enabled = state.ftpSyncEnabled,
                         onToggleEnabled = {
@@ -959,8 +1015,8 @@ fun SettingsScreen(
                     )
 
                     SyncSourceRow(
-                        label = "SMB",
-                        subtitle = "Windows / NAS / Samba",
+                        label = stringResource(R.string.smb_title),
+                        subtitle = stringResource(R.string.settings_smb_sync_sub),
                         icon = Icons.Default.Dns,
                         enabled = state.smbSyncEnabled,
                         onToggleEnabled = {
@@ -982,8 +1038,8 @@ fun SettingsScreen(
                     )
 
                     SyncSourceRow(
-                        label = "WebDAV",
-                        subtitle = "Nextcloud / Owncloud",
+                        label = stringResource(R.string.webdav_title),
+                        subtitle = stringResource(R.string.webdav_subtitle),
                         icon = Icons.Default.Cloud,
                         enabled = state.webdavSyncEnabled,
                         onToggleEnabled = {
@@ -1021,12 +1077,12 @@ fun SettingsScreen(
                                 Spacer(Modifier.width(10.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(
-                                        "Torrent (bakgrunn)",
+                                        stringResource(R.string.settings_torrent_bg),
                                         style = ShelfTypography.BodyLarge,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Text(
-                                        "Fortsett nedlasting når appen er lukket",
+                                        stringResource(R.string.settings_torrent_bg_sub),
                                         style = ShelfTypography.BodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -1042,7 +1098,7 @@ fun SettingsScreen(
                                     Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("Kun på Wi-Fi", style = ShelfTypography.BodyMedium, modifier = Modifier.weight(1f))
+                                    Text(stringResource(R.string.settings_sync_only_wifi), style = ShelfTypography.BodyMedium, modifier = Modifier.weight(1f))
                                     Switch(
                                         checked = state.torrentWifiOnly,
                                         onCheckedChange = { vm.setTorrentWifiOnly(it) }
@@ -1052,7 +1108,7 @@ fun SettingsScreen(
                                     Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("Kun under lading", style = ShelfTypography.BodyMedium, modifier = Modifier.weight(1f))
+                                    Text(stringResource(R.string.settings_sync_only_charging), style = ShelfTypography.BodyMedium, modifier = Modifier.weight(1f))
                                     Switch(
                                         checked = state.torrentChargingOnly,
                                         onCheckedChange = { vm.setTorrentChargingOnly(it) }
@@ -1063,7 +1119,7 @@ fun SettingsScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        "Minste batteri",
+                                        stringResource(R.string.settings_torrent_min_battery),
                                         style = ShelfTypography.BodyMedium,
                                         modifier = Modifier.weight(1f)
                                     )
@@ -1095,11 +1151,11 @@ fun SettingsScreen(
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                "Online cover-oppslag",
+                                stringResource(R.string.settings_online_cover),
                                 style = ShelfTypography.BodyLarge
                             )
                             Text(
-                                "Søk etter omslag på internett",
+                                stringResource(R.string.settings_online_cover_sub),
                                 style = ShelfTypography.BodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1113,7 +1169,7 @@ fun SettingsScreen(
                 }
             }
 
-            SettingsSection("Immersion Handoff (ebok ↔ lydbok)") {
+            SettingsSection(stringResource(R.string.settings_handoff_title)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     var scanRunning by rememberSaveable { mutableStateOf(false) }
                     var scanCurrent by rememberSaveable { mutableIntStateOf(0) }
@@ -1121,14 +1177,14 @@ fun SettingsScreen(
                     var scanLinksCreated by rememberSaveable { mutableIntStateOf(0) }
 
                     Text(
-                        "Presisjon",
+                        stringResource(R.string.settings_handoff_precision),
                         style = ShelfTypography.TitleSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     val precisionOptions = listOf(
-                        com.shelf.reader.data.local.entity.HandoffPrecisionEntity.CHAPTER_ONLY.name to "Kun kapittel",
-                        com.shelf.reader.data.local.entity.HandoffPrecisionEntity.SMART.name to "Smart (standard)",
-                        com.shelf.reader.data.local.entity.HandoffPrecisionEntity.PERCENT_ONLY.name to "Kun prosent"
+                        com.shelf.reader.data.local.entity.HandoffPrecisionEntity.CHAPTER_ONLY.name to stringResource(R.string.settings_handoff_precision_chapter),
+                        com.shelf.reader.data.local.entity.HandoffPrecisionEntity.SMART.name to stringResource(R.string.settings_handoff_precision_smart),
+                        com.shelf.reader.data.local.entity.HandoffPrecisionEntity.PERCENT_ONLY.name to stringResource(R.string.settings_handoff_precision_percent)
                     )
                     var precisionExpanded by rememberSaveable { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
@@ -1162,7 +1218,7 @@ fun SettingsScreen(
                         }
                     }
                     Text(
-                        "Velg hvor nøyaktig overgang mellom lydbok og ebok skal være. Standard: Smart.",
+                        stringResource(R.string.settings_handoff_precision_desc),
                         style = ShelfTypography.BodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1175,11 +1231,11 @@ fun SettingsScreen(
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                "Vis melding ved bytte",
+                                stringResource(R.string.settings_handoff_show_toast),
                                 style = ShelfTypography.BodyLarge
                             )
                             Text(
-                                "Fortsettelsesposisjon (kapittel eller prosent) vises som en kort melding.",
+                                stringResource(R.string.settings_handoff_show_toast_sub),
                                 style = ShelfTypography.BodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1194,12 +1250,12 @@ fun SettingsScreen(
                     HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
 
                     Text(
-                        "Koble utgaver i biblioteket",
+                        stringResource(R.string.settings_handoff_scan_library),
                         style = ShelfTypography.TitleSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "Skanner alle ebøker og lydbøker for å koble sammen utgaven av samme verk. Ser på tittel, forfatter, serie og ISBN.",
+                        stringResource(R.string.settings_handoff_scan_library_desc),
                         style = ShelfTypography.BodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1211,7 +1267,7 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             Text(
-                                "$scanCurrent / $scanTotal · $scanLinksCreated koblinger opprettet",
+                                stringResource(R.string.settings_handoff_scan_progress_label, scanCurrent, scanTotal, scanLinksCreated),
                                 style = ShelfTypography.BodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1242,7 +1298,7 @@ fun SettingsScreen(
                                 withContext(Dispatchers.Main.immediate) {
                                     scanRunning = false
                                     snackbarHostState.showSnackbar(
-                                        "Ferdig. $created nye koblinger ble opprettet."
+                                        ctx.getString(R.string.settings_handoff_scan_complete, created)
                                     )
                                 }
                             }
@@ -1257,13 +1313,13 @@ fun SettingsScreen(
                         }
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            if (scanRunning) "Skanner biblioteket…" else "Skann nå og koble utgaver"
+                            if (scanRunning) stringResource(R.string.settings_handoff_scanning) else stringResource(R.string.settings_handoff_scan_action)
                         )
                     }
                 }
             }
 
-            SettingsSection("Om") {
+            SettingsSection(stringResource(R.string.settings_about)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
                     Row(
@@ -1272,7 +1328,7 @@ fun SettingsScreen(
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                "Versjon",
+                                stringResource(R.string.settings_version),
                                 style = ShelfTypography.BodyLarge
                             )
                         }
@@ -1291,7 +1347,7 @@ fun SettingsScreen(
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                "Shelf – en privat, reklamefri leser og lydbokspiller",
+                                stringResource(R.string.settings_about_description),
                                 style = ShelfTypography.BodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1304,14 +1360,14 @@ fun SettingsScreen(
                         onClick = {
                             vm.clearCache()
                             scope.launch {
-                                snackbarHostState.showSnackbar("Cache tømt")
+                                snackbarHostState.showSnackbar(ctx.getString(R.string.settings_cache_cleared))
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.DeleteSweep, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Tøm cache")
+                        Text(stringResource(R.string.settings_clear_cache))
                     }
                 }
             }
@@ -1323,18 +1379,18 @@ fun SettingsScreen(
     if (activeNumDialog != 0) {
         val values: List<Any> = when (activeNumDialog) {
             NUM_DLG_FONT -> listOf(
-                "Skriftstørrelse", "10 – 32", "sp", 10, 32,
-                { v: Int -> vm.setFontSize(v); scope.launch { snackbarHostState.showSnackbar("Skriftstørrelse: ${v} sp") } }
+                stringResource(R.string.reader_font_size), "10 – 32", "sp", 10, 32,
+                { v: Int -> vm.setFontSize(v); scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.settings_font_size_value, v)) } }
             )
             NUM_DLG_SKIP_BACK -> listOf(
-                "Tilbake-spole", "5 – 60", "s", 5, 60,
-                { v: Int -> vm.setSkipBack(v); scope.launch { snackbarHostState.showSnackbar("Tilbake-spole: ${v} s") } }
+                stringResource(R.string.settings_rewind), "5 – 60", "s", 5, 60,
+                { v: Int -> vm.setSkipBack(v); scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.settings_skip_value, v)) } }
             )
             NUM_DLG_SKIP_FWD -> listOf(
-                "Frem-spole", "10 – 120", "s", 10, 120,
-                { v: Int -> vm.setSkipFwd(v); scope.launch { snackbarHostState.showSnackbar("Frem-spole: ${v} s") } }
+                stringResource(R.string.settings_forward), "10 – 120", "s", 10, 120,
+                { v: Int -> vm.setSkipFwd(v); scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.settings_skip_value, v)) } }
             )
-            else -> listOf("Verdi", "", "", 0, 1, { _: Int -> })
+            else -> listOf(stringResource(R.string.settings_value), "", "", 0, 1, { _: Int -> })
         }
         val dlgTitle = values[0] as String
         val rangeStr = values[1] as String
@@ -1355,15 +1411,15 @@ fun SettingsScreen(
                         } else {
                             scope.launch {
                                 snackbarHostState.showSnackbar(
-                                    "Ugyldig verdi. Bruk tall mellom $minVal og $maxVal."
+                                    ctx.getString(R.string.settings_invalid_value, minVal, maxVal)
                                 )
                             }
                         }
                     }
-                ) { Text("Lagre") }
+                ) { Text(stringResource(R.string.action_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { activeNumDialog = 0 }) { Text("Avbryt") }
+                TextButton(onClick = { activeNumDialog = 0 }) { Text(stringResource(R.string.action_cancel)) }
             },
             title = { Text(dlgTitle) },
             text = {
@@ -1371,20 +1427,24 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = numDialogInput,
                         onValueChange = { numDialogInput = it.filter { c -> c.isDigit() }.take(3) },
-                        label = { Text("Verdi ($suffix)") },
+                        label = { Text(stringResource(R.string.settings_value_label, suffix)) },
                         suffix = { Text(suffix) },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
-                        "Gyldig område: ${rangeStr} ${suffix}.",
+                        stringResource(R.string.settings_range_hint, rangeStr, suffix),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         )
+    }
+
+    if (showLanguagePicker) {
+        LanguagePickerSheet(onDismiss = { showLanguagePicker = false })
     }
 }
 }

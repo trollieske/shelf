@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rdr_themes_settings">Temas y ajustes</string>
+    <string name="rdr_font_size">Tamaño de fuente</string>
+    <string name="rdr_theme">Tema</string>
+    <string name="rdr_theme_light">Claro</string>
+    <string name="rdr_theme_sepia">Sepia</string>
+    <string name="rdr_theme_dark">Oscuro</string>
+    <string name="rdr_theme_black">Negro</string>
+    <string name="rdr_close">Cerrar</string>
+    <string name="rdr_search">Buscar</string>
+    <string name="rdr_cancel">Cancelar</string>
+    <string name="rdr_search_in_chapter">Buscar en el capítulo</string>
+    <string name="rdr_search_label">Palabra o frase</string>
+    <string name="rdr_search_body">La búsqueda revisa el texto del capítulo actual y muestra los resultados como un HUD compacto.</string>
+    <string name="rdr_search_unavailable">La búsqueda de "%1$s" aún no está disponible en la vista de mapa de bits.</string>
+    <string name="rdr_search_hits">Capítulo: %1$s · Resultado %2$d de %3$d</string>
+    <string name="rdr_back">Atrás</string>
+    <string name="rdr_share">Compartir</string>
+    <string name="rdr_share_progress">Compartir el progreso</string>
+    <string name="rdr_share_text">Estoy leyendo "%1$s" — %2$s (página %3$d de %4$d, %5$d%%)
+#ShelfApp</string>
+    <string name="rdr_chapter">Capítulo %1$d</string>
+    <string name="rdr_pages_left">%1$d páginas restantes · %2$s · %3$d de %4$d</string>
+    <string name="rdr_contents">Contenido</string>
+    <string name="rdr_themes">Temas</string>
+    <string name="rdr_bookmark">Marcador</string>
+    <string name="rdr_lock">Bloquear</string>
+    <string name="rdr_locked">Bloqueado</string>
+    <string name="rdr_go_back">Volver</string>
+    <string name="rdr_screen_locked">Pantalla bloqueada en la orientación actual</string>
+    <string name="rdr_screen_unlocked">Pantalla desbloqueada</string>
+    <string name="rdr_no_chapters">No se encontraron capítulos legibles en el libro.
+
+El archivo puede estar vacío, dañado, protegido por DRM o en un formato compatible que no se pudo analizar correctamente. Intenta importar el libro de nuevo o conviértelo antes a un EPUB limpio sin DRM.</string>
+    <string name="rdr_rendering">Renderizado</string>
+</resources>

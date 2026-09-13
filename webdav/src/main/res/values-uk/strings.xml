@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wdav_title">WebDAV (Nextcloud тощо)</string>
+    <string name="wdav_back">Назад</string>
+    <string name="wdav_downloading">Завантажується файлів: %1$d…</string>
+    <string name="wdav_download">Завантажити (%1$d)</string>
+    <string name="wdav_server_deleted">Сервер видалено</string>
+    <string name="wdav_saved">Збережено</string>
+    <string name="wdav_syncing">Синхронізація папки…</string>
+    <string name="wdav_sync_folder">Синхронізувати папку</string>
+    <string name="wdav_folder_empty">Папка порожня</string>
+    <string name="wdav_saved_servers">Збережені сервери</string>
+    <string name="wdav_connection">Підключення до сервера</string>
+    <string name="wdav_display_name">Відображуване ім\'я (необов\'язково)</string>
+    <string name="wdav_base_url">Базовий URL (наприклад, https://cloud.example.com)</string>
+    <string name="wdav_auth">Автентифікація</string>
+    <string name="wdav_username">Ім\'я користувача</string>
+    <string name="wdav_password">Пароль</string>
+    <string name="wdav_bearer">Токен Bearer (пароль застосунку в Nextcloud)</string>
+    <string name="wdav_dav_path">Шлях DAV (наприклад, /remote.php/dav/files/)</string>
+    <string name="wdav_trust_ssl">Довіряти всім SSL-сертифікатам</string>
+    <string name="wdav_save_server">Зберегти сервер</string>
+    <string name="wdav_server_name">Ім\'я сервера</string>
+    <string name="wdav_save">Зберегти</string>
+    <string name="wdav_cancel">Скасувати</string>
+    <string name="wdav_notif_title">WebDAV-синхронізація</string>
+    <string name="wdav_notif_channel_desc">Синхронізація Nextcloud/Owncloud/WebDAV</string>
+    <string name="wdav_notif_text">Шукаємо нові книги в хмарних сервісах…</string>
+</resources>

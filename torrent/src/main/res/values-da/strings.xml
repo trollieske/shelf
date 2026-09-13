@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="toru_title">Torrent-klient</string>
+    <string name="toru_back">Tilbage</string>
+    <string name="toru_torrent_file">.torrent</string>
+    <string name="toru_magnet">Magnet</string>
+    <string name="toru_search_hint">Søg efter åbne kilder eller navngiv en bog…</string>
+    <string name="toru_opening">Åbner: %1$s</string>
+    <string name="toru_removed">Fjernet fra listen (filer beholdt til seeding)</string>
+    <string name="toru_active_count">%1$d aktive</string>
+    <string name="toru_downloads_word">downloads</string>
+    <string name="toru_import">Importer til biblioteket</string>
+    <string name="toru_choose_folder">Vælg mappe</string>
+    <string name="toru_start">Start</string>
+    <string name="toru_pause">Pause</string>
+    <string name="toru_resume">Genoptag</string>
+    <string name="toru_delete">Slet torrent</string>
+    <string name="toru_add_magnet_title">Tilføj magnet-link</string>
+    <string name="toru_magnet_placeholder">magnet:?xt=urn:btih:...</string>
+    <string name="toru_add">Tilføj</string>
+    <string name="toru_cancel">Annuller</string>
+    <string name="toru_notif_channel">Torrent-downloads</string>
+    <string name="toru_notif_text">Torrent-klient kører i baggrunden…</string>
+    <string name="toru_notif_channel_desc">Viser fremskridt for torrent-downloads</string>
+</resources>

@@ -4,6 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.StringRes
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -26,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -64,7 +67,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     private lateinit var prefs: UserPreferencesRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -83,12 +86,12 @@ class MainActivity : ComponentActivity() {
 
 private sealed class BottomNavItem(
     val route: String,
-    val label: String,
+    @StringRes val labelRes: Int,
     val icon: ImageVector
 ) {
-    object Books : BottomNavItem(ShelfDestinations.Books.route, "Bøker", Icons.Default.AutoStories)
-    object Audiobooks : BottomNavItem(ShelfDestinations.Audiobooks.route, "Lydbøker", Icons.Default.Headphones)
-    object Settings : BottomNavItem(ShelfDestinations.Settings.route, "Innstillinger", Icons.Filled.Settings)
+    object Books : BottomNavItem(ShelfDestinations.Books.route, R.string.nav_books, Icons.Default.AutoStories)
+    object Audiobooks : BottomNavItem(ShelfDestinations.Audiobooks.route, R.string.shelf_audiobooks, Icons.Default.Headphones)
+    object Settings : BottomNavItem(ShelfDestinations.Settings.route, R.string.nav_settings, Icons.Filled.Settings)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -161,7 +164,7 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(
-                                        active.title.ifBlank { "Lydbok" },
+                                        active.title.ifBlank { stringResource(R.string.player_title) },
                                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                         color = Color.White,
                                         maxLines = 1,
@@ -169,9 +172,9 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
                                     )
                                     val subLabel = if (active.sleepTimerRemainingMs > 0L) {
                                         val m = (active.sleepTimerRemainingMs / 60_000L).toInt().coerceAtLeast(1)
-                                        "${active.author} • ⏱️ ${m}m igjen"
+                                        "${active.author} • ${stringResource(R.string.main_sleep_remaining, m)}"
                                     } else {
-                                        active.author.ifBlank { "Spiller av" }
+                                        active.author.ifBlank { stringResource(R.string.main_playing) }
                                     }
                                     Text(
                                         subLabel,
@@ -184,7 +187,7 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
                                 IconButton(onClick = {
                                     com.shelf.reader.data.repository.ActivePlaybackState.clear()
                                 }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Lukk", tint = com.shelf.reader.designsystem.theme.OmarchyColors.Dim)
+                                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close), tint = com.shelf.reader.designsystem.theme.OmarchyColors.Dim)
                                 }
                             }
                         }
@@ -204,9 +207,10 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
                         ) {
                             items.forEach { item ->
                                 val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
+                                val itemLabel = stringResource(item.labelRes)
                                 NavigationBarItem(
-                                    icon = { Icon(item.icon, contentDescription = item.label) },
-                                    label = if (selected) { { Text(item.label, style = com.shelf.reader.designsystem.theme.ShelfTypography.LabelMedium) } } else null,
+                                    icon = { Icon(item.icon, contentDescription = itemLabel) },
+                                    label = if (selected) { { Text(itemLabel, style = com.shelf.reader.designsystem.theme.ShelfTypography.LabelMedium) } } else null,
                                     selected = selected,
                                     colors = NavigationBarItemDefaults.colors(
                                         selectedIconColor = OmarchyColors.Accent,
@@ -422,7 +426,7 @@ private fun SourcesOverviewScreen(
         containerColor = OmarchyColors.Bg,
         topBar = {
             TopAppBar(
-                title = { Text("Kilder & synkronisering", style = ShelfTypography.HeadlineSmall, fontWeight = FontWeight.Bold, color = OmarchyColors.FgBright) },
+                title = { Text(stringResource(R.string.sources_title), style = ShelfTypography.HeadlineSmall, fontWeight = FontWeight.Bold, color = OmarchyColors.FgBright) },
                 navigationIcon = {},
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = OmarchyColors.Bg)
             )
@@ -430,14 +434,14 @@ private fun SourcesOverviewScreen(
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
             Text(
-                "Koble biblioteket ditt til",
+                stringResource(R.string.sources_connect_prompt),
                 style = ShelfTypography.TitleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = OmarchyColors.FgBright
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "Importer bøker fra eksterne kilder. FTP, SMB og WebDAV støtter automatisk synk.",
+                stringResource(R.string.sources_subtitle),
                 style = ShelfTypography.BodyMedium,
                 color = OmarchyColors.Dim
             )
@@ -446,49 +450,49 @@ private fun SourcesOverviewScreen(
             // Enkel liste over kilder — ikke dashbord
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SourceCard(
-                    title = "FTP / SFTP",
-                    subtitle = "Vanlig filoverføring",
+                    title = stringResource(R.string.ftp_title),
+                    subtitle = stringResource(R.string.ftp_subtitle),
                     icon = Icons.Default.CloudSync,
                     tint = OmarchyColors.Fg,
                     onClick = onFtpClick
                 )
                 SourceCard(
-                    title = "SMB",
-                    subtitle = "Windows / NAS",
+                    title = stringResource(R.string.smb_title),
+                    subtitle = stringResource(R.string.smb_subtitle),
                     icon = Icons.Default.Dns,
                     tint = OmarchyColors.Fg,
                     onClick = onSmbClick
                 )
                 SourceCard(
-                    title = "WebDAV",
-                    subtitle = "Nextcloud / Owncloud",
+                    title = stringResource(R.string.webdav_title),
+                    subtitle = stringResource(R.string.webdav_subtitle),
                     icon = Icons.Default.Cloud,
                     tint = OmarchyColors.Fg,
                     onClick = onWebdavClick
                 )
                 SourceCard(
-                    title = "Torrent",
-                    subtitle = "Peer-to-peer",
+                    title = stringResource(R.string.torrent_title),
+                    subtitle = stringResource(R.string.torrent_subtitle),
                     icon = Icons.Default.SwapHoriz,
                     tint = OmarchyColors.Fg,
                     onClick = onTorrentClick
                 )
                 SourceCard(
-                    title = "Calibre",
-                    subtitle = "Innholdstjener / OPDS",
+                    title = stringResource(R.string.sources_calibre_title),
+                    subtitle = stringResource(R.string.sources_calibre_sub),
                     icon = Icons.Default.LocalLibrary,
                     tint = OmarchyColors.Fg,
                     onClick = {
-                        android.widget.Toast.makeText(ctx, "Skann nettverket ditt eller legg inn Calibre-URL manuelt nedenfor", android.widget.Toast.LENGTH_LONG).show()
+                        android.widget.Toast.makeText(ctx, ctx.getString(R.string.sources_calibre_toast), android.widget.Toast.LENGTH_LONG).show()
                     }
                 )
                 SourceCard(
-                    title = "OPDS-katalog",
-                    subtitle = "Standard bokkataloger",
+                    title = stringResource(R.string.sources_opds_title),
+                    subtitle = stringResource(R.string.sources_opds_sub),
                     icon = Icons.Default.MenuBook,
                     tint = OmarchyColors.Fg,
                     onClick = {
-                        android.widget.Toast.makeText(ctx, "Velg en kjent katalog nedenfor, eller lim inn din egen OPDS-URL", android.widget.Toast.LENGTH_LONG).show()
+                        android.widget.Toast.makeText(ctx, ctx.getString(R.string.sources_opds_toast), android.widget.Toast.LENGTH_LONG).show()
                     }
                 )
             }
@@ -503,7 +507,7 @@ private fun SourcesOverviewScreen(
             HorizontalDivider(color = OmarchyColors.Hairline)
             Spacer(Modifier.height(16.dp))
             Text(
-                "Verktøy",
+                stringResource(R.string.sources_tools),
                 style = ShelfTypography.TitleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = OmarchyColors.FgBright
@@ -511,15 +515,15 @@ private fun SourcesOverviewScreen(
             Spacer(Modifier.height(12.dp))
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 SourceCard(
-                    title = "Importer",
-                    subtitle = "Fra filer / mapper",
+                    title = stringResource(R.string.menu_import),
+                    subtitle = stringResource(R.string.sources_import_files_sub),
                     icon = Icons.Default.FileUpload,
                     tint = OmarchyColors.Fg,
                     onClick = onImportClick
                 )
                 SourceCard(
-                    title = "Nedlastinger",
-                    subtitle = "Status og feil",
+                    title = stringResource(R.string.import_tab_downloads),
+                    subtitle = stringResource(R.string.sources_downloads_status),
                     icon = Icons.Default.DownloadDone,
                     tint = OmarchyColors.Fg,
                     onClick = onImportProgressClick
@@ -539,10 +543,10 @@ private fun SourcesOverviewScreen(
                 Icon(Icons.Default.Info, null, tint = OmarchyColors.Dim)
                 Spacer(Modifier.width(10.dp))
                 Column {
-                    Text("Tips", fontWeight = FontWeight.SemiBold, style = ShelfTypography.BodyLarge, color = OmarchyColors.FgBright)
+                    Text(stringResource(R.string.sources_tips_title), fontWeight = FontWeight.SemiBold, style = ShelfTypography.BodyLarge, color = OmarchyColors.FgBright)
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "Alle nedlastede bøker lastes automatisk inn i biblioteket ditt hvis tillegget er støttet (EPUB, PDF, MP3, M4B, etc.)",
+                        stringResource(R.string.sources_tips),
                         style = ShelfTypography.BodySmall,
                         color = OmarchyColors.Dim
                     )
@@ -587,14 +591,14 @@ private fun LanDiscoverySection() {
     val ctx = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
     var scanning by remember { mutableStateOf(false) }
-    var progressText by remember { mutableStateOf("Trykk for å finne FTP / SMB / Calibre / WebDAV-tjenere på ditt hjemmenettverk") }
+    var progressText by remember { mutableStateOf(ctx.getString(R.string.lan_idle)) }
     val discovered = remember { mutableStateListOf<DiscoveredSourceCandidate>() }
 
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    "Oppdag kilder på nettverket ditt",
+                    stringResource(R.string.lan_title),
                     style = ShelfTypography.TitleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -611,7 +615,7 @@ private fun LanDiscoverySection() {
                     if (scanning) return@AssistChip
                     discovered.clear()
                     scanning = true
-                    progressText = "Skanner undernettet… dette tar 10–40 sekunder."
+                    progressText = ctx.getString(R.string.lan_scanning_progress)
                     scope.launch(Dispatchers.IO) {
                         val discovery = LanSourceDiscovery(ctx)
                         val seen = HashSet<String>()
@@ -621,7 +625,7 @@ private fun LanDiscoverySection() {
                                 if (seen.add(key)) {
                                     withContext(Dispatchers.Main.immediate) {
                                         discovered.add(cand)
-                                        progressText = "Fant ${discovered.size} mulige kilde(r)… fortsetter scanning."
+                                        progressText = ctx.getString(R.string.lan_found_progress, discovered.size)
                                     }
                                 }
                             }
@@ -629,16 +633,16 @@ private fun LanDiscoverySection() {
                             withContext(Dispatchers.Main.immediate) {
                                 scanning = false
                                 progressText = if (discovered.isEmpty()) {
-                                    "Ingen kilder funnet. Sjekk at du er på samme WiFi som serverne dine, eller legg dem inn manuelt via kortene over."
+                                    ctx.getString(R.string.lan_none_found)
                                 } else {
-                                    "Skanning ferdig. ${discovered.size} mulige kilde(r) funnet – klikk for å åpne/legge til."
+                                    ctx.getString(R.string.lan_done_found, discovered.size)
                                 }
                             }
                         }
                     }
                 },
                 enabled = !scanning,
-                label = { Text(if (scanning) "Skanner…" else "Skann nå") },
+                label = { Text(if (scanning) stringResource(R.string.lan_scanning) else stringResource(R.string.lan_scan_now)) },
                 leadingIcon = {
                     if (scanning) {
                         CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -661,7 +665,7 @@ private fun LanDiscoverySection() {
                                     .clip(MaterialTheme.shapes.medium)
                                     .clickable {
                                         val label = cand.label + " på " + cand.host + ":" + cand.port
-                                        android.widget.Toast.makeText(ctx, "$label – forhåndsvisning: ${cand.url}", android.widget.Toast.LENGTH_LONG).show()
+                                        android.widget.Toast.makeText(ctx, ctx.getString(R.string.lan_preview_toast, label, cand.url), android.widget.Toast.LENGTH_LONG).show()
                                     }
                                     .padding(horizontal = 4.dp, vertical = 8.dp),
                                 headline = {
@@ -671,19 +675,19 @@ private fun LanDiscoverySection() {
                                         AssistChip(
                                             onClick = {
                                                 val typeLabel = when (cand.type) {
-                                                    com.shelf.reader.core.net.DiscoveredSourceType.FTP -> "FTP-tjener"
-                                                    com.shelf.reader.core.net.DiscoveredSourceType.SMB -> "SMB/Windows-fildeling"
-                                                    com.shelf.reader.core.net.DiscoveredSourceType.WEBDAV -> "WebDAV"
-                                                    com.shelf.reader.core.net.DiscoveredSourceType.CALIBRE -> "Calibre bibliotek"
-                                                    com.shelf.reader.core.net.DiscoveredSourceType.HTTP_CANDIDATE -> "HTTP-katalog"
+                                                    com.shelf.reader.core.net.DiscoveredSourceType.FTP -> ctx.getString(R.string.lan_type_ftp)
+                                                    com.shelf.reader.core.net.DiscoveredSourceType.SMB -> ctx.getString(R.string.lan_type_smb)
+                                                    com.shelf.reader.core.net.DiscoveredSourceType.WEBDAV -> ctx.getString(R.string.lan_type_webdav)
+                                                    com.shelf.reader.core.net.DiscoveredSourceType.CALIBRE -> ctx.getString(R.string.lan_type_calibre)
+                                                    com.shelf.reader.core.net.DiscoveredSourceType.HTTP_CANDIDATE -> ctx.getString(R.string.lan_type_http)
                                                 }
                                                 android.widget.Toast.makeText(
                                                     ctx,
-                                                    "Heuristisk tillit: ${cand.confidencePct}% sannsynlighet for at dette er en $typeLabel. Trykk på linjen for å forhåndsvise URL.",
+                                                    ctx.getString(R.string.lan_confidence_toast, cand.confidencePct, typeLabel),
                                                     android.widget.Toast.LENGTH_LONG
                                                 ).show()
                                             },
-                                            label = { Text("${cand.confidencePct}% sannsynlig") },
+                                            label = { Text(stringResource(R.string.lan_confidence, cand.confidencePct)) },
                                             colors = AssistChipDefaults.assistChipColors(
                                                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                                             )
@@ -738,10 +742,10 @@ private fun WellKnownCatalogsSection() {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val catalogs = remember {
         listOf(
-            CatalogSuggestion("Standard Ebooks", "https://standardebooks.org/opds", "Høykvalitet, fritt og offentlig", Icons.Default.AutoStories, com.shelf.reader.designsystem.theme.OmarchyColors.Dim),
-            CatalogSuggestion("Feedbooks", "https://www.feedbooks.com/catalog.atom", "Ny og klassisk litteratur", Icons.Default.MenuBook, com.shelf.reader.designsystem.theme.OmarchyColors.Dim),
-            CatalogSuggestion("Project Gutenberg", "https://www.gutenberg.org/ebooks/opds", "Offentlig eiendom, 70 000+ bøker", Icons.Default.LibraryBooks, com.shelf.reader.designsystem.theme.OmarchyColors.Dim),
-            CatalogSuggestion("LibriVox (lydbøker)", "https://librivox.org/api/feed/audiobooks/?format=opds", "Fritt lydbøker, frivillige", Icons.Default.Audiotrack, com.shelf.reader.designsystem.theme.OmarchyColors.Dim)
+            CatalogSuggestion("Standard Ebooks", "https://standardebooks.org/opds", ctx.getString(R.string.wkc_standard_ebooks_sub), Icons.Default.AutoStories, com.shelf.reader.designsystem.theme.OmarchyColors.Dim),
+            CatalogSuggestion("Feedbooks", "https://www.feedbooks.com/catalog.atom", ctx.getString(R.string.wkc_feedbooks_sub), Icons.Default.MenuBook, com.shelf.reader.designsystem.theme.OmarchyColors.Dim),
+            CatalogSuggestion("Project Gutenberg", "https://www.gutenberg.org/ebooks/opds", ctx.getString(R.string.wkc_gutenberg_sub), Icons.Default.LibraryBooks, com.shelf.reader.designsystem.theme.OmarchyColors.Dim),
+            CatalogSuggestion("LibriVox (lydbøker)", "https://librivox.org/api/feed/audiobooks/?format=opds", ctx.getString(R.string.wkc_librivox_sub), Icons.Default.Audiotrack, com.shelf.reader.designsystem.theme.OmarchyColors.Dim)
         )
     }
 
@@ -749,13 +753,13 @@ private fun WellKnownCatalogsSection() {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    "Kjente OPDS-kataloger",
+                    stringResource(R.string.wkc_title),
                     style = ShelfTypography.TitleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "Klikk for å bla i offentlige og fritt tilgjengelige kataloger – importer direkte til biblioteket ditt.",
+                    stringResource(R.string.wkc_sub),
                     style = ShelfTypography.BodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -769,7 +773,7 @@ private fun WellKnownCatalogsSection() {
                     onClick = {
                         android.widget.Toast.makeText(
                             ctx,
-                            "OPDS: ${c.title} – ${c.url}\n(Funksjonalitet for blaing i katalog implementeres når kjernefunksjonene bekreftet fungerer)",
+                            ctx.getString(R.string.wkc_toast, c.title, c.url),
                             android.widget.Toast.LENGTH_LONG
                         ).show()
                     },
@@ -859,10 +863,10 @@ private fun ImportProgressScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Nedlastinger & import", style = ShelfTypography.HeadlineSmall, fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.import_progress_title), style = ShelfTypography.HeadlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Tilbake")
+                        Icon(Icons.Default.ArrowBack, stringResource(R.string.action_back))
                     }
                 }
             )
@@ -877,8 +881,8 @@ private fun ImportProgressScreen(onBack: () -> Unit) {
                 .collectAsStateWithLifecycle(initialValue = emptyList())
 
             TabRow(selectedTabIndex = selectedTabIndex) {
-                Tab(selected = selectedTabIndex == 0, onClick = { selectedTabIndex = 0 }, text = { Text("Nedlastinger") })
-                Tab(selected = selectedTabIndex == 1, onClick = { selectedTabIndex = 1 }, text = { Text("Synk-historikk") })
+                Tab(selected = selectedTabIndex == 0, onClick = { selectedTabIndex = 0 }, text = { Text(stringResource(R.string.import_tab_downloads)) })
+                Tab(selected = selectedTabIndex == 1, onClick = { selectedTabIndex = 1 }, text = { Text(stringResource(R.string.import_tab_sync_history)) })
             }
 
             Spacer(Modifier.height(12.dp))
@@ -896,7 +900,7 @@ private fun ImportProgressScreen(onBack: () -> Unit) {
                                 )
                                 Spacer(Modifier.height(12.dp))
                                 Text(
-                                    "Ingen nedlastinger ennå",
+                                    stringResource(R.string.empty_no_downloads),
                                     style = ShelfTypography.TitleMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -912,12 +916,7 @@ private fun ImportProgressScreen(onBack: () -> Unit) {
                                     com.shelf.reader.data.local.entity.DownloadStatusEntity.CANCELLED -> MaterialTheme.colorScheme.onSurfaceVariant
                                     else -> MaterialTheme.colorScheme.tertiary
                                 }
-                                val sourceLabel = if (task.serverId != null) {
-                                    when {
-                                        task.remotePath.contains("smb", true) || task.serverId != null && task.localPath?.contains("smb") == true -> "Synk"
-                                        else -> "Synk"
-                                    }
-                                } else "Import"
+                                val sourceLabel = if (task.serverId != null) stringResource(R.string.ip_source_sync) else stringResource(R.string.ip_source_import)
                                 Card {
                                     Column(Modifier.padding(14.dp)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -927,15 +926,14 @@ private fun ImportProgressScreen(onBack: () -> Unit) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             AssistChip(
                                                 onClick = {
+                                                    val sourceDetail = if (task.serverId != null) navContext.getString(R.string.ip_detail_server, task.serverId) else navContext.getString(R.string.ip_detail_local_import)
                                                     val detail = buildString {
-                                                        append("Type: $sourceLabel · ")
-                                                        append("Kilde: ")
-                                                        if (task.serverId != null) append("Server #${task.serverId}") else append("Lokal import")
-                                                        append("\nEkstern: ${task.remotePath}")
-                                                        if (task.localPath != null) append("\nLokalt: ${task.localPath}")
-                                                        val sizeTxt = if (task.sizeBytes > 0) "Størrelse: ${formatBytes(task.sizeBytes)}" else null
+                                                        append(navContext.getString(R.string.ip_detail_type, sourceLabel, sourceDetail))
+                                                        append("\n").append(navContext.getString(R.string.ip_detail_remote, task.remotePath))
+                                                        if (task.localPath != null) append("\n").append(navContext.getString(R.string.ip_detail_local, task.localPath))
+                                                        val sizeTxt = if (task.sizeBytes > 0) navContext.getString(R.string.ip_detail_size, formatBytes(task.sizeBytes)) else null
                                                         if (sizeTxt != null) append("\n").append(sizeTxt)
-                                                        if (task.retryCount > 0) append("\nForsøk: ${task.retryCount + 1}")
+                                                        if (task.retryCount > 0) append("\n").append(navContext.getString(R.string.ip_detail_attempts, task.retryCount + 1))
                                                     }
                                                     scope.launch { snackbarHostState.showSnackbar(detail) }
                                                 },
@@ -949,30 +947,30 @@ private fun ImportProgressScreen(onBack: () -> Unit) {
                                                         com.shelf.reader.data.local.entity.DownloadStatusEntity.RUNNING -> {
                                                             scope.launch {
                                                                 snackbarHostState.showSnackbar(
-                                                                    "Kjører: ${task.remoteName}. Trykk på system-meldinger for å avbryte via WorkManager."
+                                                                    navContext.getString(R.string.ip_running_msg, task.remoteName)
                                                                 )
                                                             }
                                                         }
                                                         com.shelf.reader.data.local.entity.DownloadStatusEntity.FAILED -> {
-                                                            val err = task.errorMessage ?: "Ukjent feil"
+                                                            val err = task.errorMessage ?: navContext.getString(R.string.ip_unknown_error)
                                                             scope.launch {
                                                                 snackbarHostState.showSnackbar(
-                                                                    "Feilet: $err · Gå til Kilder → velg tjener → Synk nå for å prøve igjen."
+                                                                    navContext.getString(R.string.ip_failed_msg, err)
                                                                 )
                                                             }
                                                         }
                                                         com.shelf.reader.data.local.entity.DownloadStatusEntity.COMPLETED -> {
                                                             scope.launch {
                                                                 snackbarHostState.showSnackbar(
-                                                                    "Fullført: ${task.remoteName} (${formatBytes(task.downloadedBytes)})"
+                                                                    navContext.getString(R.string.ip_done_msg, task.remoteName, formatBytes(task.downloadedBytes))
                                                                 )
                                                             }
                                                         }
                                                         com.shelf.reader.data.local.entity.DownloadStatusEntity.CANCELLED -> {
-                                                            scope.launch { snackbarHostState.showSnackbar("Oppgaven er avbrutt.") }
+                                                            scope.launch { snackbarHostState.showSnackbar(navContext.getString(R.string.ip_cancelled_msg)) }
                                                         }
                                                         else -> {
-                                                            scope.launch { snackbarHostState.showSnackbar("Status: ${task.status.name}") }
+                                                            scope.launch { snackbarHostState.showSnackbar(navContext.getString(R.string.ip_status_msg, task.status.name)) }
                                                         }
                                                     }
                                                 },
@@ -1000,7 +998,7 @@ private fun ImportProgressScreen(onBack: () -> Unit) {
                                         if (task.errorMessage != null) {
                                             Spacer(Modifier.height(6.dp))
                                             Text(
-                                                "Feil: ${task.errorMessage}",
+                                                navContext.getString(R.string.ip_error, task.errorMessage.orEmpty()),
                                                 style = ShelfTypography.BodySmall,
                                                 color = MaterialTheme.colorScheme.error
                                             )
@@ -1023,13 +1021,13 @@ private fun ImportProgressScreen(onBack: () -> Unit) {
                                 )
                                 Spacer(Modifier.height(12.dp))
                                 Text(
-                                    "Ingen synk-historikk",
+                                    stringResource(R.string.empty_no_sync_history),
                                     style = ShelfTypography.TitleMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(Modifier.height(4.dp))
                                 Text(
-                                    "Når auto-synk kjører vises resultatet her.",
+                                    stringResource(R.string.ip_empty_history_hint),
                                     style = ShelfTypography.BodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                 )
@@ -1057,13 +1055,13 @@ private fun ImportProgressScreen(onBack: () -> Unit) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Column(Modifier.weight(1f)) {
                                                 Text(
-                                                    "Server ${h.serverId}",
+                                                    stringResource(R.string.ip_server, h.serverId),
                                                     style = ShelfTypography.BodyLarge,
                                                     fontWeight = FontWeight.SemiBold
                                                 )
                                                 Spacer(Modifier.height(2.dp))
                                                 Text(
-                                                    "$dateText · Varighet: $durText",
+                                                    stringResource(R.string.ip_duration_detail, dateText, durText),
                                                     style = ShelfTypography.BodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
@@ -1076,15 +1074,15 @@ private fun ImportProgressScreen(onBack: () -> Unit) {
                                         }
                                         Spacer(Modifier.height(8.dp))
                                         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                                            SyncStatChip("Funnet", "${h.filesFound}")
-                                            SyncStatChip("Nye", "${h.filesNew}")
-                                            SyncStatChip("Lastet ned", "${h.filesDownloaded}", MaterialTheme.colorScheme.primary)
-                                            SyncStatChip("Feilet", "${h.filesFailed}", MaterialTheme.colorScheme.error)
+                                            SyncStatChip(stringResource(R.string.ip_stat_found), "${h.filesFound}")
+                                            SyncStatChip(stringResource(R.string.ip_stat_new), "${h.filesNew}")
+                                            SyncStatChip(stringResource(R.string.ip_stat_downloaded), "${h.filesDownloaded}", MaterialTheme.colorScheme.primary)
+                                            SyncStatChip(stringResource(R.string.ip_stat_failed), "${h.filesFailed}", MaterialTheme.colorScheme.error)
                                         }
                                         if (h.errorMessage != null) {
                                             Spacer(Modifier.height(6.dp))
                                             Text(
-                                                "Feil: ${h.errorMessage}",
+                                                navContext.getString(R.string.ip_error, h.errorMessage.orEmpty()),
                                                 style = ShelfTypography.BodySmall,
                                                 color = MaterialTheme.colorScheme.error
                                             )
@@ -1106,29 +1104,29 @@ private fun ImportProgressScreen(onBack: () -> Unit) {
         val durSec = (durMs / 1000).toInt()
         val durTxt = if (hCompletedAt != null) {
             if (durSec < 60) "${durSec} sek" else "${durSec / 60}m ${durSec % 60}s"
-        } else "Pågår"
+        } else stringResource(R.string.ip_dlg_ongoing)
         AlertDialog(
             onDismissRequest = { showHistoryDialogFor = null },
             confirmButton = {
-                TextButton(onClick = { showHistoryDialogFor = null }) { Text("Lukk") }
+                TextButton(onClick = { showHistoryDialogFor = null }) { Text(stringResource(R.string.action_close)) }
             },
-            title = { Text("Synk-detaljer · Server ${hist.serverId}") },
+            title = { Text(stringResource(R.string.ip_dlg_title, hist.serverId)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Status: ${hist.status.name.lowercase().replaceFirstChar { it.uppercase() }}")
-                    Text("Startet: ${fmt.format(java.util.Date(hist.startedAt))}")
-                    Text("Ferdig: ${if (hCompletedAt != null) fmt.format(java.util.Date(hCompletedAt)) else "—"}")
-                    Text("Varighet: $durTxt")
+                    Text(stringResource(R.string.ip_dlg_status, hist.status.name.lowercase().replaceFirstChar { it.uppercase() }))
+                    Text(stringResource(R.string.ip_dlg_started, fmt.format(java.util.Date(hist.startedAt))))
+                    Text(stringResource(R.string.ip_dlg_finished, if (hCompletedAt != null) fmt.format(java.util.Date(hCompletedAt)) else "—"))
+                    Text(stringResource(R.string.ip_dlg_duration, durTxt))
                     HorizontalDivider()
-                    Text("📊 Resultater:", fontWeight = FontWeight.SemiBold)
-                    Text("   • Funnet: ${hist.filesFound} filer")
-                    Text("   • Nye (uleste): ${hist.filesNew}")
-                    Text("   • Lastet ned OK: ${hist.filesDownloaded}")
-                    Text("   • Feilet: ${hist.filesFailed}")
+                    Text(stringResource(R.string.ip_dlg_results), fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.ip_dlg_found, hist.filesFound))
+                    Text(stringResource(R.string.ip_dlg_new, hist.filesNew))
+                    Text(stringResource(R.string.ip_dlg_downloaded, hist.filesDownloaded))
+                    Text(stringResource(R.string.ip_dlg_failed, hist.filesFailed))
                     if (hist.errorMessage != null) {
                         HorizontalDivider()
                         Text(
-                            "❌ Feil: ${hist.errorMessage}",
+                            stringResource(R.string.ip_dlg_error, hist.errorMessage.orEmpty()),
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall
                         )

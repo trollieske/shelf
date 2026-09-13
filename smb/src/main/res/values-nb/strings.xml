@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="smbu_title">SMB / Windows-nettverk</string>
+    <string name="smbu_back">Tilbake</string>
+    <string name="smbu_downloading">Laster ned %1$d fil(er)…</string>
+    <string name="smbu_download">Last ned (%1$d)</string>
+    <string name="smbu_server_deleted">Server slettet</string>
+    <string name="smbu_saved">Lagret</string>
+    <string name="smbu_syncing">Synkroniserer mappe…</string>
+    <string name="smbu_sync_folder">Synk mappe</string>
+    <string name="smbu_folder_empty">Mappen er tom</string>
+    <string name="smbu_saved_servers">Lagrede servere</string>
+    <string name="smbu_connection">Serveroppkobling</string>
+    <string name="smbu_display_name">Visningsnavn (valgfritt)</string>
+    <string name="smbu_host">Vert / IP</string>
+    <string name="smbu_port">Port</string>
+    <string name="smbu_share_name">Navn på delt ressurs (share)</string>
+    <string name="smbu_domain">Domene (valgfritt, f.eks. WORKGROUP)</string>
+    <string name="smbu_username">Brukernavn</string>
+    <string name="smbu_password">Passord</string>
+    <string name="smbu_version">SMB-versjon</string>
+    <string name="smbu_encryption">SMB 3-kryptering</string>
+    <string name="smbu_save_server">Lagre server</string>
+    <string name="smbu_server_name">Navn på server</string>
+    <string name="smbu_save">Lagre</string>
+    <string name="smbu_cancel">Avbryt</string>
+    <string name="smbu_notif_title">SMB-synkronisering</string>
+    <string name="smbu_notif_channel_desc">SMB/Windows-fildeling synkronisering</string>
+    <string name="smbu_notif_text">Ser etter nye bøker på nettverksdisker…</string>
+</resources>

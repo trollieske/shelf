@@ -18,6 +18,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.shelf.reader.torrent.R
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -81,10 +83,10 @@ fun TorrentScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Torrent-klient", style = ShelfTypography.HeadlineSmall, fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.toru_title), style = ShelfTypography.HeadlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Tilbake")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.toru_back))
                     }
                 },
                 actions = {
@@ -105,12 +107,12 @@ fun TorrentScreen(
                 ExtendedFloatingActionButton(
                     onClick = { showAddDialog = AddKind.FILE },
                     icon = { Icon(Icons.Default.AttachFile, null) },
-                    text = { Text(".torrent") }
+                    text = { Text(stringResource(R.string.toru_torrent_file)) }
                 )
                 ExtendedFloatingActionButton(
                     onClick = { showAddDialog = AddKind.MAGNET },
                     icon = { Icon(Icons.Default.AddLink, null) },
-                    text = { Text("Magnet") }
+                    text = { Text(stringResource(R.string.toru_magnet)) }
                 )
             }
         }
@@ -133,7 +135,7 @@ fun TorrentScreen(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Søk etter åpne kilder eller navngi en bok…") },
+                label = { Text(stringResource(R.string.toru_search_hint)) },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
                 singleLine = true,
                 shape = MaterialTheme.shapes.large
@@ -157,7 +159,7 @@ fun TorrentScreen(
                         AssistChip(
                             onClick = {
                                 scope.launch {
-                                    snackbarHostState.showSnackbar("Åpner: $label")
+                                    snackbarHostState.showSnackbar(ctx.getString(R.string.toru_opening, label))
                                 }
                                 runCatching {
                                     val i = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(final))
@@ -258,7 +260,7 @@ fun TorrentScreen(
                             onCancel = { vm.cancelDownload(dl.id) },
                             onDelete = {
                                 vm.deleteDownload(dl.id, withFiles = false)
-                                scope.launch { snackbarHostState.showSnackbar("Fjernet fra liste (filer beholdt for seeding)") }
+                                scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.toru_removed)) }
                             },
                             onReimport = { id -> vm.reimportTorrent(id) },
                             onPickFolder = { id ->
@@ -321,8 +323,8 @@ private fun SpeedCard(dl: Long, ul: Long, activeCount: Int) {
                 }
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text("$activeCount aktive", style = ShelfTypography.HeadlineMedium, fontWeight = FontWeight.Bold)
-                Text("nedlastinger", style = ShelfTypography.BodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text(stringResource(R.string.toru_active_count, activeCount), style = ShelfTypography.HeadlineMedium, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.toru_downloads_word), style = ShelfTypography.BodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
             }
         }
     }
@@ -427,7 +429,7 @@ private fun TorrentCard(
                         ) {
                             Icon(Icons.Default.LibraryAdd, null, Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Importer til biblioteket")
+                            Text(stringResource(R.string.toru_import))
                         }
                     }
 
@@ -442,33 +444,33 @@ private fun TorrentCard(
                         ) {
                             Icon(Icons.Default.FolderOpen, null, Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("Velg mappe", maxLines = 1)
+                            Text(stringResource(R.string.toru_choose_folder), maxLines = 1)
                         }
 
                         if (dl.status == DownloadStatusEntity.PENDING) {
                             Button(onClick = onStart) {
                                 Icon(Icons.Default.PlayArrow, null, Modifier.size(16.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("Start")
+                                Text(stringResource(R.string.toru_start))
                             }
                         } else if (dl.status == DownloadStatusEntity.RUNNING) {
                             OutlinedButton(onClick = onPause) {
                                 Icon(Icons.Default.Pause, null, Modifier.size(16.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("Pause")
+                                Text(stringResource(R.string.toru_pause))
                             }
                         } else if (dl.status == DownloadStatusEntity.PAUSED) {
                             Button(onClick = onResume) {
                                 Icon(Icons.Default.PlayArrow, null, Modifier.size(16.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("Fortsett")
+                                Text(stringResource(R.string.toru_resume))
                             }
                         }
 
                         OutlinedButton(onClick = onDelete) {
                             Icon(Icons.Default.Delete, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
                             Spacer(Modifier.width(4.dp))
-                            Text("Slett torrent", color = MaterialTheme.colorScheme.error, maxLines = 1)
+                            Text(stringResource(R.string.toru_delete), color = MaterialTheme.colorScheme.error, maxLines = 1)
                         }
                     }
                 }
@@ -486,13 +488,13 @@ private fun AddMagnetDialog(
     var value by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Legg til magnet-lenke") },
+        title = { Text(stringResource(R.string.toru_add_magnet_title)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = value,
                     onValueChange = { value = it },
-                    label = { Text("magnet:?xt=urn:btih:...") },
+                    label = { Text(stringResource(R.string.toru_magnet_placeholder)) },
                     modifier = Modifier.fillMaxWidth().height(120.dp),
                     minLines = 3
                 )
@@ -508,9 +510,9 @@ private fun AddMagnetDialog(
             TextButton(
                 onClick = { onSubmit(value) },
                 enabled = value.trim().startsWith("magnet:")
-            ) { Text("Legg til") }
+            ) { Text(stringResource(R.string.toru_add)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Avbryt") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.toru_cancel)) } }
     )
 }
 

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ply_title">Ljudbok</string>
+    <string name="ply_read_switch">📖 Läs</string>
+    <string name="ply_sleep_a11y">Sömnfunktion</string>
+    <string name="ply_chapters_a11y">Kapitel</string>
+    <string name="ply_prev_chapter">Föregående kapitel</string>
+    <string name="ply_next_chapter">Nästa kapitel</string>
+    <string name="ply_skip_back">%1$d s bakåt</string>
+    <string name="ply_skip_forward">%1$d s framåt</string>
+    <string name="ply_play">Spela</string>
+    <string name="ply_pause">Pausa</string>
+    <string name="ply_no_chapters">Inga kapitel tillgängliga ännu.</string>
+    <string name="ply_speed_title">Uppspelningshastighet</string>
+    <string name="ply_close">Stäng</string>
+    <string name="ply_sleep_title">Sömnfunktion</string>
+    <string name="ply_sleep_active">⏱️ Aktiv nedräkning: %1$d min %2$d sek</string>
+    <string name="ply_sleep_off">Stäng av</string>
+    <string name="ply_sleep_custom_min">Egen tid (minuter)</string>
+    <string name="ply_sleep_hint">T.ex. 25</string>
+    <string name="ply_sleep_set">Ställ in timer</string>
+    <string name="ply_sleep_presets">Snabbval</string>
+    <string name="ply_sleep_turn_off_timer">Stäng av sömnfunktionen</string>
+    <string name="ply_sleep_minutes">%1$d minuter</string>
+    <string name="ply_continue_toast">Fortsätter ungefär på samma ställe</string>
+    <string name="ply_estimate_toast">Kapiteluppskattning: %1$s</string>
+    <string name="ply_notif_loading">Läser in ljudbok…</string>
+    <string name="ply_notif_prev">Föregående</string>
+    <string name="ply_notif_skip_back">Bakåt 10 s</string>
+    <string name="ply_notif_play">Spela</string>
+    <string name="ply_notif_skip_forward">Framåt 30 s</string>
+    <string name="ply_notif_next">Nästa</string>
+    <string name="ply_library_root">Shelf-bibliotek</string>
+    <string name="ply_notif_title">Ljudbok</string>
+    <string name="ply_notif_channel">Uppspelning</string>
+    <string name="ply_notif_channel_desc">Aviseringar för ljudboksuppspelning</string>
+</resources>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lib_books">Böcker</string>
+    <string name="lib_audiobooks">Ljudböcker</string>
+    <string name="lib_search_a11y">Sök</string>
+    <string name="lib_sources_a11y">FTP och synk</string>
+    <string name="lib_import_a11y">Importera</string>
+    <string name="lib_settings_a11y">Inställningar</string>
+    <string name="lib_search_hint">Sök i biblioteket...</string>
+    <string name="lib_clear_a11y">Rensa</string>
+    <string name="lib_continue">Fortsätt</string>
+    <string name="lib_empty_title">Ditt bibliotek är tomt</string>
+    <string name="lib_empty_desc">Lägg till e-böcker och ljudböcker genom att importera filer från din enhet eller synka från FTP/seedbox.</string>
+    <string name="lib_sync_button">Synka från FTP / seedbox</string>
+    <string name="lib_import_button">Importera från enhet</string>
+    <string name="lib_sort_shelf">Hylla</string>
+    <string name="lib_sort_series">Serie</string>
+    <string name="lib_sort_author">Författare</string>
+    <string name="lib_sort_recent">Senaste</string>
+    <string name="lib_sort_title">Titel</string>
+    <string name="lib_sort_added">Lagt till</string>
+</resources>

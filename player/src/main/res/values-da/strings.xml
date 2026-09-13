@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ply_title">Lydbog</string>
+    <string name="ply_read_switch">📖 Læs</string>
+    <string name="ply_sleep_a11y">Søvntimer</string>
+    <string name="ply_chapters_a11y">Kapitler</string>
+    <string name="ply_prev_chapter">Forrige kapitel</string>
+    <string name="ply_next_chapter">Næste kapitel</string>
+    <string name="ply_skip_back">%1$d s tilbage</string>
+    <string name="ply_skip_forward">%1$d s frem</string>
+    <string name="ply_play">Afspil</string>
+    <string name="ply_pause">Pause</string>
+    <string name="ply_no_chapters">Ingen kapitler tilgængelige endnu.</string>
+    <string name="ply_speed_title">Afspilningshastighed</string>
+    <string name="ply_close">Luk</string>
+    <string name="ply_sleep_title">Søvntimer</string>
+    <string name="ply_sleep_active">⏱️ Aktiv nedtælling: %1$d min %2$d sek</string>
+    <string name="ply_sleep_off">Slå fra</string>
+    <string name="ply_sleep_custom_min">Brugerdefineret tid (minutter)</string>
+    <string name="ply_sleep_hint">F.eks. 25</string>
+    <string name="ply_sleep_set">Indstil timer</string>
+    <string name="ply_sleep_presets">Hurtigvalg</string>
+    <string name="ply_sleep_turn_off_timer">Slå søvntimeren fra</string>
+    <string name="ply_sleep_minutes">%1$d minutter</string>
+    <string name="ply_continue_toast">Fortsætter cirka samme sted</string>
+    <string name="ply_estimate_toast">Kapitelestimat: %1$s</string>
+    <string name="ply_notif_loading">Indlæser lydbog…</string>
+    <string name="ply_notif_prev">Forrige</string>
+    <string name="ply_notif_skip_back">Tilbage 10 s</string>
+    <string name="ply_notif_play">Afspil</string>
+    <string name="ply_notif_skip_forward">Frem 30 s</string>
+    <string name="ply_notif_next">Næste</string>
+    <string name="ply_library_root">Shelf-bibliotek</string>
+    <string name="ply_notif_title">Lydbog</string>
+    <string name="ply_notif_channel">Afspilning</string>
+    <string name="ply_notif_channel_desc">Notifikationer for lydbogsafspilning</string>
+</resources>

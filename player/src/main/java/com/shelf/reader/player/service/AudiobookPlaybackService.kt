@@ -1,5 +1,7 @@
 package com.shelf.reader.player.service
 
+import com.shelf.reader.player.R
+
 import android.app.Notification
 import android.app.PendingIntent
 import android.content.Intent
@@ -206,7 +208,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
                     .setMediaId("__ROOT__")
                     .setMediaMetadata(
                         MediaMetadata.Builder()
-                            .setTitle("Shelf Bibliotek")
+                            .setTitle(this@AudiobookPlaybackService.getString(R.string.ply_library_root))
                             .setIsBrowsable(true)
                             .setMediaType(MediaMetadata.MEDIA_TYPE_FOLDER_MIXED)
                             .build()
@@ -273,17 +275,17 @@ class AudiobookPlaybackService : MediaLibraryService() {
 
         val layoutButtons = listOf(
             CommandButton.Builder()
-                .setDisplayName("Tilbake 10s").setIconResId(android.R.drawable.ic_media_rew)
+                .setDisplayName(getString(R.string.ply_notif_skip_back)).setIconResId(android.R.drawable.ic_media_rew)
                 .setSessionCommand(SessionCommand(CMD_SKIP_BACK, Bundle()))
                 .build(),
-            CommandButton.Builder().setDisplayName("Forrige").setIconResId(android.R.drawable.ic_media_previous)
+            CommandButton.Builder().setDisplayName(getString(R.string.ply_notif_prev)).setIconResId(android.R.drawable.ic_media_previous)
                 .setPlayerCommand(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM).build(),
-            CommandButton.Builder().setDisplayName("Spill").setIconResId(android.R.drawable.ic_media_play)
+            CommandButton.Builder().setDisplayName(getString(R.string.ply_notif_play)).setIconResId(android.R.drawable.ic_media_play)
                 .setPlayerCommand(Player.COMMAND_PLAY_PAUSE).build(),
-            CommandButton.Builder().setDisplayName("Neste").setIconResId(android.R.drawable.ic_media_next)
+            CommandButton.Builder().setDisplayName(getString(R.string.ply_notif_next)).setIconResId(android.R.drawable.ic_media_next)
                 .setPlayerCommand(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM).build(),
             CommandButton.Builder()
-                .setDisplayName("Frem 30s").setIconResId(android.R.drawable.ic_media_ff)
+                .setDisplayName(getString(R.string.ply_notif_skip_forward)).setIconResId(android.R.drawable.ic_media_ff)
                 .setSessionCommand(SessionCommand(CMD_SKIP_FORWARD, Bundle()))
                 .build()
         )
@@ -323,20 +325,20 @@ class AudiobookPlaybackService : MediaLibraryService() {
                 )
 
                 val notification = androidx.core.app.NotificationCompat.Builder(this@AudiobookPlaybackService, CHANNEL_ID)
-                    .setContentTitle(session.player.mediaMetadata.title ?: "Lydbok")
+                    .setContentTitle(session.player.mediaMetadata.title ?: this@AudiobookPlaybackService.getString(R.string.ply_title))
                     .setContentText(session.player.mediaMetadata.artist ?: "")
                     .setSmallIcon(appIcon)
                     .apply { currentCoverBitmap?.let { setLargeIcon(it) } }
                     .setSubText(session.player.mediaMetadata.albumTitle)
                     .setOngoing(session.player.isPlaying)
                     .setContentIntent(session.sessionActivity)
-                    .addAction(android.R.drawable.ic_media_previous, "Forrige",
+                    .addAction(android.R.drawable.ic_media_previous, this@AudiobookPlaybackService.getString(R.string.ply_notif_prev),
                         actionFactory.createMediaActionPendingIntent(session, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM.toLong()))
-                    .addAction(android.R.drawable.ic_media_rew, "Tilbake 10s", skipBackPi)
-                    .addAction(android.R.drawable.ic_media_play, "Spill",
+                    .addAction(android.R.drawable.ic_media_rew, this@AudiobookPlaybackService.getString(R.string.ply_notif_skip_back), skipBackPi)
+                    .addAction(android.R.drawable.ic_media_play, this@AudiobookPlaybackService.getString(R.string.ply_notif_play),
                         actionFactory.createMediaActionPendingIntent(session, Player.COMMAND_PLAY_PAUSE.toLong()))
-                    .addAction(android.R.drawable.ic_media_ff, "Frem 30s", skipForwardPi)
-                    .addAction(android.R.drawable.ic_media_next, "Neste",
+                    .addAction(android.R.drawable.ic_media_ff, this@AudiobookPlaybackService.getString(R.string.ply_notif_skip_forward), skipForwardPi)
+                    .addAction(android.R.drawable.ic_media_next, this@AudiobookPlaybackService.getString(R.string.ply_notif_next),
                         actionFactory.createMediaActionPendingIntent(session, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM.toLong()))
                     .setStyle(androidx.media.app.NotificationCompat.MediaStyle()
                         .setShowActionsInCompactView(1, 2, 3))
@@ -356,7 +358,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
         } else 0
 
         val initialNotif = androidx.core.app.NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Laster lydbok…")
+            .setContentTitle(getString(R.string.ply_notif_loading))
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setPriority(androidx.core.app.NotificationCompat.PRIORITY_LOW)
             .build()
@@ -542,8 +544,8 @@ class AudiobookPlaybackService : MediaLibraryService() {
         val existing = mgr.getNotificationChannel(CHANNEL_ID)
         if (existing == null) {
             val channel = NotificationChannelCompat.Builder(CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_LOW)
-                .setName("Avspilling")
-                .setDescription("Lydbok-avspilling")
+                .setName(getString(R.string.ply_notif_channel))
+                .setDescription(getString(R.string.ply_notif_channel_desc))
                 .setShowBadge(false)
                 .build()
             mgr.createNotificationChannel(channel)

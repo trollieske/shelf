@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ftpu_title">FTP y uso compartido de archivos</string>
+    <string name="ftpu_back">Atrás</string>
+    <string name="ftpu_sync_now">Sincronizar ahora</string>
+    <string name="ftpu_imported">%1$d archivo(s) importado(s) a la biblioteca</string>
+    <string name="ftpu_download">Descargar (%1$d)</string>
+    <string name="ftpu_sync_folder_updated">Carpeta de sincronización actualizada a \'%1$s\'</string>
+    <string name="ftpu_server_deleted">Servidor eliminado</string>
+    <string name="ftpu_server_saved">Servidor guardado con la carpeta de sincronización \'%1$s\'</string>
+    <string name="ftpu_current_folder">Carpeta actual:</string>
+    <string name="ftpu_saved_sync_folder">¡\'%1$s\' guardada como carpeta de sincronización!</string>
+    <string name="ftpu_saved_servers">Servidores guardados</string>
+    <string name="ftpu_delete">Eliminar</string>
+    <string name="ftpu_cancel">Cancelar</string>
+    <string name="ftpu_delete_server_title">¿Eliminar el servidor?</string>
+    <string name="ftpu_delete_server_msg">¿Eliminar «%1$s»? Se eliminará la contraseña.</string>
+    <string name="ftpu_save">Guardar</string>
+    <string name="ftpu_edit_sync_folder">Editar carpeta de sincronización</string>
+    <string name="ftpu_sync_folder_desc">Introduce la carpeta del servidor que se va a sincronizar (p. ej. /Audiolibros):</string>
+    <string name="ftpu_sync_folder">Carpeta de sincronización</string>
+    <string name="ftpu_save_server">Guardar servidor</string>
+    <string name="ftpu_save_server_desc">Introduce un nombre de servidor y una carpeta de sincronización:</string>
+    <string name="ftpu_name">Nombre</string>
+    <string name="ftpu_sync_folder_start">Carpeta de sincronización / carpeta de inicio (p. ej. /Audiolibros)</string>
+    <string name="ftpu_protocol">Protocolo:</string>
+    <string name="ftpu_pasv">Modo pasivo (PASV)</string>
+    <string name="ftpu_pasv_sub">Desactívalo si un firewall bloquea el listado de carpetas</string>
+    <string name="ftpu_host">Servidor (IP o dominio)</string>
+    <string name="ftpu_port">Puerto</string>
+    <string name="ftpu_username">Nombre de usuario</string>
+    <string name="ftpu_password">Contraseña</string>
+    <string name="ftpu_concurrent">Transferencias simultáneas:</string>
+    <string name="ftpu_threads">%1$d subprocesos</string>
+    <string name="ftpu_open_folder">Abrir carpeta</string>
+    <string name="ftpu_threads_progress">%1$d de %2$d subprocesos</string>
+    <string name="ftpu_files_progress">%1$d de %2$d archivos (%3$d%%)</string>
+    <string name="ftpu_transferred">%1$s transferidos</string>
+    <string name="ftpu_cancel_label">Cancelar</string>
+    <string name="ftpu_notif_title">Sincronización FTP</string>
+    <string name="ftpu_notif_channel_desc">Muestra el progreso de las descargas FTP</string>
+    <string name="ftpu_notif_text">Buscando libros nuevos…</string>
+</resources>

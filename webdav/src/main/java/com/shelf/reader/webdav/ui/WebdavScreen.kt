@@ -1,5 +1,7 @@
 package com.shelf.reader.webdav.ui
 
+import com.shelf.reader.webdav.R
+
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -14,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -40,6 +43,7 @@ fun WebdavScreen(
     val state by vm.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
     var showSaveDialog by remember { mutableStateOf(false) }
     var showSecret by remember { mutableStateOf(false) }
 
@@ -53,16 +57,16 @@ fun WebdavScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("WebDAV (Nextcloud o.l.)", style = ShelfTypography.HeadlineSmall, fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.wdav_title), style = ShelfTypography.HeadlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Tilbake")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.wdav_back))
                     }
                 },
                 actions = {
                     if (state.baseUrl.isNotBlank()) {
                         IconButton(onClick = { showSaveDialog = true }) {
-                            Icon(if (state.activeServerId != null) Icons.Default.Edit else Icons.Default.Save, "Lagre server")
+                            Icon(if (state.activeServerId != null) Icons.Default.Edit else Icons.Default.Save, stringResource(R.string.wdav_save_server))
                         }
                     }
                 }
@@ -74,10 +78,10 @@ fun WebdavScreen(
                 ExtendedFloatingActionButton(
                     onClick = {
                         vm.downloadAndImportSelected()
-                        scope.launch { snackbarHostState.showSnackbar("Laster ned ${state.selected.size} fil(er)…") }
+                        scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.wdav_downloading, state.selected.size)) }
                     },
                     icon = { Icon(Icons.Default.Download, null) },
-                    text = { Text("Last ned (${state.selected.size})") }
+                    text = { Text(stringResource(R.string.wdav_download, state.selected.size)) }
                 )
             }
         }
@@ -91,7 +95,7 @@ fun WebdavScreen(
                     onConnect = { vm.loadServer(it); vm.connect() },
                     onDelete = { id ->
                         vm.deleteSaved(id)
-                        scope.launch { snackbarHostState.showSnackbar("Server slettet") }
+                        scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.wdav_server_deleted)) }
                     }
                 )
                 Spacer(Modifier.height(16.dp))
@@ -121,7 +125,7 @@ fun WebdavScreen(
                     onSave = { name ->
                         vm.saveCurrentAs(name)
                         showSaveDialog = false
-                        scope.launch { snackbarHostState.showSnackbar("Lagret") }
+                        scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.wdav_saved)) }
                     }
                 )
             }
@@ -137,8 +141,8 @@ fun WebdavScreen(
                     PathBreadcrumb(currentPath = state.currentPath, onNavigateUp = vm::navigateUp)
                     TextButton(onClick = {
                         vm.downloadAndImportCurrentFolder()
-                        scope.launch { snackbarHostState.showSnackbar("Synkroniserer mappe…") }
-                    }) { Text("Synk mappe") }
+                        scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.wdav_syncing)) }
+                    }) { Text(stringResource(R.string.wdav_sync_folder)) }
                 }
 
                 val selectedCount = state.selected.size
@@ -158,7 +162,7 @@ fun WebdavScreen(
                     }
                 } else if (state.entries.isEmpty()) {
                     Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
-                        Text("Mappen er tom", style = ShelfTypography.BodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.wdav_folder_empty), style = ShelfTypography.BodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -194,7 +198,7 @@ private fun SavedWebdavServersPanel(
 ) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Text("Lagrede servere", style = ShelfTypography.TitleSmall, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.wdav_saved_servers), style = ShelfTypography.TitleSmall, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
             saved.forEach { s ->
                 Row(
@@ -249,24 +253,24 @@ private fun WebdavServerCard(
 ) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Text("Serveroppkobling", style = ShelfTypography.TitleSmall, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.wdav_connection), style = ShelfTypography.TitleSmall, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = state.displayName,
                 onValueChange = onDisplayNameChange,
-                label = { Text("Visningsnavn (valgfritt)") },
+                label = { Text(stringResource(R.string.wdav_display_name)) },
                 singleLine = true, modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = state.baseUrl,
                 onValueChange = onBaseUrlChange,
-                label = { Text("Base-URL (f.eks. https://cloud.example.com)") },
+                label = { Text(stringResource(R.string.wdav_base_url)) },
                 singleLine = true, modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Autentisering", Modifier.weight(1f), style = ShelfTypography.BodyMedium)
+                Text(stringResource(R.string.wdav_auth), Modifier.weight(1f), style = ShelfTypography.BodyMedium)
                 var expanded by remember { mutableStateOf(false) }
                 ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
                     OutlinedTextField(
@@ -289,7 +293,7 @@ private fun WebdavServerCard(
                 OutlinedTextField(
                     value = state.username,
                     onValueChange = onUsernameChange,
-                    label = { Text("Brukernavn") },
+                    label = { Text(stringResource(R.string.wdav_username)) },
                     singleLine = true, modifier = Modifier.fillMaxWidth(),
                     enabled = state.authType != "BEARER" || state.username.isNotBlank()
                 )
@@ -300,7 +304,7 @@ private fun WebdavServerCard(
                     OutlinedTextField(
                         value = state.bearerToken,
                         onValueChange = onBearerTokenChange,
-                        label = { Text("Bearer Token (App-passord i Nextcloud)") },
+                        label = { Text(stringResource(R.string.wdav_bearer)) },
                         singleLine = true, modifier = Modifier.fillMaxWidth(),
                         visualTransformation = if (showSecret) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
@@ -314,7 +318,7 @@ private fun WebdavServerCard(
                     OutlinedTextField(
                         value = state.password,
                         onValueChange = onPasswordChange,
-                        label = { Text("Passord") },
+                        label = { Text(stringResource(R.string.wdav_password)) },
                         singleLine = true, modifier = Modifier.fillMaxWidth(),
                         visualTransformation = if (showSecret) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
@@ -329,13 +333,13 @@ private fun WebdavServerCard(
             OutlinedTextField(
                 value = state.basePath,
                 onValueChange = onBasePathChange,
-                label = { Text("DAV-sti (f.eks. /remote.php/dav/files/)") },
+                label = { Text(stringResource(R.string.wdav_dav_path)) },
                 singleLine = true, modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
             )
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Stol på alle SSL-sertifikater", Modifier.weight(1f), style = ShelfTypography.BodyMedium)
+                Text(stringResource(R.string.wdav_trust_ssl), Modifier.weight(1f), style = ShelfTypography.BodyMedium)
                 Switch(checked = state.trustAllCertificates, onCheckedChange = onTrustAllCertsChange)
             }
             Spacer(Modifier.height(12.dp))
@@ -427,16 +431,16 @@ private fun SaveServerDialog(initialName: String, onDismiss: () -> Unit, onSave:
     var name by remember { mutableStateOf(initialName) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Lagre server") },
+        title = { Text(stringResource(R.string.wdav_save_server)) },
         text = {
             OutlinedTextField(
                 value = name, onValueChange = { name = it },
-                label = { Text("Navn på server") },
+                label = { Text(stringResource(R.string.wdav_server_name)) },
                 singleLine = true, modifier = Modifier.fillMaxWidth()
             )
         },
-        confirmButton = { TextButton(onClick = { onSave(name) }, enabled = name.isNotBlank()) { Text("Lagre") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Avbryt") } }
+        confirmButton = { TextButton(onClick = { onSave(name) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.wdav_save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.wdav_cancel)) } }
     )
 }
 

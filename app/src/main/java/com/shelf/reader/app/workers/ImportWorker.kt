@@ -1,5 +1,7 @@
 package com.shelf.reader.app.workers
 
+import com.shelf.reader.R
+
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -125,8 +127,8 @@ class ImportWorker(
 
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle("Import ferdig")
-            .setContentText("$cnt bøker importert")
+            .setContentTitle(appContext.getString(R.string.import_notif_done))
+            .setContentText(appContext.getString(R.string.import_notif_books, cnt))
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(false)
             .setAutoCancel(true)
@@ -140,8 +142,8 @@ class ImportWorker(
 
         val fg = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle("Import")
-            .setContentText("$cnt bøker importert")
+            .setContentTitle(appContext.getString(R.string.import_notif_title))
+            .setContentText(appContext.getString(R.string.import_notif_books, cnt))
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(false)
             .build()
@@ -167,8 +169,8 @@ class ImportWorker(
         runCatching {
             val nm = NotificationManagerCompat.from(appContext)
             val chan = NotificationChannelCompat.Builder(CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_LOW)
-                .setName("Import")
-                .setDescription("Importeringsmeldinger")
+                .setName(appContext.getString(R.string.import_notif_channel))
+                .setDescription(appContext.getString(R.string.import_notif_channel_desc))
                 .build()
             nm.createNotificationChannel(chan)
         }
@@ -177,8 +179,8 @@ class ImportWorker(
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("Importerer bøker")
-            .setContentText("Vennligst vent…")
+            .setContentTitle(appContext.getString(R.string.import_notif_working))
+            .setContentText(appContext.getString(R.string.import_notif_wait))
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .build()

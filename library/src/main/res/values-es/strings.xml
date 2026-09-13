@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lib_books">Libros</string>
+    <string name="lib_audiobooks">Audiolibros</string>
+    <string name="lib_search_a11y">Buscar</string>
+    <string name="lib_sources_a11y">FTP y sincronización</string>
+    <string name="lib_import_a11y">Importar</string>
+    <string name="lib_settings_a11y">Ajustes</string>
+    <string name="lib_search_hint">Buscar en la biblioteca...</string>
+    <string name="lib_clear_a11y">Vaciar</string>
+    <string name="lib_continue">Continuar</string>
+    <string name="lib_empty_title">Tu biblioteca está vacía</string>
+    <string name="lib_empty_desc">Añade ebooks y audiolibros importando archivos de tu dispositivo o sincronizando desde FTP/seedbox.</string>
+    <string name="lib_sync_button">Sincronizar desde FTP / seedbox</string>
+    <string name="lib_import_button">Importar desde el dispositivo</string>
+    <string name="lib_sort_shelf">Estantería</string>
+    <string name="lib_sort_series">Serie</string>
+    <string name="lib_sort_author">Autor</string>
+    <string name="lib_sort_recent">Recientes</string>
+    <string name="lib_sort_title">Título</string>
+    <string name="lib_sort_added">Fecha de adición</string>
+</resources>

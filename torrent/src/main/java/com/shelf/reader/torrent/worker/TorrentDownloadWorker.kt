@@ -1,5 +1,7 @@
 package com.shelf.reader.torrent.worker
 
+import com.shelf.reader.torrent.R
+
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -170,8 +172,8 @@ class TorrentDownloadWorker(
             val nm = NotificationManagerCompat.from(appContext)
             if (nm.getNotificationChannel(CHANNEL_ID) == null) {
                 val chan = NotificationChannelCompat.Builder(CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_LOW)
-                    .setName("Torrent Nedlastinger")
-                    .setDescription("Viser fremdrift for torrent-nedlastinger")
+                    .setName(appContext.getString(R.string.toru_notif_channel))
+                    .setDescription(appContext.getString(R.string.toru_notif_channel_desc))
                     .build()
                 nm.createNotificationChannel(chan)
             }
@@ -181,8 +183,8 @@ class TorrentDownloadWorker(
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("Torrent-nedlastinger")
-            .setContentText("Torrent-klient kjører i bakgrunnen…")
+            .setContentTitle(appContext.getString(R.string.toru_notif_channel))
+            .setContentText(appContext.getString(R.string.toru_notif_text))
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .build()

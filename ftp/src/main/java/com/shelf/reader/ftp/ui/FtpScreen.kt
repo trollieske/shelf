@@ -1,5 +1,7 @@
 package com.shelf.reader.ftp.ui
 
+import androidx.compose.ui.res.stringResource
+import com.shelf.reader.ftp.R
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -60,10 +62,10 @@ fun FtpScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("FTP & Fildeling", style = ShelfTypography.HeadlineSmall, fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.ftpu_title), style = ShelfTypography.HeadlineSmall, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Tilbake")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.ftpu_back))
                     }
                 },
                 actions = {
@@ -83,7 +85,7 @@ fun FtpScreen(
                         ) {
                             Icon(
                                 Icons.Default.Sync,
-                                contentDescription = "Synkroniser nå",
+                                contentDescription = stringResource(R.string.ftpu_sync_now),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -107,12 +109,12 @@ fun FtpScreen(
                         val count = state.selected.size
                         vm.downloadSelected(ctx) { successCount ->
                             scope.launch {
-                                snackbarHostState.showSnackbar("Importert $successCount fil(er) til biblioteket")
+                                snackbarHostState.showSnackbar(ctx.getString(R.string.ftpu_imported, successCount))
                             }
                         }
                     },
                     icon = { Icon(Icons.Default.Download, null) },
-                    text = { Text("Last ned (${state.selected.size})") }
+                    text = { Text(stringResource(R.string.ftpu_download, state.selected.size)) }
                 )
             }
         }
@@ -144,11 +146,11 @@ fun FtpScreen(
                     onUpdatePath = { id, newPath ->
                         vm.loadServer(id)
                         vm.updateCurrentPath(newPath)
-                        scope.launch { snackbarHostState.showSnackbar("Synk-mappe oppdatert til '$newPath'") }
+                        scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.ftpu_sync_folder_updated, newPath)) }
                     },
                     onDelete = { id ->
                         vm.deleteSaved(id)
-                        scope.launch { snackbarHostState.showSnackbar("Server slettet") }
+                        scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.ftpu_server_deleted)) }
                     }
                 )
                 Spacer(Modifier.height(16.dp))
@@ -181,7 +183,7 @@ fun FtpScreen(
                         vm.updateCurrentPath(path)
                         vm.saveCurrentAs(name)
                         showSaveDialog = false
-                        scope.launch { snackbarHostState.showSnackbar("Server lagret med synk-mappe '$path'") }
+                        scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.ftpu_server_saved, path)) }
                     }
                 )
             }
@@ -213,7 +215,7 @@ fun FtpScreen(
                         ) {
                             Icon(Icons.Default.FolderSpecial, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                             Column {
-                                Text("Gjeldende mappe:", style = ShelfTypography.LabelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(stringResource(R.string.ftpu_current_folder), style = ShelfTypography.LabelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(
                                     state.currentPath.ifBlank { "/" },
                                     style = ShelfTypography.TitleMedium,
@@ -259,7 +261,7 @@ fun FtpScreen(
                                     if (state.activeServerId == null) {
                                         vm.saveCurrentAs(state.server)
                                     }
-                                    scope.launch { snackbarHostState.showSnackbar("Lagret '${state.currentPath}' som synk-mappe!") }
+                                    scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.ftpu_saved_sync_folder, state.currentPath)) }
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -392,7 +394,7 @@ private fun SavedServersPanel(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.Dns, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Lagrede servere", style = ShelfTypography.TitleSmall, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.ftpu_saved_servers), style = ShelfTypography.TitleSmall, fontWeight = FontWeight.SemiBold)
         }
         saved.forEach { sv ->
             ElevatedCard(
@@ -444,14 +446,14 @@ private fun SavedServersPanel(
                             onDismissRequest = { confirmDelete = false },
                             confirmButton = {
                                 TextButton(onClick = { onDelete(sv.id); confirmDelete = false }) {
-                                    Text("Slett")
+                                    Text(stringResource(R.string.ftpu_delete))
                                 }
                             },
                             dismissButton = {
-                                TextButton(onClick = { confirmDelete = false }) { Text("Avbryt") }
+                                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.ftpu_cancel)) }
                             },
-                            title = { Text("Slett server?") },
-                            text = { Text("Vil du slette «${sv.name.ifBlank { sv.server }}»? Passordet blir fjernet.") }
+                            title = { Text(stringResource(R.string.ftpu_delete_server_title)) },
+                            text = { Text(stringResource(R.string.ftpu_delete_server_msg, sv.name.ifBlank { sv.server })) }
                         )
                     }
                 }
@@ -469,21 +471,21 @@ private fun SavedServersPanel(
                     TextButton(onClick = {
                         onUpdatePath(sv.id, pathText.trim())
                         editingServerPathId = null
-                    }) { Text("Lagre") }
+                    }) { Text(stringResource(R.string.ftpu_save)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { editingServerPathId = null }) { Text("Avbryt") }
+                    TextButton(onClick = { editingServerPathId = null }) { Text(stringResource(R.string.ftpu_cancel)) }
                 },
-                title = { Text("Endre synk-mappe") },
+                title = { Text(stringResource(R.string.ftpu_edit_sync_folder)) },
                 text = {
                     Column {
-                        Text("Skriv inn mappen på serveren som skal synkroniseres (f.eks. /Lydbøker):", style = ShelfTypography.BodyMedium)
+                        Text(stringResource(R.string.ftpu_sync_folder_desc), style = ShelfTypography.BodyMedium)
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
                             value = pathText,
                             onValueChange = { pathText = it },
                             singleLine = true,
-                            label = { Text("Synk-mappe") },
+                            label = { Text(stringResource(R.string.ftpu_sync_folder)) },
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -507,27 +509,27 @@ private fun SaveServerDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = { onSave(name.trim(), path.trim()) }) { Text("Lagre") }
+            TextButton(onClick = { onSave(name.trim(), path.trim()) }) { Text(stringResource(R.string.ftpu_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Avbryt") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.ftpu_cancel)) }
         },
-        title = { Text("Lagre server") },
+        title = { Text(stringResource(R.string.ftpu_save_server)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Oppgi servernavn og synk-mappe:", style = ShelfTypography.BodyMedium)
+                Text(stringResource(R.string.ftpu_save_server_desc), style = ShelfTypography.BodyMedium)
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     singleLine = true,
-                    label = { Text("Navn") },
+                    label = { Text(stringResource(R.string.ftpu_name)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = path,
                     onValueChange = { path = it },
                     singleLine = true,
-                    label = { Text("Synk-mappe / Startmappe (f.eks. /Lydbøker)") },
+                    label = { Text(stringResource(R.string.ftpu_sync_folder_start)) },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -582,7 +584,7 @@ private fun ServerCard(
             }
 
             if (!state.isConnected) {
-                Text("Protokoll:", style = ShelfTypography.LabelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.ftpu_protocol), style = ShelfTypography.LabelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -603,8 +605,8 @@ private fun ServerCard(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
-                            Text("Passiv modus (PASV)", style = ShelfTypography.BodyMedium, fontWeight = FontWeight.SemiBold)
-                            Text("Slå av hvis brannmur blokkerer mappelisting", style = ShelfTypography.LabelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.ftpu_pasv), style = ShelfTypography.BodyMedium, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.ftpu_pasv_sub), style = ShelfTypography.LabelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(
                             checked = state.usePassiveMode,
@@ -616,7 +618,7 @@ private fun ServerCard(
                 OutlinedTextField(
                     value = state.server,
                     onValueChange = onServerChange,
-                    label = { Text("Vert (IP eller domenenavn)") },
+                    label = { Text(stringResource(R.string.ftpu_host)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -625,14 +627,14 @@ private fun ServerCard(
                     OutlinedTextField(
                         value = state.port.toString(),
                         onValueChange = onPortChange,
-                        label = { Text("Port") },
+                        label = { Text(stringResource(R.string.ftpu_port)) },
                         singleLine = true,
                         modifier = Modifier.weight(0.4f)
                     )
                     OutlinedTextField(
                         value = state.username,
                         onValueChange = onUsernameChange,
-                        label = { Text("Brukernavn") },
+                        label = { Text(stringResource(R.string.ftpu_username)) },
                         singleLine = true,
                         modifier = Modifier.weight(0.6f)
                     )
@@ -641,7 +643,7 @@ private fun ServerCard(
                 OutlinedTextField(
                     value = state.password,
                     onValueChange = onPasswordChange,
-                    label = { Text("Passord") },
+                    label = { Text(stringResource(R.string.ftpu_password)) },
                     singleLine = true,
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
@@ -658,7 +660,7 @@ private fun ServerCard(
                 OutlinedTextField(
                     value = state.currentPath,
                     onValueChange = onCurrentPathChange,
-                    label = { Text("Synk-mappe / Startmappe (f.eks. /Lydbøker)") },
+                    label = { Text(stringResource(R.string.ftpu_sync_folder_start)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -669,8 +671,8 @@ private fun ServerCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Samtidige overføringer:", style = ShelfTypography.BodyMedium, fontWeight = FontWeight.SemiBold)
-                        Text("${state.maxConcurrency} tråder", style = ShelfTypography.LabelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Text(stringResource(R.string.ftpu_concurrent), style = ShelfTypography.BodyMedium, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.ftpu_threads, state.maxConcurrency), style = ShelfTypography.LabelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     }
                     Slider(
                         value = state.maxConcurrency.toFloat(),
@@ -819,7 +821,7 @@ private fun EntryRow(
             if (entry.type == FtpEntryType.FOLDER) {
                 Icon(
                     Icons.Default.ChevronRight,
-                    contentDescription = "Åpne mappe",
+                    contentDescription = stringResource(R.string.ftpu_open_folder),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -887,7 +889,7 @@ private fun SyncProgressCard(
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                     ) {
                         Text(
-                            text = "${state.activeDownloadsCount} av ${state.maxConcurrency} tråder",
+                            text = stringResource(R.string.ftpu_threads_progress, state.activeDownloadsCount, state.maxConcurrency),
                             style = ShelfTypography.LabelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
@@ -909,7 +911,7 @@ private fun SyncProgressCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "${state.syncedFilesCount} av ${state.totalFilesToSync} filer ($percentInt%)",
+                        text = stringResource(R.string.ftpu_files_progress, state.syncedFilesCount, state.totalFilesToSync, percentInt),
                         style = ShelfTypography.BodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -952,7 +954,7 @@ private fun SyncProgressCard(
                     )
 
                     Text(
-                        text = "${formatBytes(state.transferredBytesTotal)} overført",
+                        text = stringResource(R.string.ftpu_transferred, formatBytes(state.transferredBytesTotal)),
                         style = ShelfTypography.LabelMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                     )
@@ -1005,7 +1007,7 @@ private fun SyncProgressCard(
                 ) {
                     Icon(Icons.Default.Close, null, Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Avbryt", style = ShelfTypography.LabelMedium, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.ftpu_cancel_label), style = ShelfTypography.LabelMedium, fontWeight = FontWeight.Bold)
                 }
             }
 

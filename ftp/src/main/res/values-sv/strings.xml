@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ftpu_title">FTP och fildelning</string>
+    <string name="ftpu_back">Tillbaka</string>
+    <string name="ftpu_sync_now">Synka nu</string>
+    <string name="ftpu_imported">Importerade %1$d fil(er) till biblioteket</string>
+    <string name="ftpu_download">Ladda ner (%1$d)</string>
+    <string name="ftpu_sync_folder_updated">Synkmappen uppdaterad till \'%1$s\'</string>
+    <string name="ftpu_server_deleted">Servern borttagen</string>
+    <string name="ftpu_server_saved">Servern sparad med synkmappen \'%1$s\'</string>
+    <string name="ftpu_current_folder">Aktuell mapp:</string>
+    <string name="ftpu_saved_sync_folder">Sparade \'%1$s\' som synkmapp!</string>
+    <string name="ftpu_saved_servers">Sparade servrar</string>
+    <string name="ftpu_delete">Ta bort</string>
+    <string name="ftpu_cancel">Avbryt</string>
+    <string name="ftpu_delete_server_title">Ta bort servern?</string>
+    <string name="ftpu_delete_server_msg">Ta bort «%1$s»? Lösenordet tas bort.</string>
+    <string name="ftpu_save">Spara</string>
+    <string name="ftpu_edit_sync_folder">Redigera synkmapp</string>
+    <string name="ftpu_sync_folder_desc">Ange mappen på servern som ska synkas (t.ex. /Ljudböcker):</string>
+    <string name="ftpu_sync_folder">Synkmapp</string>
+    <string name="ftpu_save_server">Spara server</string>
+    <string name="ftpu_save_server_desc">Ange servernamn och synkmapp:</string>
+    <string name="ftpu_name">Namn</string>
+    <string name="ftpu_sync_folder_start">Synkmapp / startmapp (t.ex. /Ljudböcker)</string>
+    <string name="ftpu_protocol">Protokoll:</string>
+    <string name="ftpu_pasv">Passivt läge (PASV)</string>
+    <string name="ftpu_pasv_sub">Stäng av om en brandvägg blockerar mapplistning</string>
+    <string name="ftpu_host">Värd (IP eller domän)</string>
+    <string name="ftpu_port">Port</string>
+    <string name="ftpu_username">Användarnamn</string>
+    <string name="ftpu_password">Lösenord</string>
+    <string name="ftpu_concurrent">Samtidiga överföringar:</string>
+    <string name="ftpu_threads">%1$d trådar</string>
+    <string name="ftpu_open_folder">Öppna mapp</string>
+    <string name="ftpu_threads_progress">%1$d av %2$d trådar</string>
+    <string name="ftpu_files_progress">%1$d av %2$d filer (%3$d%%)</string>
+    <string name="ftpu_transferred">%1$s överförda</string>
+    <string name="ftpu_cancel_label">Avbryt</string>
+    <string name="ftpu_notif_title">FTP-synk</string>
+    <string name="ftpu_notif_channel_desc">Visar förlopp för FTP-nedladdningar</string>
+    <string name="ftpu_notif_text">Letar efter nya böcker…</string>
+</resources>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="smbu_title">SMB / Windows network</string>
+    <string name="smbu_back">Back</string>
+    <string name="smbu_downloading">Downloading %1$d file(s)…</string>
+    <string name="smbu_download">Download (%1$d)</string>
+    <string name="smbu_server_deleted">Server deleted</string>
+    <string name="smbu_saved">Saved</string>
+    <string name="smbu_syncing">Syncing folder…</string>
+    <string name="smbu_sync_folder">Sync folder</string>
+    <string name="smbu_folder_empty">The folder is empty</string>
+    <string name="smbu_saved_servers">Saved servers</string>
+    <string name="smbu_connection">Server connection</string>
+    <string name="smbu_display_name">Display name (optional)</string>
+    <string name="smbu_host">Host / IP</string>
+    <string name="smbu_port">Port</string>
+    <string name="smbu_share_name">Share name</string>
+    <string name="smbu_domain">Domain (optional, e.g. WORKGROUP)</string>
+    <string name="smbu_username">Username</string>
+    <string name="smbu_password">Password</string>
+    <string name="smbu_version">SMB version</string>
+    <string name="smbu_encryption">SMB 3 encryption</string>
+    <string name="smbu_save_server">Save server</string>
+    <string name="smbu_server_name">Server name</string>
+    <string name="smbu_save">Save</string>
+    <string name="smbu_cancel">Cancel</string>
+    <string name="smbu_notif_title">SMB sync</string>
+    <string name="smbu_notif_channel_desc">SMB/Windows file share sync</string>
+    <string name="smbu_notif_text">Looking for new books on network drives…</string>
+</resources>

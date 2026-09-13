@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lib_books">Книги</string>
+    <string name="lib_audiobooks">Аудіокниги</string>
+    <string name="lib_search_a11y">Пошук</string>
+    <string name="lib_sources_a11y">FTP і синхронізація</string>
+    <string name="lib_import_a11y">Імпорт</string>
+    <string name="lib_settings_a11y">Налаштування</string>
+    <string name="lib_search_hint">Пошук у бібліотеці...</string>
+    <string name="lib_clear_a11y">Очистити</string>
+    <string name="lib_continue">Продовжити</string>
+    <string name="lib_empty_title">Ваша бібліотека порожня</string>
+    <string name="lib_empty_desc">Додавайте електронні та аудіокниги, імпортуючи файли з пристрою або синхронізуючись із FTP/seedbox.</string>
+    <string name="lib_sync_button">Синхронізувати з FTP / seedbox</string>
+    <string name="lib_import_button">Імпортувати з пристрою</string>
+    <string name="lib_sort_shelf">Полиця</string>
+    <string name="lib_sort_series">Серія</string>
+    <string name="lib_sort_author">Автор</string>
+    <string name="lib_sort_recent">Нещодавні</string>
+    <string name="lib_sort_title">Назва</string>
+    <string name="lib_sort_added">Дата додавання</string>
+</resources>

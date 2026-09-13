@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="toru_title">Client torrent</string>
+    <string name="toru_back">Retour</string>
+    <string name="toru_torrent_file">.torrent</string>
+    <string name="toru_magnet">Magnet</string>
+    <string name="toru_search_hint">Rechercher des sources ouvertes ou nommer un livre…</string>
+    <string name="toru_opening">Ouverture : %1$s</string>
+    <string name="toru_removed">Retiré de la liste (fichiers conservés pour le seeding)</string>
+    <string name="toru_active_count">%1$d actifs</string>
+    <string name="toru_downloads_word">téléchargements</string>
+    <string name="toru_import">Importer dans la bibliothèque</string>
+    <string name="toru_choose_folder">Choisir un dossier</string>
+    <string name="toru_start">Démarrer</string>
+    <string name="toru_pause">Pause</string>
+    <string name="toru_resume">Reprendre</string>
+    <string name="toru_delete">Supprimer le torrent</string>
+    <string name="toru_add_magnet_title">Ajouter un lien magnet</string>
+    <string name="toru_magnet_placeholder">magnet:?xt=urn:btih:...</string>
+    <string name="toru_add">Ajouter</string>
+    <string name="toru_cancel">Annuler</string>
+    <string name="toru_notif_channel">Téléchargements torrent</string>
+    <string name="toru_notif_text">Le client torrent s\'exécute en arrière-plan…</string>
+    <string name="toru_notif_channel_desc">Affiche la progression des téléchargements torrent</string>
+</resources>

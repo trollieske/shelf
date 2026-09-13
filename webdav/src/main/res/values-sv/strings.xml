@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="wdav_title">WebDAV (Nextcloud m.m.)</string>
+    <string name="wdav_back">Tillbaka</string>
+    <string name="wdav_downloading">Laddar ner %1$d fil(er)…</string>
+    <string name="wdav_download">Ladda ner (%1$d)</string>
+    <string name="wdav_server_deleted">Servern borttagen</string>
+    <string name="wdav_saved">Sparat</string>
+    <string name="wdav_syncing">Synkroniserar mapp…</string>
+    <string name="wdav_sync_folder">Synka mapp</string>
+    <string name="wdav_folder_empty">Mappen är tom</string>
+    <string name="wdav_saved_servers">Sparade servrar</string>
+    <string name="wdav_connection">Serveranslutning</string>
+    <string name="wdav_display_name">Visningsnamn (valfritt)</string>
+    <string name="wdav_base_url">Bas-URL (t.ex. https://cloud.example.com)</string>
+    <string name="wdav_auth">Autentisering</string>
+    <string name="wdav_username">Användarnamn</string>
+    <string name="wdav_password">Lösenord</string>
+    <string name="wdav_bearer">Bearer-token (applösenord i Nextcloud)</string>
+    <string name="wdav_dav_path">DAV-sökväg (t.ex. /remote.php/dav/files/)</string>
+    <string name="wdav_trust_ssl">Lita på alla SSL-certifikat</string>
+    <string name="wdav_save_server">Spara server</string>
+    <string name="wdav_server_name">Servernamn</string>
+    <string name="wdav_save">Spara</string>
+    <string name="wdav_cancel">Avbryt</string>
+    <string name="wdav_notif_title">WebDAV-synk</string>
+    <string name="wdav_notif_channel_desc">Synk av Nextcloud/Owncloud/WebDAV</string>
+    <string name="wdav_notif_text">Letar efter nya böcker på molntjänster…</string>
+</resources>

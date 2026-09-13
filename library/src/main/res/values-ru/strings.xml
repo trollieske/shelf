@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lib_books">Книги</string>
+    <string name="lib_audiobooks">Аудиокниги</string>
+    <string name="lib_search_a11y">Поиск</string>
+    <string name="lib_sources_a11y">FTP и синхронизация</string>
+    <string name="lib_import_a11y">Импорт</string>
+    <string name="lib_settings_a11y">Настройки</string>
+    <string name="lib_search_hint">Поиск в библиотеке...</string>
+    <string name="lib_clear_a11y">Очистить</string>
+    <string name="lib_continue">Продолжить</string>
+    <string name="lib_empty_title">Ваша библиотека пуста</string>
+    <string name="lib_empty_desc">Добавляйте электронные и аудиокниги, импортируя файлы с устройства или синхронизируясь с FTP/seedbox.</string>
+    <string name="lib_sync_button">Синхронизировать с FTP / seedbox</string>
+    <string name="lib_import_button">Импортировать с устройства</string>
+    <string name="lib_sort_shelf">Полка</string>
+    <string name="lib_sort_series">Серия</string>
+    <string name="lib_sort_author">Автор</string>
+    <string name="lib_sort_recent">Недавние</string>
+    <string name="lib_sort_title">Название</string>
+    <string name="lib_sort_added">Когда добавлена</string>
+</resources>

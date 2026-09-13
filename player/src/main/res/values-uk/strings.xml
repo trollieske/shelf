@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ply_title">Аудіокнига</string>
+    <string name="ply_read_switch">📖 Читати</string>
+    <string name="ply_sleep_a11y">Таймер сну</string>
+    <string name="ply_chapters_a11y">Розділи</string>
+    <string name="ply_prev_chapter">Попередній розділ</string>
+    <string name="ply_next_chapter">Наступний розділ</string>
+    <string name="ply_skip_back">Назад %1$d с</string>
+    <string name="ply_skip_forward">Вперед %1$d с</string>
+    <string name="ply_play">Відтворити</string>
+    <string name="ply_pause">Пауза</string>
+    <string name="ply_no_chapters">Розділи поки недоступні.</string>
+    <string name="ply_speed_title">Швидкість відтворення</string>
+    <string name="ply_close">Закрити</string>
+    <string name="ply_sleep_title">Таймер сну</string>
+    <string name="ply_sleep_active">⏱️ Активний зворотний відлік: %1$d хв %2$d с</string>
+    <string name="ply_sleep_off">Вимкнути</string>
+    <string name="ply_sleep_custom_min">Власний час (хвилини)</string>
+    <string name="ply_sleep_hint">напр. 25</string>
+    <string name="ply_sleep_set">Установити таймер</string>
+    <string name="ply_sleep_presets">Швидкий вибір</string>
+    <string name="ply_sleep_turn_off_timer">Вимкнути таймер сну</string>
+    <string name="ply_sleep_minutes">%1$d хвилин</string>
+    <string name="ply_continue_toast">Продовження приблизно з того самого місця</string>
+    <string name="ply_estimate_toast">Оцінка розділу: %1$s</string>
+    <string name="ply_notif_loading">Завантаження аудіокниги…</string>
+    <string name="ply_notif_prev">Попередня</string>
+    <string name="ply_notif_skip_back">Назад 10 с</string>
+    <string name="ply_notif_play">Відтворити</string>
+    <string name="ply_notif_skip_forward">Вперед 30 с</string>
+    <string name="ply_notif_next">Наступна</string>
+    <string name="ply_library_root">Бібліотека Shelf</string>
+    <string name="ply_notif_title">Аудіокнига</string>
+    <string name="ply_notif_channel">Відтворення</string>
+    <string name="ply_notif_channel_desc">Сповіщення про відтворення аудіокниг</string>
+</resources>

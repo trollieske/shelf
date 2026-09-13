@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="smbu_title">SMB / мережа Windows</string>
+    <string name="smbu_back">Назад</string>
+    <string name="smbu_downloading">Завантажується файлів: %1$d…</string>
+    <string name="smbu_download">Завантажити (%1$d)</string>
+    <string name="smbu_server_deleted">Сервер видалено</string>
+    <string name="smbu_saved">Збережено</string>
+    <string name="smbu_syncing">Синхронізація папки…</string>
+    <string name="smbu_sync_folder">Синхронізувати папку</string>
+    <string name="smbu_folder_empty">Папка порожня</string>
+    <string name="smbu_saved_servers">Збережені сервери</string>
+    <string name="smbu_connection">Підключення до сервера</string>
+    <string name="smbu_display_name">Відображуване ім\'я (необов\'язково)</string>
+    <string name="smbu_host">Хост / IP</string>
+    <string name="smbu_port">Порт</string>
+    <string name="smbu_share_name">Ім\'я спільного ресурсу</string>
+    <string name="smbu_domain">Домен (необов\'язково, наприклад WORKGROUP)</string>
+    <string name="smbu_username">Ім\'я користувача</string>
+    <string name="smbu_password">Пароль</string>
+    <string name="smbu_version">Версія SMB</string>
+    <string name="smbu_encryption">Шифрування SMB 3</string>
+    <string name="smbu_save_server">Зберегти сервер</string>
+    <string name="smbu_server_name">Ім\'я сервера</string>
+    <string name="smbu_save">Зберегти</string>
+    <string name="smbu_cancel">Скасувати</string>
+    <string name="smbu_notif_title">SMB-синхронізація</string>
+    <string name="smbu_notif_channel_desc">Синхронізація спільних папок SMB/Windows</string>
+    <string name="smbu_notif_text">Шукаємо нові книги на мережевих дисках…</string>
+</resources>

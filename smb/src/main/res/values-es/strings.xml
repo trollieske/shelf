@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="smbu_title">SMB / red de Windows</string>
+    <string name="smbu_back">Atrás</string>
+    <string name="smbu_downloading">Descargando %1$d archivo(s)…</string>
+    <string name="smbu_download">Descargar (%1$d)</string>
+    <string name="smbu_server_deleted">Servidor eliminado</string>
+    <string name="smbu_saved">Guardado</string>
+    <string name="smbu_syncing">Sincronizando carpeta…</string>
+    <string name="smbu_sync_folder">Sincronizar carpeta</string>
+    <string name="smbu_folder_empty">La carpeta está vacía</string>
+    <string name="smbu_saved_servers">Servidores guardados</string>
+    <string name="smbu_connection">Conexión al servidor</string>
+    <string name="smbu_display_name">Nombre para mostrar (opcional)</string>
+    <string name="smbu_host">Servidor / IP</string>
+    <string name="smbu_port">Puerto</string>
+    <string name="smbu_share_name">Nombre del recurso compartido</string>
+    <string name="smbu_domain">Dominio (opcional, p. ej. WORKGROUP)</string>
+    <string name="smbu_username">Nombre de usuario</string>
+    <string name="smbu_password">Contraseña</string>
+    <string name="smbu_version">Versión de SMB</string>
+    <string name="smbu_encryption">Cifrado SMB 3</string>
+    <string name="smbu_save_server">Guardar servidor</string>
+    <string name="smbu_server_name">Nombre del servidor</string>
+    <string name="smbu_save">Guardar</string>
+    <string name="smbu_cancel">Cancelar</string>
+    <string name="smbu_notif_title">Sincronización SMB</string>
+    <string name="smbu_notif_channel_desc">Sincronización de recursos SMB/Windows</string>
+    <string name="smbu_notif_text">Buscando libros nuevos en unidades de red…</string>
+</resources>

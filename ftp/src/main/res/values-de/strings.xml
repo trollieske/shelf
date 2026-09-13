@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ftpu_title">FTP und Dateifreigabe</string>
+    <string name="ftpu_back">Zurück</string>
+    <string name="ftpu_sync_now">Jetzt synchronisieren</string>
+    <string name="ftpu_imported">%1$d Datei(en) in die Bibliothek importiert</string>
+    <string name="ftpu_download">Herunterladen (%1$d)</string>
+    <string name="ftpu_sync_folder_updated">Sync-Ordner aktualisiert auf \'%1$s\'</string>
+    <string name="ftpu_server_deleted">Server gelöscht</string>
+    <string name="ftpu_server_saved">Server mit Sync-Ordner \'%1$s\' gespeichert</string>
+    <string name="ftpu_current_folder">Aktueller Ordner:</string>
+    <string name="ftpu_saved_sync_folder">\'%1$s\' als Sync-Ordner gespeichert!</string>
+    <string name="ftpu_saved_servers">Gespeicherte Server</string>
+    <string name="ftpu_delete">Löschen</string>
+    <string name="ftpu_cancel">Abbrechen</string>
+    <string name="ftpu_delete_server_title">Server löschen?</string>
+    <string name="ftpu_delete_server_msg">«%1$s» löschen? Das Passwort wird entfernt.</string>
+    <string name="ftpu_save">Speichern</string>
+    <string name="ftpu_edit_sync_folder">Sync-Ordner bearbeiten</string>
+    <string name="ftpu_sync_folder_desc">Geben Sie den zu synchronisierenden Ordner auf dem Server an (z. B. /Hörbücher):</string>
+    <string name="ftpu_sync_folder">Sync-Ordner</string>
+    <string name="ftpu_save_server">Server speichern</string>
+    <string name="ftpu_save_server_desc">Geben Sie einen Servernamen und einen Sync-Ordner an:</string>
+    <string name="ftpu_name">Name</string>
+    <string name="ftpu_sync_folder_start">Sync-Ordner / Startordner (z. B. /Hörbücher)</string>
+    <string name="ftpu_protocol">Protokoll:</string>
+    <string name="ftpu_pasv">Passiver Modus (PASV)</string>
+    <string name="ftpu_pasv_sub">Ausschalten, wenn eine Firewall die Ordnerliste blockiert</string>
+    <string name="ftpu_host">Host (IP oder Domäne)</string>
+    <string name="ftpu_port">Port</string>
+    <string name="ftpu_username">Benutzername</string>
+    <string name="ftpu_password">Passwort</string>
+    <string name="ftpu_concurrent">Parallele Übertragungen:</string>
+    <string name="ftpu_threads">%1$d Threads</string>
+    <string name="ftpu_open_folder">Ordner öffnen</string>
+    <string name="ftpu_threads_progress">%1$d von %2$d Threads</string>
+    <string name="ftpu_files_progress">%1$d von %2$d Dateien (%3$d%%)</string>
+    <string name="ftpu_transferred">%1$s übertragen</string>
+    <string name="ftpu_cancel_label">Abbrechen</string>
+    <string name="ftpu_notif_title">FTP-Sync</string>
+    <string name="ftpu_notif_channel_desc">Zeigt den Fortschritt von FTP-Downloads</string>
+    <string name="ftpu_notif_text">Suche nach neuen Büchern…</string>
+</resources>

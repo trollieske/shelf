@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ftpu_title">FTP та обмін файлами</string>
+    <string name="ftpu_back">Назад</string>
+    <string name="ftpu_sync_now">Синхронізувати зараз</string>
+    <string name="ftpu_imported">Імпортовано файлів у бібліотеку: %1$d</string>
+    <string name="ftpu_download">Завантажити (%1$d)</string>
+    <string name="ftpu_sync_folder_updated">Папку синхронізації оновлено на «%1$s»</string>
+    <string name="ftpu_server_deleted">Сервер видалено</string>
+    <string name="ftpu_server_saved">Сервер збережено з папкою синхронізації «%1$s»</string>
+    <string name="ftpu_current_folder">Поточна папка:</string>
+    <string name="ftpu_saved_sync_folder">«%1$s» збережено як папку синхронізації!</string>
+    <string name="ftpu_saved_servers">Збережені сервери</string>
+    <string name="ftpu_delete">Видалити</string>
+    <string name="ftpu_cancel">Скасувати</string>
+    <string name="ftpu_delete_server_title">Видалити сервер?</string>
+    <string name="ftpu_delete_server_msg">Видалити «%1$s»? Пароль буде видалено.</string>
+    <string name="ftpu_save">Зберегти</string>
+    <string name="ftpu_edit_sync_folder">Змінити папку синхронізації</string>
+    <string name="ftpu_sync_folder_desc">Вкажіть папку на сервері для синхронізації (наприклад, /Аудіокниги):</string>
+    <string name="ftpu_sync_folder">Папка синхронізації</string>
+    <string name="ftpu_save_server">Зберегти сервер</string>
+    <string name="ftpu_save_server_desc">Вкажіть ім\'я сервера та папку синхронізації:</string>
+    <string name="ftpu_name">Ім\'я</string>
+    <string name="ftpu_sync_folder_start">Папка синхронізації / стартова папка (наприклад, /Аудіокниги)</string>
+    <string name="ftpu_protocol">Протокол:</string>
+    <string name="ftpu_pasv">Пасивний режим (PASV)</string>
+    <string name="ftpu_pasv_sub">Вимкніть, якщо брандмауер блокує список папок</string>
+    <string name="ftpu_host">Хост (IP або домен)</string>
+    <string name="ftpu_port">Порт</string>
+    <string name="ftpu_username">Ім\'я користувача</string>
+    <string name="ftpu_password">Пароль</string>
+    <string name="ftpu_concurrent">Паралельних передач:</string>
+    <string name="ftpu_threads">%1$d потоків</string>
+    <string name="ftpu_open_folder">Відкрити папку</string>
+    <string name="ftpu_threads_progress">Потоків: %1$d із %2$d</string>
+    <string name="ftpu_files_progress">Файлів: %1$d із %2$d (%3$d%%)</string>
+    <string name="ftpu_transferred">Передано: %1$s</string>
+    <string name="ftpu_cancel_label">Скасувати</string>
+    <string name="ftpu_notif_title">FTP-синхронізація</string>
+    <string name="ftpu_notif_channel_desc">Показує прогрес FTP-завантажень</string>
+    <string name="ftpu_notif_text">Шукаємо нові книги…</string>
+</resources>

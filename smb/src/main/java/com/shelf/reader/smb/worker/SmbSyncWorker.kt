@@ -1,5 +1,7 @@
 package com.shelf.reader.smb.worker
 
+import com.shelf.reader.smb.R
+
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.net.Uri
@@ -127,8 +129,8 @@ class SmbSyncWorker(
             val nm = NotificationManagerCompat.from(appContext)
             if (nm.getNotificationChannel(CHANNEL_ID) == null) {
                 val chan = NotificationChannelCompat.Builder(CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_LOW)
-                    .setName("SMB Synkronisering")
-                    .setDescription("SMB/Windows-fildeling synkronisering")
+                    .setName(appContext.getString(R.string.smbu_notif_title))
+                    .setDescription(appContext.getString(R.string.smbu_notif_channel_desc))
                     .build()
                 nm.createNotificationChannel(chan)
             }
@@ -138,8 +140,8 @@ class SmbSyncWorker(
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("SMB Synkronisering")
-            .setContentText("Ser etter nye bøker på nettverksdisker…")
+            .setContentTitle(appContext.getString(R.string.smbu_notif_title))
+            .setContentText(appContext.getString(R.string.smbu_notif_text))
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .build()

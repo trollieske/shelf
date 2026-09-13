@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ply_title">Аудиокнига</string>
+    <string name="ply_read_switch">📖 Читать</string>
+    <string name="ply_sleep_a11y">Таймер сна</string>
+    <string name="ply_chapters_a11y">Главы</string>
+    <string name="ply_prev_chapter">Предыдущая глава</string>
+    <string name="ply_next_chapter">Следующая глава</string>
+    <string name="ply_skip_back">Назад %1$d с</string>
+    <string name="ply_skip_forward">Вперёд %1$d с</string>
+    <string name="ply_play">Воспроизвести</string>
+    <string name="ply_pause">Пауза</string>
+    <string name="ply_no_chapters">Главы пока недоступны.</string>
+    <string name="ply_speed_title">Скорость воспроизведения</string>
+    <string name="ply_close">Закрыть</string>
+    <string name="ply_sleep_title">Таймер сна</string>
+    <string name="ply_sleep_active">⏱️ Активный отсчёт: %1$d мин %2$d с</string>
+    <string name="ply_sleep_off">Выключить</string>
+    <string name="ply_sleep_custom_min">Своё время (минуты)</string>
+    <string name="ply_sleep_hint">напр. 25</string>
+    <string name="ply_sleep_set">Установить таймер</string>
+    <string name="ply_sleep_presets">Быстрый выбор</string>
+    <string name="ply_sleep_turn_off_timer">Выключить таймер сна</string>
+    <string name="ply_sleep_minutes">%1$d минут</string>
+    <string name="ply_continue_toast">Продолжение примерно с того же места</string>
+    <string name="ply_estimate_toast">Оценка главы: %1$s</string>
+    <string name="ply_notif_loading">Загрузка аудиокниги…</string>
+    <string name="ply_notif_prev">Предыдущая</string>
+    <string name="ply_notif_skip_back">Назад 10 с</string>
+    <string name="ply_notif_play">Воспроизвести</string>
+    <string name="ply_notif_skip_forward">Вперёд 30 с</string>
+    <string name="ply_notif_next">Следующая</string>
+    <string name="ply_library_root">Библиотека Shelf</string>
+    <string name="ply_notif_title">Аудиокнига</string>
+    <string name="ply_notif_channel">Воспроизведение</string>
+    <string name="ply_notif_channel_desc">Уведомления о воспроизведении аудиокниг</string>
+</resources>

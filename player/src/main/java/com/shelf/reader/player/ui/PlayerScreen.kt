@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -48,6 +49,7 @@ import com.shelf.reader.data.repository.HandoffRepository
 import com.shelf.reader.data.repository.ResolvedHandoff
 import com.shelf.reader.designsystem.theme.ShelfColors
 import com.shelf.reader.designsystem.theme.ShelfTypography
+import com.shelf.reader.player.R
 import com.shelf.reader.player.engine.AudiobookState
 import com.shelf.reader.player.engine.AudiobookTimeline
 import com.shelf.reader.player.viewmodel.PlayerViewModel
@@ -132,7 +134,7 @@ fun PlayerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Lydbok", style = ShelfTypography.TitleLarge) },
+                title = { Text(stringResource(R.string.ply_title), style = ShelfTypography.TitleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
                 },
@@ -188,9 +190,9 @@ fun PlayerScreen(
                                         }
                                         withContext(Dispatchers.Main.immediate) {
                                             val estimateLabel = if (resolved.wasEstimate && resolved.chapterLabel != null) {
-                                                "Kapittelestimat: ${resolved.chapterLabel}"
+                                                ctx.getString(R.string.ply_estimate_toast, resolved.chapterLabel)
                                             } else {
-                                                "Fortsetter omtrent samme sted"
+                                                ctx.getString(R.string.ply_continue_toast)
                                             }
                                             if (showToast) {
                                                 android.widget.Toast.makeText(ctx, estimateLabel, android.widget.Toast.LENGTH_SHORT).show()
@@ -203,7 +205,7 @@ fun PlayerScreen(
                                     }
                                 },
                                 modifier = Modifier.padding(end = 4.dp),
-                                label = { Text("📖 Les", fontWeight = FontWeight.SemiBold) },
+                                label = { Text(stringResource(R.string.ply_read_switch), fontWeight = FontWeight.SemiBold) },
                                 leadingIcon = { Icon(Icons.Default.AutoStories, null, Modifier.size(16.dp)) },
                                 colors = AssistChipDefaults.assistChipColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
                             )
@@ -233,13 +235,13 @@ fun PlayerScreen(
                         IconButton(onClick = { showSleep = true }) {
                             Icon(
                                 Icons.Default.Bedtime,
-                                contentDescription = "Søvntimer",
+                                contentDescription = stringResource(R.string.ply_sleep_a11y),
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
                     IconButton(onClick = { showChapters = true }) {
-                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Kapitler")
+                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = stringResource(R.string.ply_chapters_a11y))
                     }
                 }
             )
@@ -429,7 +431,7 @@ fun PlayerScreen(
             ) {
                 IconButton(onClick = { scope.launch { vm.skipBack(30_000L) } }) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.Replay30, contentDescription = "30s tilbake", Modifier.size(28.dp))
+                        Icon(Icons.Default.Replay30, contentDescription = stringResource(R.string.ply_skip_back, 30), Modifier.size(28.dp))
                     }
                 }
                 IconButton(
@@ -437,7 +439,7 @@ fun PlayerScreen(
                     // Kapittelnavigasjon kun ved > 1 reelle kapitler — aldri døde kontroller.
                     enabled = state.chapters.size > 1,
                 ) {
-                    Icon(Icons.Default.SkipPrevious, contentDescription = "Forrige kapittel", Modifier.size(34.dp))
+                    Icon(Icons.Default.SkipPrevious, contentDescription = stringResource(R.string.ply_prev_chapter), Modifier.size(34.dp))
                 }
                 FilledTonalIconButton(
                     onClick = { scope.launch { vm.playPause() } },
@@ -446,7 +448,7 @@ fun PlayerScreen(
                 ) {
                     Icon(
                         if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (state.isPlaying) "Pause" else "Spill",
+                        contentDescription = if (state.isPlaying) stringResource(R.string.ply_pause) else stringResource(R.string.ply_play),
                         Modifier.size(40.dp)
                     )
                 }
@@ -455,11 +457,11 @@ fun PlayerScreen(
                     enabled = state.chapters.size > 1 &&
                         state.currentChapterIndex < state.chapters.size - 1,
                 ) {
-                    Icon(Icons.Default.SkipNext, contentDescription = "Neste kapittel", Modifier.size(34.dp))
+                    Icon(Icons.Default.SkipNext, contentDescription = stringResource(R.string.ply_next_chapter), Modifier.size(34.dp))
                 }
                 IconButton(onClick = { scope.launch { vm.skipForward(30_000L) } }) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.Forward30, contentDescription = "30s frem", Modifier.size(28.dp))
+                        Icon(Icons.Default.Forward30, contentDescription = stringResource(R.string.ply_skip_forward, 30), Modifier.size(28.dp))
                     }
                 }
             }
@@ -550,7 +552,7 @@ fun PlayerScreen(
                 )
                 Spacer(Modifier.height(12.dp))
                 if (chs.isEmpty()) {
-                    Text("Ingen kapitler tilgjengelig ennå.",
+                    Text(stringResource(R.string.ply_no_chapters),
                         style = ShelfTypography.BodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
@@ -828,7 +830,7 @@ private fun SpeedDialog(
     val speeds = listOf(0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f, 1.1f, 1.2f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f)
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Avspillingshastighet", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.ply_speed_title), fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 // 3 kolonner: bredere celler, aldri multi-linjehastighets-etiketter.
@@ -855,7 +857,7 @@ private fun SpeedDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Lukk") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.ply_close)) }
         }
     )
 }
@@ -885,7 +887,7 @@ private fun SleepTimerSheet(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text("Søvntimer", style = ShelfTypography.TitleLarge, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.ply_sleep_title), style = ShelfTypography.TitleLarge, fontWeight = FontWeight.Bold)
 
             if (remainingMs > 0L) {
                 val sec = remainingMs / 1000L
@@ -902,20 +904,20 @@ private fun SleepTimerSheet(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            "⏱️ Aktiv nedtelling: ${m} min ${s} sek",
+                            stringResource(R.string.ply_sleep_active, m, s),
                             style = ShelfTypography.BodyMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         TextButton(onClick = { onPick(null) }) {
-                            Text("Slå av", color = MaterialTheme.colorScheme.error)
+                            Text(stringResource(R.string.ply_sleep_off), color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
             }
 
             // Custom Time Input Field
-            Text("Egentilpasset tid (minutter)", style = ShelfTypography.LabelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.ply_sleep_custom_min), style = ShelfTypography.LabelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -924,7 +926,7 @@ private fun SleepTimerSheet(
                 OutlinedTextField(
                     value = customText,
                     onValueChange = { customText = it.filter { c -> c.isDigit() }.take(3) },
-                    placeholder = { Text("Eks. 25") },
+                    placeholder = { Text(stringResource(R.string.ply_sleep_hint)) },
                     singleLine = true,
                     modifier = Modifier.weight(1f)
                 )
@@ -937,16 +939,16 @@ private fun SleepTimerSheet(
                     },
                     enabled = customText.toIntOrNull()?.let { it > 0 } == true
                 ) {
-                    Text("Sett timer")
+                    Text(stringResource(R.string.ply_sleep_set))
                 }
             }
 
             Spacer(Modifier.height(4.dp))
-            Text("Hurtigvalg", style = ShelfTypography.LabelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.ply_sleep_presets), style = ShelfTypography.LabelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             val options = listOf(null, 5, 10, 15, 30, 45, 60, 90)
             options.forEach { mins ->
-                val label = if (mins == null) "Slå av søvntimer" else "$mins minutter"
+                val label = if (mins == null) stringResource(R.string.ply_sleep_turn_off_timer) else stringResource(R.string.ply_sleep_minutes, mins)
                 val selected = current == mins
                 OutlinedButton(
                     onClick = { onPick(mins) },

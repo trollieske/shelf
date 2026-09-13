@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="toru_title">Torrent-клієнт</string>
+    <string name="toru_back">Назад</string>
+    <string name="toru_torrent_file">.torrent</string>
+    <string name="toru_magnet">Magnet</string>
+    <string name="toru_search_hint">Шукайте відкриті джерела або назвіть книгу…</string>
+    <string name="toru_opening">Відкриваємо: %1$s</string>
+    <string name="toru_removed">Видалено зі списку (файли збережено для роздачі)</string>
+    <string name="toru_active_count">Активних: %1$d</string>
+    <string name="toru_downloads_word">завантаження</string>
+    <string name="toru_import">Імпортувати в бібліотеку</string>
+    <string name="toru_choose_folder">Вибрати папку</string>
+    <string name="toru_start">Запустити</string>
+    <string name="toru_pause">Пауза</string>
+    <string name="toru_resume">Продовжити</string>
+    <string name="toru_delete">Видалити торрент</string>
+    <string name="toru_add_magnet_title">Додати magnet-посилання</string>
+    <string name="toru_magnet_placeholder">magnet:?xt=urn:btih:...</string>
+    <string name="toru_add">Додати</string>
+    <string name="toru_cancel">Скасувати</string>
+    <string name="toru_notif_channel">Завантаження торентів</string>
+    <string name="toru_notif_text">Torrent-клієнт працює у фоні…</string>
+    <string name="toru_notif_channel_desc">Показує прогрес завантаження торентів</string>
+</resources>

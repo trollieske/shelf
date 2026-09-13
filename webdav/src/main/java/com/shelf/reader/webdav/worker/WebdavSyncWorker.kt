@@ -1,5 +1,7 @@
 package com.shelf.reader.webdav.worker
 
+import com.shelf.reader.webdav.R
+
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.net.Uri
@@ -124,8 +126,8 @@ class WebdavSyncWorker(
             val nm = NotificationManagerCompat.from(appContext)
             if (nm.getNotificationChannel(CHANNEL_ID) == null) {
                 val chan = NotificationChannelCompat.Builder(CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_LOW)
-                    .setName("WebDAV Synkronisering")
-                    .setDescription("Nextcloud/Owncloud/WebDAV synkronisering")
+                    .setName(appContext.getString(R.string.wdav_notif_title))
+                    .setDescription(appContext.getString(R.string.wdav_notif_channel_desc))
                     .build()
                 nm.createNotificationChannel(chan)
             }
@@ -135,8 +137,8 @@ class WebdavSyncWorker(
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("WebDAV Synkronisering")
-            .setContentText("Ser etter nye bøker på sky-tjenester…")
+            .setContentTitle(appContext.getString(R.string.wdav_notif_title))
+            .setContentText(appContext.getString(R.string.wdav_notif_text))
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .build()

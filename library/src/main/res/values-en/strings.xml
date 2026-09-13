@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lib_books">Books</string>
+    <string name="lib_audiobooks">Audiobooks</string>
+    <string name="lib_search_a11y">Search</string>
+    <string name="lib_sources_a11y">FTP &amp; sync</string>
+    <string name="lib_import_a11y">Import</string>
+    <string name="lib_settings_a11y">Settings</string>
+    <string name="lib_search_hint">Search library...</string>
+    <string name="lib_clear_a11y">Clear</string>
+    <string name="lib_continue">Continue</string>
+    <string name="lib_empty_title">Your library is empty</string>
+    <string name="lib_empty_desc">Add ebooks and audiobooks by importing files from your device or syncing from FTP/seedbox.</string>
+    <string name="lib_sync_button">Sync from FTP / seedbox</string>
+    <string name="lib_import_button">Import from device</string>
+    <string name="lib_sort_shelf">Shelf</string>
+    <string name="lib_sort_series">Series</string>
+    <string name="lib_sort_author">Author</string>
+    <string name="lib_sort_recent">Recent</string>
+    <string name="lib_sort_title">Title</string>
+    <string name="lib_sort_added">Date added</string>
+</resources>

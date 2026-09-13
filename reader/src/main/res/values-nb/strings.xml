@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rdr_themes_settings">Tema og innstillinger</string>
+    <string name="rdr_font_size">Skriftstørrelse</string>
+    <string name="rdr_theme">Tema</string>
+    <string name="rdr_theme_light">Lys</string>
+    <string name="rdr_theme_sepia">Seppia</string>
+    <string name="rdr_theme_dark">Mørk</string>
+    <string name="rdr_theme_black">Svart</string>
+    <string name="rdr_close">Lukk</string>
+    <string name="rdr_search">Søk</string>
+    <string name="rdr_cancel">Avbryt</string>
+    <string name="rdr_search_in_chapter">Søk i kapittel</string>
+    <string name="rdr_search_label">Ord eller setning</string>
+    <string name="rdr_search_body">Søk søker i nåværende kapitteltekst og lister treff som kompakt HUD.</string>
+    <string name="rdr_search_unavailable">Søk etter "%1$s" er ikke tilgjengelig i bitmap-visningen ennå.</string>
+    <string name="rdr_search_hits">Kapittel: %1$s · Treff %2$d av %3$d</string>
+    <string name="rdr_back">Tilbake</string>
+    <string name="rdr_share">Del</string>
+    <string name="rdr_share_progress">Del lesefremgang</string>
+    <string name="rdr_share_text">Jeg leser "%1$s" — %2$s (side %3$d av %4$d, %5$d%%)
+#ShelfApp</string>
+    <string name="rdr_chapter">Kapittel %1$d</string>
+    <string name="rdr_pages_left">%1$d sider igjen · %2$s · %3$d av %4$d</string>
+    <string name="rdr_contents">Innhold</string>
+    <string name="rdr_themes">Temaer</string>
+    <string name="rdr_bookmark">Bokmerke</string>
+    <string name="rdr_lock">Lås</string>
+    <string name="rdr_locked">Låst</string>
+    <string name="rdr_go_back">Gå tilbake</string>
+    <string name="rdr_screen_locked">Skjerm låst i nåværende rotasjon</string>
+    <string name="rdr_screen_unlocked">Skjerm låst opp</string>
+    <string name="rdr_no_chapters">Fant ingen lesbare kapitler i boken.
+
+Filen kan være tom, skadet, ha en DRM-beskyttelse, eller ha et støttet format som ikke kunne tolkes korrekt. Prøv å importere boken på nytt, eller konvertere til en ren DRM-fri EPUB først.</string>
+    <string name="rdr_rendering">Rendrer</string>
+</resources>

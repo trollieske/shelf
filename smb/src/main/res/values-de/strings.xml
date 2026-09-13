@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="smbu_title">SMB / Windows-Netzwerk</string>
+    <string name="smbu_back">Zurück</string>
+    <string name="smbu_downloading">%1$d Datei(en) werden heruntergeladen…</string>
+    <string name="smbu_download">Herunterladen (%1$d)</string>
+    <string name="smbu_server_deleted">Server gelöscht</string>
+    <string name="smbu_saved">Gespeichert</string>
+    <string name="smbu_syncing">Ordner wird synchronisiert…</string>
+    <string name="smbu_sync_folder">Ordner synchronisieren</string>
+    <string name="smbu_folder_empty">Der Ordner ist leer</string>
+    <string name="smbu_saved_servers">Gespeicherte Server</string>
+    <string name="smbu_connection">Serververbindung</string>
+    <string name="smbu_display_name">Anzeigename (optional)</string>
+    <string name="smbu_host">Host / IP</string>
+    <string name="smbu_port">Port</string>
+    <string name="smbu_share_name">Freigabename</string>
+    <string name="smbu_domain">Domäne (optional, z. B. WORKGROUP)</string>
+    <string name="smbu_username">Benutzername</string>
+    <string name="smbu_password">Passwort</string>
+    <string name="smbu_version">SMB-Version</string>
+    <string name="smbu_encryption">SMB-3-Verschlüsselung</string>
+    <string name="smbu_save_server">Server speichern</string>
+    <string name="smbu_server_name">Servername</string>
+    <string name="smbu_save">Speichern</string>
+    <string name="smbu_cancel">Abbrechen</string>
+    <string name="smbu_notif_title">SMB-Sync</string>
+    <string name="smbu_notif_channel_desc">SMB/Windows-Freigaben-Sync</string>
+    <string name="smbu_notif_text">Suche nach neuen Büchern auf Netzlaufwerken…</string>
+</resources>

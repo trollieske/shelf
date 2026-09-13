@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ply_title">Lydbok</string>
+    <string name="ply_read_switch">📖 Les</string>
+    <string name="ply_sleep_a11y">Søvntimer</string>
+    <string name="ply_chapters_a11y">Kapitler</string>
+    <string name="ply_prev_chapter">Forrige kapittel</string>
+    <string name="ply_next_chapter">Neste kapittel</string>
+    <string name="ply_skip_back">%1$d s tilbake</string>
+    <string name="ply_skip_forward">%1$d s frem</string>
+    <string name="ply_play">Spill</string>
+    <string name="ply_pause">Pause</string>
+    <string name="ply_no_chapters">Ingen kapitler tilgjengelig ennå.</string>
+    <string name="ply_speed_title">Avspillingshastighet</string>
+    <string name="ply_close">Lukk</string>
+    <string name="ply_sleep_title">Søvntimer</string>
+    <string name="ply_sleep_active">⏱️ Aktiv nedtelling: %1$d min %2$d sek</string>
+    <string name="ply_sleep_off">Slå av</string>
+    <string name="ply_sleep_custom_min">Egentilpasset tid (minutter)</string>
+    <string name="ply_sleep_hint">Eks. 25</string>
+    <string name="ply_sleep_set">Sett timer</string>
+    <string name="ply_sleep_presets">Hurtigvalg</string>
+    <string name="ply_sleep_turn_off_timer">Slå av søvntimer</string>
+    <string name="ply_sleep_minutes">%1$d minutter</string>
+    <string name="ply_continue_toast">Fortsetter omtrent samme sted</string>
+    <string name="ply_estimate_toast">Kapittelestimat: %1$s</string>
+    <string name="ply_notif_loading">Laster lydbok…</string>
+    <string name="ply_notif_prev">Forrige</string>
+    <string name="ply_notif_skip_back">Tilbake 10 s</string>
+    <string name="ply_notif_play">Spill</string>
+    <string name="ply_notif_skip_forward">Frem 30 s</string>
+    <string name="ply_notif_next">Neste</string>
+    <string name="ply_library_root">Shelf-bibliotek</string>
+    <string name="ply_notif_title">Lydbok</string>
+    <string name="ply_notif_channel">Avspilling</string>
+    <string name="ply_notif_channel_desc">Lydbok-avspillingsvarsler</string>
+</resources>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ply_title">Audiolibro</string>
+    <string name="ply_read_switch">📖 Leer</string>
+    <string name="ply_sleep_a11y">Temporizador de sueño</string>
+    <string name="ply_chapters_a11y">Capítulos</string>
+    <string name="ply_prev_chapter">Capítulo anterior</string>
+    <string name="ply_next_chapter">Capítulo siguiente</string>
+    <string name="ply_skip_back">%1$d s atrás</string>
+    <string name="ply_skip_forward">%1$d s adelante</string>
+    <string name="ply_play">Reproducir</string>
+    <string name="ply_pause">Pausa</string>
+    <string name="ply_no_chapters">Aún no hay capítulos disponibles.</string>
+    <string name="ply_speed_title">Velocidad de reproducción</string>
+    <string name="ply_close">Cerrar</string>
+    <string name="ply_sleep_title">Temporizador de sueño</string>
+    <string name="ply_sleep_active">⏱️ Cuenta atrás activa: %1$d min %2$d s</string>
+    <string name="ply_sleep_off">Desactivar</string>
+    <string name="ply_sleep_custom_min">Tiempo personalizado (minutos)</string>
+    <string name="ply_sleep_hint">p. ej. 25</string>
+    <string name="ply_sleep_set">Configurar temporizador</string>
+    <string name="ply_sleep_presets">Selección rápida</string>
+    <string name="ply_sleep_turn_off_timer">Desactivar el temporizador de sueño</string>
+    <string name="ply_sleep_minutes">%1$d minutos</string>
+    <string name="ply_continue_toast">Continuando aproximadamente en el mismo lugar</string>
+    <string name="ply_estimate_toast">Estimación de capítulo: %1$s</string>
+    <string name="ply_notif_loading">Cargando audiolibro…</string>
+    <string name="ply_notif_prev">Anterior</string>
+    <string name="ply_notif_skip_back">10 s atrás</string>
+    <string name="ply_notif_play">Reproducir</string>
+    <string name="ply_notif_skip_forward">30 s adelante</string>
+    <string name="ply_notif_next">Siguiente</string>
+    <string name="ply_library_root">Biblioteca de Shelf</string>
+    <string name="ply_notif_title">Audiolibro</string>
+    <string name="ply_notif_channel">Reproducción</string>
+    <string name="ply_notif_channel_desc">Notificaciones de reproducción de audiolibros</string>
+</resources>

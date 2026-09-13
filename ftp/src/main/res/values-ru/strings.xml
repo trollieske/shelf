@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ftpu_title">FTP и обмен файлами</string>
+    <string name="ftpu_back">Назад</string>
+    <string name="ftpu_sync_now">Синхронизировать сейчас</string>
+    <string name="ftpu_imported">Импортировано файлов в библиотеку: %1$d</string>
+    <string name="ftpu_download">Скачать (%1$d)</string>
+    <string name="ftpu_sync_folder_updated">Папка синхронизации обновлена на «%1$s»</string>
+    <string name="ftpu_server_deleted">Сервер удалён</string>
+    <string name="ftpu_server_saved">Сервер сохранён с папкой синхронизации «%1$s»</string>
+    <string name="ftpu_current_folder">Текущая папка:</string>
+    <string name="ftpu_saved_sync_folder">«%1$s» сохранено как папка синхронизации!</string>
+    <string name="ftpu_saved_servers">Сохранённые серверы</string>
+    <string name="ftpu_delete">Удалить</string>
+    <string name="ftpu_cancel">Отмена</string>
+    <string name="ftpu_delete_server_title">Удалить сервер?</string>
+    <string name="ftpu_delete_server_msg">Удалить «%1$s»? Пароль будет удалён.</string>
+    <string name="ftpu_save">Сохранить</string>
+    <string name="ftpu_edit_sync_folder">Изменить папку синхронизации</string>
+    <string name="ftpu_sync_folder_desc">Укажите папку на сервере для синхронизации (например, /Аудиокниги):</string>
+    <string name="ftpu_sync_folder">Папка синхронизации</string>
+    <string name="ftpu_save_server">Сохранить сервер</string>
+    <string name="ftpu_save_server_desc">Укажите имя сервера и папку синхронизации:</string>
+    <string name="ftpu_name">Имя</string>
+    <string name="ftpu_sync_folder_start">Папка синхронизации / стартовая папка (например, /Аудиокниги)</string>
+    <string name="ftpu_protocol">Протокол:</string>
+    <string name="ftpu_pasv">Пассивный режим (PASV)</string>
+    <string name="ftpu_pasv_sub">Отключите, если брандмауэр блокирует список папок</string>
+    <string name="ftpu_host">Хост (IP или домен)</string>
+    <string name="ftpu_port">Порт</string>
+    <string name="ftpu_username">Имя пользователя</string>
+    <string name="ftpu_password">Пароль</string>
+    <string name="ftpu_concurrent">Параллельных передач:</string>
+    <string name="ftpu_threads">%1$d потоков</string>
+    <string name="ftpu_open_folder">Открыть папку</string>
+    <string name="ftpu_threads_progress">Потоков: %1$d из %2$d</string>
+    <string name="ftpu_files_progress">Файлов: %1$d из %2$d (%3$d%%)</string>
+    <string name="ftpu_transferred">Передано: %1$s</string>
+    <string name="ftpu_cancel_label">Отмена</string>
+    <string name="ftpu_notif_title">FTP-синхронизация</string>
+    <string name="ftpu_notif_channel_desc">Показывает прогресс FTP-загрузок</string>
+    <string name="ftpu_notif_text">Ищем новые книги…</string>
+</resources>

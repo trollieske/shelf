@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ply_title">Audiobook</string>
+    <string name="ply_read_switch">📖 Read</string>
+    <string name="ply_sleep_a11y">Sleep timer</string>
+    <string name="ply_chapters_a11y">Chapters</string>
+    <string name="ply_prev_chapter">Previous chapter</string>
+    <string name="ply_next_chapter">Next chapter</string>
+    <string name="ply_skip_back">Back %1$d s</string>
+    <string name="ply_skip_forward">Forward %1$d s</string>
+    <string name="ply_play">Play</string>
+    <string name="ply_pause">Pause</string>
+    <string name="ply_no_chapters">No chapters available yet.</string>
+    <string name="ply_speed_title">Playback speed</string>
+    <string name="ply_close">Close</string>
+    <string name="ply_sleep_title">Sleep timer</string>
+    <string name="ply_sleep_active">⏱️ Active countdown: %1$d min %2$d sec</string>
+    <string name="ply_sleep_off">Turn off</string>
+    <string name="ply_sleep_custom_min">Custom time (minutes)</string>
+    <string name="ply_sleep_hint">e.g. 25</string>
+    <string name="ply_sleep_set">Set timer</string>
+    <string name="ply_sleep_presets">Quick picks</string>
+    <string name="ply_sleep_turn_off_timer">Turn off sleep timer</string>
+    <string name="ply_sleep_minutes">%1$d minutes</string>
+    <string name="ply_continue_toast">Continuing around the same place</string>
+    <string name="ply_estimate_toast">Chapter estimate: %1$s</string>
+    <string name="ply_notif_loading">Loading audiobook…</string>
+    <string name="ply_notif_prev">Previous</string>
+    <string name="ply_notif_skip_back">Back 10 s</string>
+    <string name="ply_notif_play">Play</string>
+    <string name="ply_notif_skip_forward">Forward 30 s</string>
+    <string name="ply_notif_next">Next</string>
+    <string name="ply_library_root">Shelf Library</string>
+    <string name="ply_notif_title">Audiobook</string>
+    <string name="ply_notif_channel">Playback</string>
+    <string name="ply_notif_channel_desc">Audiobook playback notifications</string>
+</resources>

@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shelf.reader.R
+import com.shelf.reader.app.ui.LanguagePickerSheet
 import com.shelf.reader.data.prefs.UserPreferencesRepository
 import androidx.work.WorkManager
 import com.shelf.reader.app.workers.ImportWorker
@@ -215,7 +216,7 @@ fun BookDetailsScreen(
     fun buildBookVisual(): BookVisual {
         val b = book ?: return BookVisual(
             id = bookId,
-            title = "Laster…",
+            title = ctx.getString(R.string.loading),
             author = "",
             spineColor = ShelfColors.SpineSlate,
             format = BookFormat.EPUB,
@@ -244,13 +245,14 @@ fun BookDetailsScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        scope.launch { snackbarHostState.showSnackbar("Flytt til hylle") }
+                        scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.action_add_to_shelf)) }
                     }) { Icon(Icons.AutoMirrored.Filled.Label, null) }
                     IconButton(onClick = {
                         val b = book ?: return@IconButton
                         val title = b.title
                         val author = b.author
                         val filePath = b.filePath
+                        val body = ctx.getString(R.string.book_share_body, title, author)
                         val file = filePath?.takeIf { it.isNotBlank() }?.let { java.io.File(it) }?.takeIf { it.canRead() }
                         if (file != null) {
                             val fileUri = androidx.core.content.FileProvider.getUriForFile(
@@ -261,10 +263,7 @@ fun BookDetailsScreen(
                             val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                                 type = "*/*"
                                 putExtra(android.content.Intent.EXTRA_TITLE, title)
-                                putExtra(
-                                    android.content.Intent.EXTRA_TEXT,
-                                    "\"$title\" – $author\n(hentet via Shelf-appen)"
-                                )
+                                putExtra(android.content.Intent.EXTRA_TEXT, body)
                                 putExtra(android.content.Intent.EXTRA_STREAM, fileUri)
                                 addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -274,10 +273,7 @@ fun BookDetailsScreen(
                             val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                                 type = "text/plain"
                                 putExtra(android.content.Intent.EXTRA_TITLE, title)
-                                putExtra(
-                                    android.content.Intent.EXTRA_TEXT,
-                                    "\"$title\" – $author\n(hentet via Shelf-appen)"
-                                )
+                                putExtra(android.content.Intent.EXTRA_TEXT, body)
                                 addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                             }
                             ctx.startActivity(android.content.Intent.createChooser(intent, null))
@@ -332,7 +328,7 @@ fun BookDetailsScreen(
                             }
                             ctx.startActivity(android.content.Intent.createChooser(intent, null))
                         } else {
-                            scope.launch { snackbarHostState.showSnackbar("Del bok: $title") }
+                            scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.book_details_share_snack, title)) }
                         }
                     },
                     modifier = Modifier
@@ -346,7 +342,7 @@ fun BookDetailsScreen(
                         .padding(top = 8.dp)
                 ) {
                     Text(
-                        book?.let { metaCleaned.title } ?: "Laster…",
+                        book?.let { metaCleaned.title } ?: stringResource(R.string.loading),
                         style = ShelfTypography.HeadlineSmall,
                         fontWeight = FontWeight.Bold,
                         maxLines = 3,
@@ -367,7 +363,7 @@ fun BookDetailsScreen(
                         ) {
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                "Forteller: —",
+                                stringResource(R.string.book_details_narrator),
                                 style = ShelfTypography.BodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -377,11 +373,11 @@ fun BookDetailsScreen(
                     AssistChip(
                         onClick = {
                             scope.launch {
-                                val formatName = book?.format?.name ?: "Ukjent"
-                                val typeName = book?.type?.name ?: "Ukjent"
+                                val formatName = book?.format?.name ?: ctx.getString(R.string.book_details_unknown)
+                                val typeName = book?.type?.name ?: ctx.getString(R.string.book_details_unknown)
                                 val fileSize = book?.fileSizeBytes?.takeIf { it > 0 }?.let { formatBytes(it) } ?: "—"
                                 snackbarHostState.showSnackbar(
-                                    "Format: $formatName · Type: $typeName · Størrelse: $fileSize"
+                                    ctx.getString(R.string.book_details_info, formatName, typeName, fileSize)
                                 )
                             }
                         },
@@ -396,7 +392,7 @@ fun BookDetailsScreen(
                     Spacer(Modifier.height(10.dp))
                     if (pct > 0f) {
                         Text(
-                            "${(pct * 100).toInt()}% lest",
+                            stringResource(R.string.book_details_percent_read, (pct * 100).toInt()),
                             style = ShelfTypography.LabelLarge,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -437,7 +433,7 @@ fun BookDetailsScreen(
                         Icon(Icons.AutoMirrored.Filled.MenuBook, null, Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            if (pct > 0f) "Fortsett å lese" else "Les nå",
+                            if (pct > 0f) stringResource(R.string.book_details_continue_reading) else stringResource(R.string.book_details_read_now),
                             style = ShelfTypography.LabelLarge,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -463,7 +459,7 @@ fun BookDetailsScreen(
                         Icon(Icons.Default.PlayArrow, null, Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            if (pct > 0f) "Fortsett" else "Hør nå",
+                            if (pct > 0f) stringResource(R.string.action_continue) else stringResource(R.string.book_details_listen_now),
                             style = ShelfTypography.LabelLarge,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -481,17 +477,17 @@ fun BookDetailsScreen(
             ) {
                 Column(Modifier.padding(16.dp)) {
                     val infoRows = mutableListOf<Pair<String, String>>()
-                    book?.format?.let { infoRows.add("Format" to it.name) }
-                    book?.fileSizeBytes?.takeIf { it > 0 }?.let { infoRows.add("Filstørrelse" to formatBytes(it)) }
-                    book?.importSource?.let { infoRows.add("Importkilde" to it.name) }
-                    book?.pageCount?.let { infoRows.add("Sider" to "$it sider") }
-                    book?.durationMs?.let { infoRows.add("Varighet" to formatDuration(it)) }
+                    book?.format?.let { infoRows.add(stringResource(R.string.book_details_format) to it.name) }
+                    book?.fileSizeBytes?.takeIf { it > 0 }?.let { infoRows.add(stringResource(R.string.book_details_file_size) to formatBytes(it)) }
+                    book?.importSource?.let { infoRows.add(stringResource(R.string.book_details_import_source) to it.name) }
+                    book?.pageCount?.let { infoRows.add(stringResource(R.string.book_details_pages_label) to stringResource(R.string.book_details_pages, it)) }
+                    book?.durationMs?.let { infoRows.add(stringResource(R.string.book_details_duration) to formatDuration(it)) }
                     if (pct > 0f) {
                         book?.durationMs?.let {
-                            infoRows.add("Gjenstående" to formatRemaining(it, pct))
+                            infoRows.add(stringResource(R.string.book_details_remaining) to formatRemaining(it, pct))
                         } ?: book?.pageCount?.let { pc ->
                             val pagesLeft = ((1f - pct) * pc).toInt().coerceAtLeast(0)
-                            infoRows.add("Gjenstående" to "$pagesLeft sider")
+                            infoRows.add(stringResource(R.string.book_details_remaining) to stringResource(R.string.book_details_pages_left, pagesLeft))
                         }
                     }
                     infoRows.forEachIndexed { i, (k, v) ->
@@ -525,7 +521,7 @@ fun BookDetailsScreen(
                     shape = MaterialTheme.shapes.large
                 ) {
                     Column(Modifier.padding(16.dp)) {
-                        Text("Om boken", style = ShelfTypography.TitleMedium, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.book_details_about), style = ShelfTypography.TitleMedium, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(8.dp))
                         Text(
                             desc,
@@ -540,7 +536,7 @@ fun BookDetailsScreen(
                                 modifier = Modifier.align(Alignment.End)
                             ) {
                                 Text(
-                                    if (isDescriptionExpanded) "Vis mindre" else "Les mer",
+                                    if (isDescriptionExpanded) stringResource(R.string.book_details_show_less) else stringResource(R.string.book_details_read_more),
                                     color = com.shelf.reader.designsystem.theme.OmarchyColors.Accent,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -568,7 +564,7 @@ fun BookDetailsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Kapitler",
+                            stringResource(R.string.book_details_chapters),
                             style = ShelfTypography.TitleMedium,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.weight(1f)
@@ -592,7 +588,7 @@ fun BookDetailsScreen(
                                     .padding(horizontal = 16.dp, vertical = 12.dp)
                             ) {
                                 Text(
-                                    "Ingen kapittelinformasjon",
+                                    stringResource(R.string.book_details_no_chapter_info),
                                     style = ShelfTypography.BodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -664,7 +660,7 @@ fun BookDetailsScreen(
                         Icon(Icons.Default.Bookmark, null, tint = com.shelf.reader.designsystem.theme.OmarchyColors.Accent)
                         Spacer(Modifier.width(10.dp))
                         Text(
-                            "Bokmerker",
+                            stringResource(R.string.book_details_bookmarks),
                             style = ShelfTypography.TitleMedium,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.weight(1f)
@@ -688,7 +684,7 @@ fun BookDetailsScreen(
                                     .padding(horizontal = 16.dp, vertical = 12.dp)
                             ) {
                                 Text(
-                                    "Ingen bokmerker ennå. Trykk på bokmerke-ikonet i leseren for å lagre en side.",
+                                    stringResource(R.string.empty_no_bookmarks),
                                     style = ShelfTypography.BodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -725,7 +721,7 @@ fun BookDetailsScreen(
                                             Spacer(Modifier.width(10.dp))
                                             Column(Modifier.weight(1f)) {
                                                 Text(
-                                                    bm.title ?: "Bokmerke ${idx + 1}",
+                                                    bm.title ?: stringResource(R.string.book_details_bookmark_n, idx + 1),
                                                     style = ShelfTypography.BodyMedium,
                                                     maxLines = 1,
                                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -743,7 +739,7 @@ fun BookDetailsScreen(
                                             IconButton(onClick = {
                                                 scope.launch(Dispatchers.IO) {
                                                     runCatching { db.bookmarkDao().deleteById(bm.id) }
-                                                    snackbarHostState.showSnackbar("Bokmerke slettet")
+                                                    snackbarHostState.showSnackbar(ctx.getString(R.string.book_details_bookmark_deleted))
                                                 }
                                             }) {
                                                 Icon(Icons.Default.Close, null, Modifier.size(18.dp))
@@ -785,7 +781,7 @@ fun BookDetailsScreen(
                         Icon(Icons.Default.BorderColor, null, tint = com.shelf.reader.designsystem.theme.OmarchyColors.Accent)
                         Spacer(Modifier.width(10.dp))
                         Text(
-                            "Uthevelser",
+                            stringResource(R.string.book_details_highlights),
                             style = ShelfTypography.TitleMedium,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.weight(1f)
@@ -809,7 +805,7 @@ fun BookDetailsScreen(
                                     .padding(horizontal = 16.dp, vertical = 12.dp)
                             ) {
                                 Text(
-                                    "Ingen uthevelser ennå. Marker tekst i leseren for å lage en uthevelse.",
+                                    stringResource(R.string.empty_no_highlights),
                                     style = ShelfTypography.BodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -854,7 +850,7 @@ fun BookDetailsScreen(
                                                 IconButton(onClick = {
                                                     scope.launch(Dispatchers.IO) {
                                                         runCatching { db.highlightDao().deleteById(hl.id) }
-                                                        snackbarHostState.showSnackbar("Uthevelse slettet")
+                                                        snackbarHostState.showSnackbar(ctx.getString(R.string.book_details_highlight_deleted))
                                                     }
                                                 }) {
                                                     Icon(Icons.Default.Close, null, Modifier.size(18.dp))
@@ -900,20 +896,20 @@ fun BookDetailsScreen(
             Spacer(Modifier.height(24.dp))
 
             Column(Modifier.padding(horizontal = 16.dp)) {
-                Text("Handlinger", style = ShelfTypography.TitleMedium, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.book_details_actions), style = ShelfTypography.TitleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(12.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     AssistChip(
-                        onClick = { scope.launch { snackbarHostState.showSnackbar("Legg til hylle") } },
-                        label = { Text("Legg til hylle") },
+                        onClick = { scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.book_details_add_to_shelf)) } },
+                        label = { Text(stringResource(R.string.book_details_add_to_shelf)) },
                         leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, null, Modifier.size(16.dp)) }
                     )
                     AssistChip(
-                        onClick = { scope.launch { snackbarHostState.showSnackbar("Markert som ferdig") } },
-                        label = { Text("Marker som ferdig") },
+                        onClick = { scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.book_details_marked_finished)) } },
+                        label = { Text(stringResource(R.string.action_mark_finished)) },
                         leadingIcon = { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
                     )
                 }
@@ -923,13 +919,13 @@ fun BookDetailsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     AssistChip(
-                        onClick = { scope.launch { snackbarHostState.showSnackbar("Endre cover") } },
-                        label = { Text("Endre cover") },
+                        onClick = { scope.launch { snackbarHostState.showSnackbar(ctx.getString(R.string.book_details_change_cover_snack)) } },
+                        label = { Text(stringResource(R.string.action_change_cover)) },
                         leadingIcon = { Icon(Icons.Default.Image, null, Modifier.size(16.dp)) }
                     )
                     AssistChip(
                         onClick = { showDeleteDialog = true },
-                        label = { Text("Slett bok") },
+                        label = { Text(stringResource(R.string.book_details_delete_title)) },
                         leadingIcon = { Icon(Icons.Default.DeleteOutline, null, Modifier.size(16.dp)) }
                     )
                 }
@@ -943,9 +939,9 @@ fun BookDetailsScreen(
         AlertDialog(
             onDismissRequest = { showCoverDialog = false },
             confirmButton = {
-                TextButton(onClick = { showCoverDialog = false }) { Text("Lukk") }
+                TextButton(onClick = { showCoverDialog = false }) { Text(stringResource(R.string.action_close)) }
             },
-            title = { Text(book?.title?.takeIf { it.isNotBlank() } ?: "Omslag") },
+            title = { Text(book?.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.book_details_cover_title)) },
             text = {
                 val coverPath = book?.coverPath
                 if (coverPath != null && java.io.File(coverPath).exists()) {
@@ -962,7 +958,7 @@ fun BookDetailsScreen(
                                 .diskCacheKey(coverPath)
                                 .crossfade(true)
                                 .build(),
-                            contentDescription = "Omslag for ${book?.title}",
+                            contentDescription = stringResource(R.string.book_details_cover_desc, book?.title.orEmpty()),
                             modifier = Modifier.fillMaxSize(),
                             contentScale = androidx.compose.ui.layout.ContentScale.Crop
                         )
@@ -980,7 +976,7 @@ fun BookDetailsScreen(
                             Icon(Icons.Default.AutoStories, null, tint = Color.White, modifier = Modifier.size(64.dp))
                             Spacer(Modifier.height(12.dp))
                             Text(
-                                "Ingen omslag lastet opp",
+                                stringResource(R.string.book_details_no_cover),
                                 color = Color.White,
                                 style = ShelfTypography.BodyMedium
                             )
@@ -1003,14 +999,14 @@ fun BookDetailsScreen(
                         db.bookDao().delete(book)
                         onDeleted()
                     }
-                }) { Text("Slett") }
+                }) { Text(stringResource(R.string.action_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) { Text("Avbryt") }
+                TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.action_cancel)) }
             },
-            title = { Text("Slett bok") },
+            title = { Text(stringResource(R.string.book_details_delete_title)) },
             text = {
-                Text("Er du sikker på at du vil slette \"${book.title}\"? Lese-fortegnelse vil også bli fjernet.")
+                Text(stringResource(R.string.book_details_delete_confirm, book.title))
             }
         )
     }
@@ -1044,7 +1040,7 @@ fun ImportScreen(
                 ImportSourceEntity.FILE_PICKER
             )
             snackbarScope.launch {
-                snackbarHostState.showSnackbar("${uris.size} bok(er) sendt til import.")
+                snackbarHostState.showSnackbar(ctx.getString(R.string.books_sent_to_import, uris.size))
             }
         }
     }
@@ -1067,7 +1063,7 @@ fun ImportScreen(
             )
             ImportWorker.enqueueFolder(WorkManager.getInstance(ctx), tree.toString())
             snackbarScope.launch {
-                snackbarHostState.showSnackbar("Importerer innhold fra valgt mappe…")
+                snackbarHostState.showSnackbar(ctx.getString(R.string.import_from_folder_started))
             }
         }
     }
@@ -1075,7 +1071,7 @@ fun ImportScreen(
     fun launchSamples() {
         ImportWorker.enqueueSamples(WorkManager.getInstance(ctx))
         snackbarScope.launch {
-            snackbarHostState.showSnackbar("Laster inn prøvebøker i bakgrunnen…")
+            snackbarHostState.showSnackbar(ctx.getString(R.string.samples_loading_started))
         }
     }
 
@@ -1083,7 +1079,7 @@ fun ImportScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Importer bøker", style = ShelfTypography.HeadlineSmall) },
+                title = { Text(stringResource(R.string.import_title), style = ShelfTypography.HeadlineSmall) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
                 }
@@ -1099,8 +1095,8 @@ fun ImportScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             ImportCard(
-                title = "Velg filer",
-                subtitle = "En eller flere ebøker eller lydbøker fra enheten.",
+                title = stringResource(R.string.import_files),
+                subtitle = stringResource(R.string.import_files_sub),
                 icon = Icons.AutoMirrored.Filled.InsertDriveFile,
                 color = com.shelf.reader.designsystem.theme.OmarchyColors.Accent,
                 onClick = {
@@ -1116,8 +1112,8 @@ fun ImportScreen(
                 }
             )
             ImportCard(
-                title = "Importer mappe",
-                subtitle = "Importer alle bøker i en mappe. Kan overvåkes for nye filer.",
+                title = stringResource(R.string.import_folder),
+                subtitle = stringResource(R.string.import_folder_sub),
                 icon = Icons.Default.Folder,
                 color = com.shelf.reader.designsystem.theme.OmarchyColors.Accent,
                 onClick = {
@@ -1133,8 +1129,8 @@ fun ImportScreen(
                 }
             )
             ImportCard(
-                title = "Last inn prøvebøker",
-                subtitle = "Offentlige klassikere som medfølger appen.",
+                title = stringResource(R.string.import_sample),
+                subtitle = stringResource(R.string.import_sample_sub),
                 icon = Icons.Default.AutoAwesome,
                 color = com.shelf.reader.designsystem.theme.OmarchyColors.Accent,
                 onClick = {
@@ -1150,8 +1146,8 @@ fun ImportScreen(
                 }
             )
             ImportCard(
-                title = "Fra FTP-server",
-                subtitle = "Hent bøker fra NAS, hjemmeserver eller nettlagring.",
+                title = stringResource(R.string.import_from_ftp),
+                subtitle = stringResource(R.string.import_from_ftp_sub),
                 icon = Icons.Default.CloudDownload,
                 color = com.shelf.reader.designsystem.theme.OmarchyColors.Accent,
                 onClick = {
@@ -1179,14 +1175,14 @@ fun ImportScreen(
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "Støttede formater",
+                            stringResource(R.string.import_supported_formats),
                             style = ShelfTypography.TitleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "EPUB, PDF, MOBI, AZW/AZW3, FB2, CBZ/CBR, TXT, HTML, RTF, DOCX, Markdown, M4B, M4A, MP3, AAC, FLAC, OGG, OPUS, WAV.",
+                        stringResource(R.string.import_formats_list),
                         style = ShelfTypography.BodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1289,8 +1285,10 @@ fun OnboardingScreen(
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember { com.shelf.reader.data.prefs.UserPreferencesRepository(ctx) }
+    var showLanguagePicker by remember { mutableStateOf(false) }
 
     Surface(color = com.shelf.reader.designsystem.theme.OmarchyColors.Bg, modifier = Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize()) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -1357,5 +1355,32 @@ fun OnboardingScreen(
                 }
             }
         }
+
+            // Stille språkhandling øverst til høyre — åpner samme egennavn-velger som Innstillinger.
+            TextButton(
+                onClick = { showLanguagePicker = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(10.dp)
+            ) {
+                Icon(
+                    Icons.Default.Language,
+                    contentDescription = null,
+                    tint = com.shelf.reader.designsystem.theme.OmarchyColors.Dim,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    stringResource(R.string.welcome_language_label),
+                    style = ShelfTypography.LabelMedium,
+                    color = com.shelf.reader.designsystem.theme.OmarchyColors.Dim,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+    if (showLanguagePicker) {
+        LanguagePickerSheet(onDismiss = { showLanguagePicker = false })
     }
 }

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ftpu_title">FTP &amp; fildeling</string>
+    <string name="ftpu_back">Tilbage</string>
+    <string name="ftpu_sync_now">Synkroniser nu</string>
+    <string name="ftpu_imported">Importerede %1$d fil(er) til biblioteket</string>
+    <string name="ftpu_download">Download (%1$d)</string>
+    <string name="ftpu_sync_folder_updated">Synk-mappen opdateret til \'%1$s\'</string>
+    <string name="ftpu_server_deleted">Server slettet</string>
+    <string name="ftpu_server_saved">Server gemt med synk-mappen \'%1$s\'</string>
+    <string name="ftpu_current_folder">Nuværende mappe:</string>
+    <string name="ftpu_saved_sync_folder">Gemt \'%1$s\' som synk-mappen!</string>
+    <string name="ftpu_saved_servers">Gemte servere</string>
+    <string name="ftpu_delete">Slet</string>
+    <string name="ftpu_cancel">Annuller</string>
+    <string name="ftpu_delete_server_title">Slet server?</string>
+    <string name="ftpu_delete_server_msg">Slet «%1$s»? Adgangskoden fjernes.</string>
+    <string name="ftpu_save">Gem</string>
+    <string name="ftpu_edit_sync_folder">Rediger synk-mappen</string>
+    <string name="ftpu_sync_folder_desc">Angiv mappen på serveren, der skal synkroniseres (f.eks. /Lydbøger):</string>
+    <string name="ftpu_sync_folder">Synk-mappe</string>
+    <string name="ftpu_save_server">Gem server</string>
+    <string name="ftpu_save_server_desc">Angiv servernavn og synk-mappe:</string>
+    <string name="ftpu_name">Navn</string>
+    <string name="ftpu_sync_folder_start">Synk-mappe / startmappe (f.eks. /Lydbøger)</string>
+    <string name="ftpu_protocol">Protokol:</string>
+    <string name="ftpu_pasv">Passiv tilstand (PASV)</string>
+    <string name="ftpu_pasv_sub">Slå fra, hvis en firewall blokerer mappelistning</string>
+    <string name="ftpu_host">Vært (IP eller domæne)</string>
+    <string name="ftpu_port">Port</string>
+    <string name="ftpu_username">Brugernavn</string>
+    <string name="ftpu_password">Adgangskode</string>
+    <string name="ftpu_concurrent">Samtidige overførsler:</string>
+    <string name="ftpu_threads">%1$d tråde</string>
+    <string name="ftpu_open_folder">Åbn mappe</string>
+    <string name="ftpu_threads_progress">%1$d af %2$d tråde</string>
+    <string name="ftpu_files_progress">%1$d af %2$d filer (%3$d%%)</string>
+    <string name="ftpu_transferred">%1$s overført</string>
+    <string name="ftpu_cancel_label">Annuller</string>
+    <string name="ftpu_notif_title">FTP-synkronisering</string>
+    <string name="ftpu_notif_channel_desc">Viser fremskridt for FTP-downloads</string>
+    <string name="ftpu_notif_text">Leder efter nye bøger…</string>
+</resources>

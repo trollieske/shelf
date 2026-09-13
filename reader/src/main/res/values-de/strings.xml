@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rdr_themes_settings">Designs und Einstellungen</string>
+    <string name="rdr_font_size">Schriftgröße</string>
+    <string name="rdr_theme">Design</string>
+    <string name="rdr_theme_light">Hell</string>
+    <string name="rdr_theme_sepia">Sepia</string>
+    <string name="rdr_theme_dark">Dunkel</string>
+    <string name="rdr_theme_black">Schwarz</string>
+    <string name="rdr_close">Schließen</string>
+    <string name="rdr_search">Suchen</string>
+    <string name="rdr_cancel">Abbrechen</string>
+    <string name="rdr_search_in_chapter">Im Kapitel suchen</string>
+    <string name="rdr_search_label">Wort oder Ausdruck</string>
+    <string name="rdr_search_body">Die Suche durchsucht den aktuellen Kapiteltext und listet Treffer als kompaktes HUD.</string>
+    <string name="rdr_search_unavailable">Die Suche nach "%1$s" ist in der Bitmap-Ansicht noch nicht verfügbar.</string>
+    <string name="rdr_search_hits">Kapitel: %1$s · Treffer %2$d von %3$d</string>
+    <string name="rdr_back">Zurück</string>
+    <string name="rdr_share">Teilen</string>
+    <string name="rdr_share_progress">Lesefortschritt teilen</string>
+    <string name="rdr_share_text">Ich lese "%1$s" — %2$s (Seite %3$d von %4$d, %5$d%%)
+#ShelfApp</string>
+    <string name="rdr_chapter">Kapitel %1$d</string>
+    <string name="rdr_pages_left">%1$d Seiten übrig · %2$s · %3$d von %4$d</string>
+    <string name="rdr_contents">Inhalt</string>
+    <string name="rdr_themes">Designs</string>
+    <string name="rdr_bookmark">Lesezeichen</string>
+    <string name="rdr_lock">Sperren</string>
+    <string name="rdr_locked">Gesperrt</string>
+    <string name="rdr_go_back">Zurück</string>
+    <string name="rdr_screen_locked">Bildschirm in aktueller Ausrichtung gesperrt</string>
+    <string name="rdr_screen_unlocked">Bildschirm entsperrt</string>
+    <string name="rdr_no_chapters">Keine lesbaren Kapitel im Buch gefunden.
+
+Die Datei könnte leer, beschädigt, DRM-geschützt oder in einem unterstützten Format sein, das nicht korrekt geparst werden konnte. Importiere das Buch erneut oder konvertiere es zuerst in ein sauberes DRM-freies EPUB.</string>
+    <string name="rdr_rendering">Rendern</string>
+</resources>
