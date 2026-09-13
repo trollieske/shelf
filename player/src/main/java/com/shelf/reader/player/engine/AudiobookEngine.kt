@@ -441,7 +441,7 @@ class AudiobookEngine(
                 val obj = arr.getJSONObject(i)
                 AudiobookChapter(
                     index = obj.optInt("index", i),
-                    title = obj.optString("title", ctx.getString(R.string.ply_chapter_n, i + 1)),
+                    title = localizedChapterTitle(ctx, obj.optString("title"), i),
                     startMs = obj.optLong("startMs", 0L),
                     endMs = obj.optLong("endMs", 0L).takeIf { it > 0L },
                     mediaUri = obj.optString("mediaUri").takeIf { it.isNotBlank() }
