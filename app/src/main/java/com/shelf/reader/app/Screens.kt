@@ -55,6 +55,9 @@ import com.shelf.reader.library.ui.SampleBooks
 import java.net.HttpURLConnection
 import java.net.URL
 
+private val GENERIC_CHAPTER_TITLE =
+    Regex("^(kapittel|kapitel|chapter)\\s*\\d+$", RegexOption.IGNORE_CASE)
+
 private fun spineColorFor(seed: String): Color {
     val palette = listOf(
         ShelfColors.SpineBurgundy,
@@ -108,9 +111,12 @@ private fun parseChapters(json: String?, ctx: Context): List<String> {
         for (i in 0 until array.length()) {
             val item = array.opt(i)
             if (item is org.json.JSONObject) {
-                val t = item.optString("title").takeIf { it.isNotBlank() }
+                val raw = item.optString("title").takeIf { it.isNotBlank() }
                     ?: item.optString("name").takeIf { it.isNotBlank() }
-                    ?: ctx.getString(R.string.app_chapter_n, i + 1)
+                // Re-localize generic placeholders stored by older imports ("Kapittel 3").
+                val t = if (raw == null || GENERIC_CHAPTER_TITLE.matches(raw)) {
+                    ctx.getString(R.string.app_chapter_n, i + 1)
+                } else raw
                 result.add(t)
             } else if (item != null) {
                 val s = item.toString().trim()
