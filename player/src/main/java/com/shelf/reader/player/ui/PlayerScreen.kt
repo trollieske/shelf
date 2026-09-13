@@ -275,7 +275,7 @@ fun PlayerScreen(
                         }
                         AsyncImage(
                             model = req,
-                            contentDescription = state.title.ifBlank { "Bok-cover" },
+                            contentDescription = state.title.ifBlank { stringResource(R.string.ply_book_cover_a11y) },
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop,
                             alignment = Alignment.Center
@@ -325,7 +325,7 @@ fun PlayerScreen(
                             verticalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                state.title.ifBlank { "Lydbok" },
+                                state.title.ifBlank { stringResource(R.string.ply_title) },
                                 style = ShelfTypography.TitleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
@@ -356,13 +356,13 @@ fun PlayerScreen(
                 ) {
                     Column(Modifier.padding(14.dp)) {
                         Text(
-                            if (state.error != null) "Lydboken kunne ikke klargjøres" else "Klargjører avspilling…",
+                            if (state.error != null) stringResource(R.string.ply_prepare_error) else stringResource(R.string.ply_preparing),
                             style = ShelfTypography.TitleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            state.error ?: "Venter på mediekilde…",
+                            state.error ?: stringResource(R.string.ply_waiting_source),
                             style = ShelfTypography.BodySmall
                         )
                     }
@@ -374,15 +374,15 @@ fun PlayerScreen(
             val currentChapterIdx = state.currentChapterIndex
             // Aldri "1 av 1": telleren vises bare når boken virkelig har flere kapitler.
             val chapterLabel = when {
-                chapterCount > 1 -> "KAPITTEL ${currentChapterIdx + 1} AV $chapterCount"
-                chapterCount == 1 -> "LYDBOK"
-                else -> "LYDSPILLER"
+                chapterCount > 1 -> stringResource(R.string.ply_chapter_counter, currentChapterIdx + 1, chapterCount)
+                chapterCount == 1 -> stringResource(R.string.ply_audiobook_upper)
+                else -> stringResource(R.string.ply_audio_player_upper)
             }
 
             val chapterObj = state.chapters.getOrNull(currentChapterIdx)
             val displayTitle = when {
                 chapterObj != null && chapterObj.title.isNotBlank() && !chapterObj.title.equals(state.title, ignoreCase = true) -> chapterObj.title
-                else -> state.title.ifBlank { "Lydbok" }
+                else -> state.title.ifBlank { stringResource(R.string.ply_title) }
             }
 
             Text(
@@ -543,7 +543,7 @@ fun PlayerScreen(
         ModalBottomSheet(onDismissRequest = { showChapters = false }) {
             Column(Modifier.padding(24.dp)) {
                 Text(
-                    if (chs.size > 1) "Kapitler · ${chs.size}" else "Kapitler",
+                    if (chs.size > 1) "${stringResource(R.string.ply_chapters_a11y)} · ${chs.size}" else stringResource(R.string.ply_chapters_a11y),
                     style = ShelfTypography.TitleLarge,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -582,7 +582,7 @@ fun PlayerScreen(
                                     Spacer(Modifier.width(10.dp))
                                     Column(Modifier.weight(1f)) {
                                         Text(
-                                            ch.title.ifBlank { "Kapittel ${i + 1}" },
+                                            ch.title.ifBlank { stringResource(R.string.ply_chapter_n, i + 1) },
                                             maxLines = 1,
                                             style = ShelfTypography.BodyMedium,
                                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
@@ -664,7 +664,7 @@ private fun SeekProgressSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "HELE BOKEN",
+                stringResource(R.string.ply_whole_book_upper),
                 style = ShelfTypography.LabelSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -697,13 +697,13 @@ private fun SeekProgressSection(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "I KAPITTELLET",
+                    stringResource(R.string.ply_in_chapter_upper),
                     style = ShelfTypography.LabelSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    "Kapittel ${idx + 1} av ${chapters.size}",
+                    stringResource(R.string.ply_chapter_of, idx + 1, chapters.size),
                     style = ShelfTypography.LabelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -725,12 +725,12 @@ private fun SeekProgressSection(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    "I kapittelet: ${formatDuration(chElapsed / 1_000L)}",
+                    stringResource(R.string.ply_in_chapter, formatDuration(chElapsed / 1_000L)),
                     style = ShelfTypography.LabelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "- ${formatDuration(max(0L, (chEnd - state.currentMs) / 1_000L))} igjen",
+                    "- " + stringResource(R.string.ply_left, formatDuration(max(0L, (chEnd - state.currentMs) / 1_000L))),
                     style = ShelfTypography.LabelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

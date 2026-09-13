@@ -22,4 +22,5 @@
     <string name="toru_notif_channel">Torrent-nedladdningar</string>
     <string name="toru_notif_text">Torrent-klienten körs i bakgrunden…</string>
     <string name="toru_notif_channel_desc">Visar förlopp för torrent-nedladdningar</string>
+    <string name="toru_torrent_not_found">Torrenten hittades inte</string>
 </resources>

@@ -1,6 +1,7 @@
 package com.shelf.reader.player.engine
 
 import android.content.Context
+import com.shelf.reader.player.R
 import android.net.Uri
 import com.shelf.reader.data.local.ShelfDatabase
 import com.shelf.reader.data.local.entity.BookEntity
@@ -41,6 +42,7 @@ class AudiobookEngine(
     private val db: ShelfDatabase
 ) {
 
+
     suspend fun loadBook(bookId: Long): AudiobookState {
         val book = db.bookDao().getById(bookId)
             ?: return AudiobookState(
@@ -49,7 +51,7 @@ class AudiobookEngine(
                 format = FormatEntity.UNKNOWN,
                 type = BookTypeEntity.AUDIOBOOK,
                 coverPath = null,
-                error = "Fant ikke boken"
+                error = ctx.getString(R.string.ply_book_not_found)
             )
 
         val prog = db.progressDao().getByBook(bookId)?.progressPercent ?: 0f
@@ -268,7 +270,7 @@ class AudiobookEngine(
                 val dur = t.durationMs.takeIf { it > 0L } ?: 300_000L
                 val ch = AudiobookChapter(
                     index = i,
-                    title = t.title.ifBlank { "Kapittel ${i + 1}" },
+                    title = localizedChapterTitle(ctx, t.title, i),
                     startMs = cum,
                     endMs = cum + dur,
                     mediaUri = t.fileUri?.takeIf { it.isNotBlank() } ?: t.filePath,
@@ -303,6 +305,7 @@ class AudiobookEngine(
             else -> ChapterDiscoverySource.MP4_CHPL
         }
         val chapters = chaptersFromDiscovered(list, duration, sourceUri)
+            .mapIndexed { idx, ch -> ch.copy(title = localizedChapterTitle(ctx, ch.title, idx)) }
         return Discovery(chapters, chaptersToJson(chapters), source, duration)
     }
 
@@ -329,6 +332,7 @@ class AudiobookEngine(
             )
         }
         val chapters = chaptersFromDiscovered(list, duration, sourceUri)
+            .mapIndexed { idx, ch -> ch.copy(title = localizedChapterTitle(ctx, ch.title, idx)) }
         return Discovery(chapters, chaptersToJson(chapters), ChapterDiscoverySource.CUE, duration)
     }
 
@@ -437,7 +441,7 @@ class AudiobookEngine(
                 val obj = arr.getJSONObject(i)
                 AudiobookChapter(
                     index = obj.optInt("index", i),
-                    title = obj.optString("title", "Kapittel ${i + 1}"),
+                    title = obj.optString("title", ctx.getString(R.string.ply_chapter_n, i + 1)),
                     startMs = obj.optLong("startMs", 0L),
                     endMs = obj.optLong("endMs", 0L).takeIf { it > 0L },
                     mediaUri = obj.optString("mediaUri").takeIf { it.isNotBlank() }
@@ -464,7 +468,7 @@ class AudiobookEngine(
         return listOf(
             AudiobookChapter(
                 index = 0,
-                title = bookTitle.ifBlank { "Lydbok" },
+                title = bookTitle.ifBlank { ctx.getString(R.string.ply_title) },
                 startMs = 0L,
                 endMs = durationMs.takeIf { it > 0L }
             )
@@ -490,7 +494,7 @@ internal fun chaptersFromDiscovered(
             ?: (ch.startMs + 10L * 60L * 1000L)
         AudiobookChapter(
             index = idx,
-            title = ch.title.ifBlank { "Kapittel ${idx + 1}" },
+            title = ch.title,
             startMs = ch.startMs,
             endMs = end,
             mediaUri = sourceUri,

@@ -19,4 +19,5 @@
     <string name="lib_sort_recent">Recientes</string>
     <string name="lib_sort_title">Título</string>
     <string name="lib_sort_added">Fecha de adición</string>
+    <string name="lib_remaining">%1$s restantes</string>
 </resources>

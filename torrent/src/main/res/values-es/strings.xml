@@ -22,4 +22,5 @@
     <string name="toru_notif_channel">Descargas de torrents</string>
     <string name="toru_notif_text">El cliente de torrents se ejecuta en segundo plano…</string>
     <string name="toru_notif_channel_desc">Muestra el progreso de las descargas de torrents</string>
+    <string name="toru_torrent_not_found">Torrent no encontrado</string>
 </resources>

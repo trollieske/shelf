@@ -34,4 +34,18 @@
     <string name="ply_notif_title">Аудіокнига</string>
     <string name="ply_notif_channel">Відтворення</string>
     <string name="ply_notif_channel_desc">Сповіщення про відтворення аудіокниг</string>
+    <string name="ply_prepare_error">Не вдалося підготувати аудіокнигу</string>
+    <string name="ply_preparing">Підготовка відтворення…</string>
+    <string name="ply_waiting_source">Очікування джерела медіа…</string>
+    <string name="ply_chapter_counter">РОЗДІЛ %1$d ІЗ %2$d</string>
+    <string name="ply_audiobook_upper">АУДІОКНИГА</string>
+    <string name="ply_audio_player_upper">АУДІОПЛЕЄР</string>
+    <string name="ply_chapter_n">Розділ %1$d</string>
+    <string name="ply_chapter_of">Розділ %1$d із %2$d</string>
+    <string name="ply_whole_book_upper">УСЯ КНИГА</string>
+    <string name="ply_in_chapter_upper">У РОЗДІЛІ</string>
+    <string name="ply_in_chapter">У розділі: %1$s</string>
+    <string name="ply_left">Залишилось %1$s</string>
+    <string name="ply_book_cover_a11y">Обкладинка книги</string>
+    <string name="ply_book_not_found">Книгу не знайдено</string>
 </resources>

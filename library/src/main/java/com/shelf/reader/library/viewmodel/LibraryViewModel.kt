@@ -11,6 +11,7 @@ import com.shelf.reader.core.dispatchers.DispatcherProvider
 import com.shelf.reader.library.cover.CoverRepository
 import com.shelf.reader.library.mapper.DomainMappers.toBookVisual
 import com.shelf.reader.library.sort.LibrarySorter
+import com.shelf.reader.library.R
 import com.shelf.reader.library.sort.ResumeSelector
 import com.shelf.reader.data.local.ShelfDatabase
 import com.shelf.reader.data.local.entity.BookEntity
@@ -176,8 +177,15 @@ class LibraryViewModel(
                     isDeleted = b.isDeleted
                 )
             }
-            val ebookResume = ResumeSelector.select(resumeInputs, wantAudio = false)
-            val audioResume = ResumeSelector.select(resumeInputs, wantAudio = true)
+            val remainingLabel: (Long) -> String = { ms ->
+                val totalMin = ((ms + 59_999) / 60_000).coerceAtLeast(1)
+                val h = totalMin / 60
+                val m = totalMin % 60
+                val timeText = if (h > 0) "${h}h ${m}min" else "${m}min"
+                getApplication<Application>().getString(R.string.lib_remaining, timeText)
+            }
+            val ebookResume = ResumeSelector.select(resumeInputs, wantAudio = false, remainingLabel = remainingLabel)
+            val audioResume = ResumeSelector.select(resumeInputs, wantAudio = true, remainingLabel = remainingLabel)
 
             val allActiveById = totalActive.associateBy { it.id }
             fun resolvedCover(bookId: Long): String? {

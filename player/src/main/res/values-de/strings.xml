@@ -34,4 +34,18 @@
     <string name="ply_notif_title">Hörbuch</string>
     <string name="ply_notif_channel">Wiedergabe</string>
     <string name="ply_notif_channel_desc">Benachrichtigungen zur Hörbuch-Wiedergabe</string>
+    <string name="ply_prepare_error">Hörbuch konnte nicht vorbereitet werden</string>
+    <string name="ply_preparing">Wiedergabe wird vorbereitet…</string>
+    <string name="ply_waiting_source">Warte auf Medienquelle…</string>
+    <string name="ply_chapter_counter">KAPITEL %1$d VON %2$d</string>
+    <string name="ply_audiobook_upper">HÖRBUCH</string>
+    <string name="ply_audio_player_upper">AUDIO-PLAYER</string>
+    <string name="ply_chapter_n">Kapitel %1$d</string>
+    <string name="ply_chapter_of">Kapitel %1$d von %2$d</string>
+    <string name="ply_whole_book_upper">GANZES BUCH</string>
+    <string name="ply_in_chapter_upper">IM KAPITEL</string>
+    <string name="ply_in_chapter">Im Kapitel: %1$s</string>
+    <string name="ply_left">%1$s übrig</string>
+    <string name="ply_book_cover_a11y">Buchcover</string>
+    <string name="ply_book_not_found">Buch nicht gefunden</string>
 </resources>

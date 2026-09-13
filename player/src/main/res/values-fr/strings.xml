@@ -34,4 +34,18 @@
     <string name="ply_notif_title">Livre audio</string>
     <string name="ply_notif_channel">Lecture</string>
     <string name="ply_notif_channel_desc">Notifications de lecture audio</string>
+    <string name="ply_prepare_error">Impossible de préparer le livre audio</string>
+    <string name="ply_preparing">Préparation de la lecture…</string>
+    <string name="ply_waiting_source">En attente de la source multimédia…</string>
+    <string name="ply_chapter_counter">CHAPITRE %1$d SUR %2$d</string>
+    <string name="ply_audiobook_upper">LIVRE AUDIO</string>
+    <string name="ply_audio_player_upper">LECTEUR AUDIO</string>
+    <string name="ply_chapter_n">Chapitre %1$d</string>
+    <string name="ply_chapter_of">Chapitre %1$d sur %2$d</string>
+    <string name="ply_whole_book_upper">LIVRE ENTIER</string>
+    <string name="ply_in_chapter_upper">DANS LE CHAPITRE</string>
+    <string name="ply_in_chapter">Dans le chapitre : %1$s</string>
+    <string name="ply_left">%1$s restantes</string>
+    <string name="ply_book_cover_a11y">Couverture du livre</string>
+    <string name="ply_book_not_found">Livre introuvable</string>
 </resources>

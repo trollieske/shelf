@@ -34,4 +34,10 @@
 
 The file may be empty, corrupted, DRM-protected, or in a supported format that could not be parsed correctly. Try importing the book again, or convert it to a clean DRM-free EPUB first.</string>
     <string name="rdr_rendering">Rendering</string>
+    <string name="rdr_error_book_not_found">Book not found</string>
+    <string name="rdr_error_is_audiobook">This is an audiobook. Use the player instead.</string>
+    <string name="rdr_error_file_not_found">File not found.</string>
+    <string name="rdr_error_no_access">No access to the book. Try importing the folder again.</string>
+    <string name="rdr_error_tts_not_ready">Speech service not ready</string>
+    <string name="rdr_error_no_text_chapter">No chapter with text</string>
 </resources>

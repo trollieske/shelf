@@ -34,4 +34,10 @@
 
 Le fichier peut être vide, corrompu, protégé par DRM ou dans un format pris en charge qui n\'a pas pu être analysé correctement. Réessayez d\'importer le livre ou convertissez-le d\'abord en EPUB propre sans DRM.</string>
     <string name="rdr_rendering">Rendu</string>
+    <string name="rdr_error_book_not_found">Livre introuvable</string>
+    <string name="rdr_error_is_audiobook">Il s\'agit d\'un livre audio. Utilisez le lecteur à la place.</string>
+    <string name="rdr_error_file_not_found">Fichier introuvable.</string>
+    <string name="rdr_error_no_access">Aucun accès au livre. Essayez de réimporter le dossier.</string>
+    <string name="rdr_error_tts_not_ready">Service vocal non prêt</string>
+    <string name="rdr_error_no_text_chapter">Aucun chapitre avec du texte</string>
 </resources>

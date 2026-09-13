@@ -40,4 +40,9 @@
     <string name="ftpu_notif_title">FTP-synkronisering</string>
     <string name="ftpu_notif_channel_desc">Viser fremdrift for FTP-nedlastinger</string>
     <string name="ftpu_notif_text">Ser etter nye bøker…</string>
+    <string name="ftpu_eta_min_sec">~%1$d m %2$d s igjen</string>
+    <string name="ftpu_eta_seconds">~%1$d sekunder igjen</string>
+    <string name="ftpu_eta_calculating">Beregner tid...</string>
+    <string name="ftpu_no_books_found">Fant ingen lydbøker eller e-bøker i \'%1$s\'</string>
+    <string name="ftpu_syncing_progress">Synkroniserer (%1$d/%2$d) • %3$d aktive • %4$s</string>
 </resources>

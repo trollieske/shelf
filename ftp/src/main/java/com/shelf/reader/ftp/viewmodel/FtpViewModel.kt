@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
+import com.shelf.reader.ftp.R
 import androidx.lifecycle.viewModelScope
 import com.shelf.reader.core.dispatchers.DefaultDispatcherProvider
 import com.shelf.reader.core.dispatchers.DispatcherProvider
@@ -426,7 +427,7 @@ class FtpViewModel(
                 isLoading = false,
                 syncStage = SyncStage.IDLE,
                 downloadProgressText = null,
-                error = "Fant ingen lydbøker eller e-bøker i '$remoteSyncPath'"
+                error = getApplication<Application>().getString(R.string.ftpu_no_books_found, remoteSyncPath)
             )
             onResult(0)
             return
@@ -552,7 +553,7 @@ class FtpViewModel(
                             val remainingFiles = totalFiles - doneCount
                             val etaSec = (remainingFiles / filesPerSec).toInt()
 
-                            val etaString = if (etaSec > 60) "~${etaSec / 60}m ${etaSec % 60}s gjenstår" else "~$etaSec sek gjenstår"
+                            val etaString = if (etaSec > 60) getApplication<Application>().getString(R.string.ftpu_eta_min_sec, etaSec / 60, etaSec % 60) else getApplication<Application>().getString(R.string.ftpu_eta_seconds, etaSec)
 
                             formState.value = formState.value.copy(
                                 syncedFilesCount = doneCount,
@@ -563,7 +564,7 @@ class FtpViewModel(
                                 activeFileNames = activeNamesSet.toList().take(2),
                                 failedFilesCount = failedCount.get(),
                                 retryCount = totalRetriesCount.get(),
-                                downloadProgressText = "Synkroniserer ($doneCount/$totalFiles) • $curActive aktiver • $etaString"
+                                downloadProgressText = getApplication<Application>().getString(R.string.ftpu_syncing_progress, doneCount, totalFiles, curActive, etaString)
                             )
                         }
                     }

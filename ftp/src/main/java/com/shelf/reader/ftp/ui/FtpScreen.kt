@@ -942,10 +942,10 @@ private fun SyncProgressCard(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     val etaText = if (state.estimatedRemainingSec > 60) {
-                        "~${state.estimatedRemainingSec / 60}m ${state.estimatedRemainingSec % 60}s igjen"
+                        stringResource(R.string.ftpu_eta_min_sec, state.estimatedRemainingSec / 60, state.estimatedRemainingSec % 60)
                     } else if (state.estimatedRemainingSec > 0) {
-                        "~${state.estimatedRemainingSec} sekunder igjen"
-                    } else "Beregner tid..."
+                        stringResource(R.string.ftpu_eta_seconds, state.estimatedRemainingSec)
+                    } else stringResource(R.string.ftpu_eta_calculating)
 
                     Text(
                         text = etaText,

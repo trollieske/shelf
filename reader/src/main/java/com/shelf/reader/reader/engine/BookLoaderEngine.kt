@@ -3,6 +3,7 @@ package com.shelf.reader.reader.engine
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import com.shelf.reader.reader.R
 import com.shelf.reader.core.parse.MobiDrmException
 import com.shelf.reader.core.parse.MobiMetadata
 import com.shelf.reader.core.parse.MobiParseException
@@ -78,7 +79,7 @@ class BookLoaderEngine(
                 author = "",
                 format = FormatEntity.UNKNOWN,
                 type = BookTypeEntity.EBOOK,
-                error = "Fant ikke boken"
+                error = ctx.getString(R.string.rdr_error_book_not_found)
             )
 
         val percent = db.progressDao().getByBook(bookId)?.progressPercent ?: 0f
@@ -92,7 +93,7 @@ class BookLoaderEngine(
                 format = book.format,
                 type = book.type,
                 percent = percent,
-                error = "Dette er en lydbok. Bruk spilleren i stedet."
+                error = ctx.getString(R.string.rdr_error_is_audiobook)
             )
         }
 
@@ -213,8 +214,8 @@ class BookLoaderEngine(
                 format = book.format,
                 type = book.type,
                 percent = percent,
-                error = if (fileUri == null && filePath == null) "Fant ikke filen."
-                        else "Ingen tilgang til boken. Prøv å importere mappen på nytt."
+                error = if (fileUri == null && filePath == null) ctx.getString(R.string.rdr_error_file_not_found)
+                        else ctx.getString(R.string.rdr_error_no_access)
             )
         } catch (t: Throwable) {
             return@withContext ReaderBookState(
@@ -371,8 +372,8 @@ class BookLoaderEngine(
                     format = book.format,
                     type = book.type,
                     percent = percent,
-                    error = if (fileUri == null && filePath == null) "Fant ikke filen."
-                    else "Ingen tilgang til boken. Prøv å importere mappen på nytt."
+                    error = if (fileUri == null && filePath == null) ctx.getString(R.string.rdr_error_file_not_found)
+                    else ctx.getString(R.string.rdr_error_no_access)
                 )
             stream.use { s ->
                 val size = if (filePath?.exists() == true) filePath.length() else book.fileSizeBytes

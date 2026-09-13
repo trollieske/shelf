@@ -242,7 +242,7 @@ class BookImportRepository(
                 list.forEachIndexed { idx, ch ->
                     val chObj = JSONObject().apply {
                         put("index", idx)
-                        put("title", ch.title.takeIf { it.isNotBlank() } ?: "Kapittel ${idx + 1}")
+                        put("title", ch.title.orEmpty())
                         put("startMs", ch.startMs)
                         put("endMs", ch.endMs ?: JSONObject.NULL)
                         ch.href?.let { put("href", it) }
@@ -463,7 +463,7 @@ class BookImportRepository(
                     val absEnd = (trackStartMs + relEnd).coerceAtMost(totalDurationMs)
                     val chObj = JSONObject().apply {
                         put("index", chapterIdx)
-                        put("title", c.title.takeIf { it.isNotBlank() } ?: "Kapittel ${chapterIdx + 1}")
+                        put("title", c.title.orEmpty())
                         put("startMs", absStart)
                         put("endMs", absEnd)
                         put("mediaUri", t.uri.toString())
@@ -481,7 +481,7 @@ class BookImportRepository(
                     chapterTitle = if (fileClean.isNotBlank() && !fileClean.equals(titleCandidate, ignoreCase = true)) {
                         fileClean
                     } else {
-                        "Kapittel ${chapterIdx + 1}"
+                        ""
                     }
                 }
 

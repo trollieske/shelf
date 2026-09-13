@@ -19,4 +19,5 @@
     <string name="lib_sort_recent">Zuletzt</string>
     <string name="lib_sort_title">Titel</string>
     <string name="lib_sort_added">Hinzugefügt</string>
+    <string name="lib_remaining">%1$s übrig</string>
 </resources>

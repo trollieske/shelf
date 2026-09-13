@@ -19,4 +19,5 @@
     <string name="lib_sort_recent">Senaste</string>
     <string name="lib_sort_title">Titel</string>
     <string name="lib_sort_added">Lagt till</string>
+    <string name="lib_remaining">%1$s kvar</string>
 </resources>

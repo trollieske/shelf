@@ -34,4 +34,18 @@
     <string name="ply_notif_title">Lydbok</string>
     <string name="ply_notif_channel">Avspilling</string>
     <string name="ply_notif_channel_desc">Lydbok-avspillingsvarsler</string>
+    <string name="ply_prepare_error">Lydboken kunne ikke klargjøres</string>
+    <string name="ply_preparing">Klargjører avspilling…</string>
+    <string name="ply_waiting_source">Venter på mediekilde…</string>
+    <string name="ply_chapter_counter">KAPITTEL %1$d AV %2$d</string>
+    <string name="ply_audiobook_upper">LYDBOK</string>
+    <string name="ply_audio_player_upper">LYDSPILLER</string>
+    <string name="ply_chapter_n">Kapittel %1$d</string>
+    <string name="ply_chapter_of">Kapittel %1$d av %2$d</string>
+    <string name="ply_whole_book_upper">HELE BOKEN</string>
+    <string name="ply_in_chapter_upper">I KAPITTELLET</string>
+    <string name="ply_in_chapter">I kapittelet: %1$s</string>
+    <string name="ply_left">%1$s igjen</string>
+    <string name="ply_book_cover_a11y">Bok-cover</string>
+    <string name="ply_book_not_found">Fant ikke boken</string>
 </resources>

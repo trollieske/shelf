@@ -34,4 +34,10 @@
 
 Файл может быть пустым, повреждённым, защищённым DRM или иметь поддерживаемый формат, который не удалось корректно разобрать. Попробуйте импортировать книгу ещё раз или сначала конвертировать её в чистый EPUB без DRM.</string>
     <string name="rdr_rendering">Рендеринг</string>
+    <string name="rdr_error_book_not_found">Книга не найдена</string>
+    <string name="rdr_error_is_audiobook">Это аудиокнига. Используйте плеер.</string>
+    <string name="rdr_error_file_not_found">Файл не найден.</string>
+    <string name="rdr_error_no_access">Нет доступа к книге. Попробуйте импортировать папку снова.</string>
+    <string name="rdr_error_tts_not_ready">Речевая служба не готова</string>
+    <string name="rdr_error_no_text_chapter">Нет главы с текстом</string>
 </resources>

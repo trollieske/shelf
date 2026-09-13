@@ -34,4 +34,10 @@
 
 Die Datei könnte leer, beschädigt, DRM-geschützt oder in einem unterstützten Format sein, das nicht korrekt geparst werden konnte. Importiere das Buch erneut oder konvertiere es zuerst in ein sauberes DRM-freies EPUB.</string>
     <string name="rdr_rendering">Rendern</string>
+    <string name="rdr_error_book_not_found">Buch nicht gefunden</string>
+    <string name="rdr_error_is_audiobook">Das ist ein Hörbuch. Verwende stattdessen den Player.</string>
+    <string name="rdr_error_file_not_found">Datei nicht gefunden.</string>
+    <string name="rdr_error_no_access">Kein Zugriff auf das Buch. Versuche, den Ordner erneut zu importieren.</string>
+    <string name="rdr_error_tts_not_ready">Sprachdienst nicht bereit</string>
+    <string name="rdr_error_no_text_chapter">Kein Kapitel mit Text</string>
 </resources>

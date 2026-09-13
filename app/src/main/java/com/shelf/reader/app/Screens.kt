@@ -85,22 +85,22 @@ private fun formatBytes(bytes: Long): String = when {
     else -> "%.2f GB".format(bytes / (1024.0 * 1024.0 * 1024.0))
 }
 
-private fun formatDuration(ms: Long): String {
+private fun formatDuration(ms: Long, ctx: Context): String {
     val totalSec = ms / 1000
     val hours = totalSec / 3600
     val minutes = (totalSec % 3600) / 60
     val seconds = totalSec % 60
-    return if (hours > 0) "%d t %d min".format(hours, minutes)
-    else if (minutes > 0) "%d min %d sek".format(minutes, seconds)
-    else "$seconds sek"
+    return if (hours > 0) ctx.getString(R.string.app_dur_hm, hours, minutes)
+    else if (minutes > 0) ctx.getString(R.string.app_dur_ms, minutes, seconds)
+    else ctx.getString(R.string.app_dur_s, seconds)
 }
 
-private fun formatRemaining(ms: Long, pct: Float): String {
+private fun formatRemaining(ms: Long, pct: Float, ctx: Context): String {
     val remainingMs = ((1f - pct.coerceIn(0f, 1f)) * ms).toLong()
-    return formatDuration(remainingMs)
+    return formatDuration(remainingMs, ctx)
 }
 
-private fun parseChapters(json: String?): List<String> {
+private fun parseChapters(json: String?, ctx: Context): List<String> {
     if (json == null || json.isBlank()) return emptyList()
     return try {
         val result = mutableListOf<String>()
@@ -110,7 +110,7 @@ private fun parseChapters(json: String?): List<String> {
             if (item is org.json.JSONObject) {
                 val t = item.optString("title").takeIf { it.isNotBlank() }
                     ?: item.optString("name").takeIf { it.isNotBlank() }
-                    ?: "Kapittel ${i + 1}"
+                    ?: ctx.getString(R.string.app_chapter_n, i + 1)
                 result.add(t)
             } else if (item != null) {
                 val s = item.toString().trim()
@@ -199,7 +199,7 @@ fun BookDetailsScreen(
     val pct = progress?.progressPercent ?: 0f
     val isAudio = book?.type == com.shelf.reader.data.local.entity.BookTypeEntity.AUDIOBOOK ||
             book?.type == com.shelf.reader.data.local.entity.BookTypeEntity.MIXED
-    val chapters = remember(book?.chaptersJson) { parseChapters(book?.chaptersJson) }
+    val chapters = remember(book?.chaptersJson) { parseChapters(book?.chaptersJson, ctx) }
 
     LaunchedEffect(book?.id, book?.fileUri, book?.filePath, book?.persistableUriPermission) {
         val b = book ?: return@LaunchedEffect
@@ -481,10 +481,10 @@ fun BookDetailsScreen(
                     book?.fileSizeBytes?.takeIf { it > 0 }?.let { infoRows.add(stringResource(R.string.book_details_file_size) to formatBytes(it)) }
                     book?.importSource?.let { infoRows.add(stringResource(R.string.book_details_import_source) to it.name) }
                     book?.pageCount?.let { infoRows.add(stringResource(R.string.book_details_pages_label) to stringResource(R.string.book_details_pages, it)) }
-                    book?.durationMs?.let { infoRows.add(stringResource(R.string.book_details_duration) to formatDuration(it)) }
+                    book?.durationMs?.let { infoRows.add(stringResource(R.string.book_details_duration) to formatDuration(it, ctx)) }
                     if (pct > 0f) {
                         book?.durationMs?.let {
-                            infoRows.add(stringResource(R.string.book_details_remaining) to formatRemaining(it, pct))
+                            infoRows.add(stringResource(R.string.book_details_remaining) to formatRemaining(it, pct, ctx))
                         } ?: book?.pageCount?.let { pc ->
                             val pagesLeft = ((1f - pct) * pc).toInt().coerceAtLeast(0)
                             infoRows.add(stringResource(R.string.book_details_remaining) to stringResource(R.string.book_details_pages_left, pagesLeft))

@@ -260,4 +260,10 @@
     <string name="import_notif_channel_desc">Повідомлення про імпорт</string>
     <string name="import_notif_working">Імпортуємо книги</string>
     <string name="import_notif_wait">Будь ласка, зачекайте…</string>
+    <string name="app_dur_hm">%1$d год %2$d хв</string>
+    <string name="app_dur_ms">%1$d хв %2$d с</string>
+    <string name="app_dur_s">%1$d с</string>
+    <string name="app_chapter_n">Розділ %1$d</string>
+    <string name="lan_on_host">%1$s на %2$s:%3$d</string>
+    <string name="wkc_librivox_title">LibriVox (аудіокниги)</string>
 </resources>

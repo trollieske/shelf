@@ -3,6 +3,7 @@ package com.shelf.reader.torrent.viewmodel
 import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
+import com.shelf.reader.torrent.R
 import androidx.lifecycle.viewModelScope
 import com.shelf.reader.core.dispatchers.DefaultDispatcherProvider
 import com.shelf.reader.core.dispatchers.DispatcherProvider
@@ -157,7 +158,7 @@ class TorrentViewModel(
     fun reimportTorrent(id: Long) = viewModelScope.launch(dispatchers.io) {
         val dl = db.torrentDownloadDao().getById(id)
         if (dl == null) {
-            toastFlow.tryEmit("Fant ikke torrent")
+            toastFlow.tryEmit(getApplication<Application>().getString(R.string.toru_torrent_not_found))
             return@launch
         }
         val importRepo = com.shelf.reader.library.data.BookImportRepository(getApplication(), db, dispatchers)

@@ -6,6 +6,7 @@ import android.speech.tts.UtteranceProgressListener
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import com.shelf.reader.reader.R
 import com.shelf.reader.reader.engine.ReaderChapter
 
 data class TtsChapter(val index: Int, val title: String, val paragraphs: List<String>)
@@ -78,11 +79,11 @@ class TtsPlaybackEngine(
 
     fun play() {
         if (!state.value.isReady) {
-            _state.value = _state.value.copy(error = "Stemmetjeneste ikke klar")
+            _state.value = _state.value.copy(error = appCtx.getString(R.string.rdr_error_tts_not_ready))
             return
         }
         if (chapters.isEmpty()) {
-            _state.value = _state.value.copy(error = "Ingen kapittel med tekst")
+            _state.value = _state.value.copy(error = appCtx.getString(R.string.rdr_error_no_text_chapter))
             return
         }
         _state.value = _state.value.copy(isPlaying = true)

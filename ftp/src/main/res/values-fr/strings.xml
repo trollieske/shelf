@@ -40,4 +40,9 @@
     <string name="ftpu_notif_title">Synchro FTP</string>
     <string name="ftpu_notif_channel_desc">Affiche la progression des téléchargements FTP</string>
     <string name="ftpu_notif_text">Recherche de nouveaux livres…</string>
+    <string name="ftpu_eta_min_sec">~%1$d min %2$d s restantes</string>
+    <string name="ftpu_eta_seconds">~%1$d secondes restantes</string>
+    <string name="ftpu_eta_calculating">Calcul du temps…</string>
+    <string name="ftpu_no_books_found">Aucun livre audio ou ebook trouvé dans \'%1$s\'</string>
+    <string name="ftpu_syncing_progress">Synchronisation (%1$d/%2$d) • %3$d actifs • %4$s</string>
 </resources>

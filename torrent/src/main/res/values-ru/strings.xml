@@ -22,4 +22,5 @@
     <string name="toru_notif_channel">Скачивание торрентов</string>
     <string name="toru_notif_text">Torrent-клиент работает в фоне…</string>
     <string name="toru_notif_channel_desc">Показывает прогресс скачивания торрентов</string>
+    <string name="toru_torrent_not_found">Торрент не найден</string>
 </resources>

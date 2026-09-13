@@ -34,4 +34,18 @@
     <string name="ply_notif_title">Lydbog</string>
     <string name="ply_notif_channel">Afspilning</string>
     <string name="ply_notif_channel_desc">Notifikationer for lydbogsafspilning</string>
+    <string name="ply_prepare_error">Lydbogen kunne ikke klargøres</string>
+    <string name="ply_preparing">Klargør afspilning…</string>
+    <string name="ply_waiting_source">Venter på mediekilde…</string>
+    <string name="ply_chapter_counter">KAPITEL %1$d AF %2$d</string>
+    <string name="ply_audiobook_upper">LYDBOG</string>
+    <string name="ply_audio_player_upper">LYDAFSPILLER</string>
+    <string name="ply_chapter_n">Kapitel %1$d</string>
+    <string name="ply_chapter_of">Kapitel %1$d af %2$d</string>
+    <string name="ply_whole_book_upper">HELE BOGEN</string>
+    <string name="ply_in_chapter_upper">I KAPITLET</string>
+    <string name="ply_in_chapter">I kapitlet: %1$s</string>
+    <string name="ply_left">%1$s tilbage</string>
+    <string name="ply_book_cover_a11y">Bogcover</string>
+    <string name="ply_book_not_found">Bogen blev ikke fundet</string>
 </resources>

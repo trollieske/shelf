@@ -34,4 +34,18 @@
     <string name="ply_notif_title">Audiobook</string>
     <string name="ply_notif_channel">Playback</string>
     <string name="ply_notif_channel_desc">Audiobook playback notifications</string>
+    <string name="ply_prepare_error">Could not prepare the audiobook</string>
+    <string name="ply_preparing">Preparing playback…</string>
+    <string name="ply_waiting_source">Waiting for media source…</string>
+    <string name="ply_chapter_counter">CHAPTER %1$d OF %2$d</string>
+    <string name="ply_audiobook_upper">AUDIOBOOK</string>
+    <string name="ply_audio_player_upper">AUDIO PLAYER</string>
+    <string name="ply_chapter_n">Chapter %1$d</string>
+    <string name="ply_chapter_of">Chapter %1$d of %2$d</string>
+    <string name="ply_whole_book_upper">WHOLE BOOK</string>
+    <string name="ply_in_chapter_upper">IN CHAPTER</string>
+    <string name="ply_in_chapter">In chapter: %1$s</string>
+    <string name="ply_left">%1$s left</string>
+    <string name="ply_book_cover_a11y">Book cover</string>
+    <string name="ply_book_not_found">Book not found</string>
 </resources>

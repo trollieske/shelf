@@ -40,4 +40,9 @@
     <string name="ftpu_notif_title">FTP-синхронизация</string>
     <string name="ftpu_notif_channel_desc">Показывает прогресс FTP-загрузок</string>
     <string name="ftpu_notif_text">Ищем новые книги…</string>
+    <string name="ftpu_eta_min_sec">~%1$d мин %2$d с осталось</string>
+    <string name="ftpu_eta_seconds">~%1$d секунд осталось</string>
+    <string name="ftpu_eta_calculating">Расчёт времени…</string>
+    <string name="ftpu_no_books_found">Не найдено аудиокниг или электронных книг в «%1$s»</string>
+    <string name="ftpu_syncing_progress">Синхронизация (%1$d/%2$d) • активных: %3$d • %4$s</string>
 </resources>

@@ -260,4 +260,10 @@
     <string name="import_notif_channel_desc">Importmeldungen</string>
     <string name="import_notif_working">Bücher werden importiert</string>
     <string name="import_notif_wait">Bitte warten…</string>
+    <string name="app_dur_hm">%1$d Std. %2$d Min.</string>
+    <string name="app_dur_ms">%1$d Min. %2$d Sek.</string>
+    <string name="app_dur_s">%1$d Sek.</string>
+    <string name="app_chapter_n">Kapitel %1$d</string>
+    <string name="lan_on_host">%1$s auf %2$s:%3$d</string>
+    <string name="wkc_librivox_title">LibriVox (Hörbücher)</string>
 </resources>

@@ -34,4 +34,18 @@
     <string name="ply_notif_title">Ljudbok</string>
     <string name="ply_notif_channel">Uppspelning</string>
     <string name="ply_notif_channel_desc">Aviseringar för ljudboksuppspelning</string>
+    <string name="ply_prepare_error">Ljudboken kunde inte förberedas</string>
+    <string name="ply_preparing">Förbereder uppspelning…</string>
+    <string name="ply_waiting_source">Väntar på mediekälla…</string>
+    <string name="ply_chapter_counter">KAPITEL %1$d AV %2$d</string>
+    <string name="ply_audiobook_upper">LJUDBOK</string>
+    <string name="ply_audio_player_upper">LJUDSPELARE</string>
+    <string name="ply_chapter_n">Kapitel %1$d</string>
+    <string name="ply_chapter_of">Kapitel %1$d av %2$d</string>
+    <string name="ply_whole_book_upper">HELA BOKEN</string>
+    <string name="ply_in_chapter_upper">I KAPITLET</string>
+    <string name="ply_in_chapter">I kapitlet: %1$s</string>
+    <string name="ply_left">%1$s kvar</string>
+    <string name="ply_book_cover_a11y">Bokomslag</string>
+    <string name="ply_book_not_found">Boken hittades inte</string>
 </resources>

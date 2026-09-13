@@ -22,4 +22,5 @@
     <string name="toru_notif_channel">Завантаження торентів</string>
     <string name="toru_notif_text">Torrent-клієнт працює у фоні…</string>
     <string name="toru_notif_channel_desc">Показує прогрес завантаження торентів</string>
+    <string name="toru_torrent_not_found">Торент не знайдено</string>
 </resources>

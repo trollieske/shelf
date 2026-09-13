@@ -1,6 +1,7 @@
 package com.shelf.reader.player.service
 
 import com.shelf.reader.player.R
+import com.shelf.reader.player.engine.localizedChapterTitle
 
 import android.app.Notification
 import android.app.PendingIntent
@@ -471,7 +472,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
                             .setAlbumArtist(book.author)
                             .setAlbumTitle(book.title)
                             .setDisplayTitle(ch.title)
-                            .setSubtitle("Kapittel ${ch.index + 1} av ${activeChapters.size}")
+                            .setSubtitle(getString(R.string.ply_chapter_of, ch.index + 1, activeChapters.size))
                             .apply { cover?.bytes?.let { setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) } }
                             .build()
                     )
@@ -501,7 +502,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
                             .setAlbumArtist(book.author)
                             .setAlbumTitle(book.title)
                             .setDisplayTitle(book.title)
-                            .setSubtitle(book.format.name + " – Lydbok")
+                            .setSubtitle(book.format.name + " – " + getString(R.string.ply_title))
                             .apply { cover?.bytes?.let { setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) } }
                             .build()
                     )
@@ -698,7 +699,7 @@ class AudiobookPlaybackService : MediaLibraryService() {
                 val obj = arr.getJSONObject(i)
                 AudiobookChapter(
                     index = obj.optInt("index", i),
-                    title = obj.optString("title", "Kapittel ${i + 1}"),
+                    title = localizedChapterTitle(this, obj.optString("title"), i),
                     startMs = obj.optLong("startMs", 0L),
                     endMs = obj.optLong("endMs", 0L).takeIf { it > 0L },
                     mediaUri = if (obj.has("mediaUri") && !obj.isNull("mediaUri")) obj.getString("mediaUri") else null

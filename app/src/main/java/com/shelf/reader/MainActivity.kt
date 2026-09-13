@@ -664,7 +664,7 @@ private fun LanDiscoverySection() {
                                     .fillMaxWidth()
                                     .clip(MaterialTheme.shapes.medium)
                                     .clickable {
-                                        val label = cand.label + " på " + cand.host + ":" + cand.port
+                                        val label = ctx.getString(R.string.lan_on_host, cand.label, cand.host, cand.port)
                                         android.widget.Toast.makeText(ctx, ctx.getString(R.string.lan_preview_toast, label, cand.url), android.widget.Toast.LENGTH_LONG).show()
                                     }
                                     .padding(horizontal = 4.dp, vertical = 8.dp),
@@ -745,7 +745,7 @@ private fun WellKnownCatalogsSection() {
             CatalogSuggestion("Standard Ebooks", "https://standardebooks.org/opds", ctx.getString(R.string.wkc_standard_ebooks_sub), Icons.Default.AutoStories, com.shelf.reader.designsystem.theme.OmarchyColors.Dim),
             CatalogSuggestion("Feedbooks", "https://www.feedbooks.com/catalog.atom", ctx.getString(R.string.wkc_feedbooks_sub), Icons.Default.MenuBook, com.shelf.reader.designsystem.theme.OmarchyColors.Dim),
             CatalogSuggestion("Project Gutenberg", "https://www.gutenberg.org/ebooks/opds", ctx.getString(R.string.wkc_gutenberg_sub), Icons.Default.LibraryBooks, com.shelf.reader.designsystem.theme.OmarchyColors.Dim),
-            CatalogSuggestion("LibriVox (lydbøker)", "https://librivox.org/api/feed/audiobooks/?format=opds", ctx.getString(R.string.wkc_librivox_sub), Icons.Default.Audiotrack, com.shelf.reader.designsystem.theme.OmarchyColors.Dim)
+            CatalogSuggestion(ctx.getString(R.string.wkc_librivox_title), "https://librivox.org/api/feed/audiobooks/?format=opds", ctx.getString(R.string.wkc_librivox_sub), Icons.Default.Audiotrack, com.shelf.reader.designsystem.theme.OmarchyColors.Dim)
         )
     }
 
@@ -1103,7 +1103,7 @@ private fun ImportProgressScreen(onBack: () -> Unit) {
         val durMs = (hCompletedAt ?: System.currentTimeMillis()) - hist.startedAt
         val durSec = (durMs / 1000).toInt()
         val durTxt = if (hCompletedAt != null) {
-            if (durSec < 60) "${durSec} sek" else "${durSec / 60}m ${durSec % 60}s"
+            if (durSec < 60) navContext.getString(R.string.app_dur_s, durSec) else "${durSec / 60}m ${durSec % 60}s"
         } else stringResource(R.string.ip_dlg_ongoing)
         AlertDialog(
             onDismissRequest = { showHistoryDialogFor = null },

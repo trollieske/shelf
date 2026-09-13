@@ -45,7 +45,8 @@ object ResumeSelector {
         books: List<ResumeBook>,
         wantAudio: Boolean,
         max: Int = 5,
-        now: Long = System.currentTimeMillis()
+        now: Long = System.currentTimeMillis(),
+        remainingLabel: ((Long) -> String)? = null
     ): List<ResumeCandidate> {
         return books.asSequence()
             .filter { !it.isDeleted }
@@ -64,7 +65,7 @@ object ResumeSelector {
                     bookId = b.id,
                     title = b.title,
                     author = b.author,
-                    detail = detailFor(b),
+                    detail = detailFor(b, remainingLabel),
                     lastActivity = b.lastActivity,
                     updatedAt = b.updatedAt,
                     id = b.id
@@ -73,20 +74,21 @@ object ResumeSelector {
             .toList()
     }
 
-    private fun detailFor(b: ResumeBook): String {
+    private fun detailFor(b: ResumeBook, remainingLabel: ((Long) -> String)?): String {
         val pct = (b.progressPercent.coerceIn(0f, 1f) * 100).toInt()
         return if (b.isAudio) {
             val remaining = (b.durationMs - b.positionMs).coerceAtLeast(0L)
-            if (remaining > 0L) formatRemaining(remaining) else "$pct%"
+            if (remaining > 0L) (remainingLabel ?: ::formatRemaining)(remaining) else "$pct%"
         } else {
             "$pct%"
         }
     }
 
+    /** Language-neutral fallback; callers inject a localized formatter via [select]. */
     private fun formatRemaining(ms: Long): String {
         val totalMin = ((ms + 59_999) / 60_000).coerceAtLeast(1)
         val h = totalMin / 60
         val m = totalMin % 60
-        return if (h > 0) "${h}t ${m}min igjen" else "${m}min igjen"
+        return if (h > 0) "${h}h ${m}min" else "${m}min"
     }
 }

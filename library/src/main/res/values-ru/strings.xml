@@ -19,4 +19,5 @@
     <string name="lib_sort_recent">Недавние</string>
     <string name="lib_sort_title">Название</string>
     <string name="lib_sort_added">Когда добавлена</string>
+    <string name="lib_remaining">Осталось %1$s</string>
 </resources>

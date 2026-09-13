@@ -260,4 +260,10 @@
     <string name="import_notif_channel_desc">Importeringsmeddelelser</string>
     <string name="import_notif_working">Importerer bøger</string>
     <string name="import_notif_wait">Vent venligst…</string>
+    <string name="app_dur_hm">%1$d t %2$d min</string>
+    <string name="app_dur_ms">%1$d min %2$d sek</string>
+    <string name="app_dur_s">%1$d sek</string>
+    <string name="app_chapter_n">Kapitel %1$d</string>
+    <string name="lan_on_host">%1$s på %2$s:%3$d</string>
+    <string name="wkc_librivox_title">LibriVox (lydbøger)</string>
 </resources>

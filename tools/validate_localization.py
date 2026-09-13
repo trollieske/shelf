@@ -112,10 +112,17 @@ UI_RE = re.compile(
     r'Toast\.makeText\([^,]*,\s*"([^"]{2,})"|snackbarHostState\.showSnackbar\("([^"]{2,})"|'
     r'label\s*=\s*\{\s*Text\("([^"]{2,})"\)\}\s*,?\s*$|title\s*=\s*\{\s*Text\("([^"]{2,})"\)\}'
 )
-skip_files = (
-    "LibraryScreen.kt",  # has lib_ resources now; keep scanner honest
+# Norwegian UI phrasing that must never be hardcoded in a shipping UI string.
+NO_UI_WORDS = (
+    "Kapittel ", "kapittel ", "Lydbok", "Lydbøker", "lydbøker", "igjen",
+    " sek", "sekund", "minutt", "Klargjør", "Venter på", "Fant ikke",
+    "Ingen tilgang", "Bruk spilleren", "HELE BOKEN", "LYDBOK", "LYDSPILLER",
+    "KAPITTEL", "Stemmetjeneste", "Spiller av",
 )
-for mod in MODULES:
+NO_EXCLUDE = ("//", "/*", "* ", "Log.", "dbg", "Regex(", "matches(",
+              "startsWith(", "endsWith(", "contains(", '"audiobook"', '"library"',
+              "R.string", "getString", "stringResource")
+for mod in MODULES + ["reader"]:
     kt = glob.glob(os.path.join(ROOT, mod, "src", "main", "**", "*.kt"), recursive=True)
     for f in kt:
         hits = []
@@ -126,6 +133,9 @@ for mod in MODULES:
                 continue
             if re.search(r"//.*(diag|debug|TODO|FIXME)", line):
                 continue
+            # Norwegian-word check (catches chapter fallbacks, notification text, units)
+            if any(w in line for w in NO_UI_WORDS) and not any(x in line for x in NO_EXCLUDE):
+                hits.append("no-ui-word:" + line.strip()[:70])
             for m in UI_RE.finditer(line):
                 for g in m.groups():
                     if not g:

@@ -34,4 +34,10 @@
 
 Filen kan vara tom, skadad, DRM-skyddad eller i ett format som inte kunde tolkas korrekt. Försök att importera boken igen eller konvertera den till en ren DRM-fri EPUB först.</string>
     <string name="rdr_rendering">Återger</string>
+    <string name="rdr_error_book_not_found">Boken hittades inte</string>
+    <string name="rdr_error_is_audiobook">Det här är en ljudbok. Använd spelaren i stället.</string>
+    <string name="rdr_error_file_not_found">Filen hittades inte.</string>
+    <string name="rdr_error_no_access">Ingen åtkomst till boken. Försök importera mappen igen.</string>
+    <string name="rdr_error_tts_not_ready">Taltjänsten är inte redo</string>
+    <string name="rdr_error_no_text_chapter">Inget kapitel med text</string>
 </resources>
