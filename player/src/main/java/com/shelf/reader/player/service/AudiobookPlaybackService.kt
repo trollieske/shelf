@@ -350,10 +350,31 @@ class AudiobookPlaybackService : MediaLibraryService() {
 
             override fun handleCustomCommand(session: MediaSession, action: String, args: Bundle): Boolean = false
         })
+
+        // Playback arbitration: podcasts must stop when an audiobook starts.
+        com.shelf.reader.core.playback.PlaybackArbiter.register(
+            com.shelf.reader.core.playback.PlaybackArbiter.ID_AUDIOBOOK
+        ) { stopForOtherMedia() }
+    }
+
+    /** Called by [com.shelf.reader.core.playback.PlaybackArbiter] when podcasts take over. */
+    private fun stopForOtherMedia() {
+        serviceScope.launch(Dispatchers.Main) {
+            runCatching {
+                maybePersistProgress()
+                player?.pause()
+                player?.playWhenReady = false
+                com.shelf.reader.data.repository.ActivePlaybackState.clear()
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand: action=${intent?.action}")
+        // Audiobook playback takes over the single audio output: stop podcasts.
+        com.shelf.reader.core.playback.PlaybackArbiter.stopOthers(
+            com.shelf.reader.core.playback.PlaybackArbiter.ID_AUDIOBOOK
+        )
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
         } else 0
@@ -402,6 +423,10 @@ class AudiobookPlaybackService : MediaLibraryService() {
     private fun loadBook(bookId: Long) {
         currentBookId = bookId
         val p = player ?: return
+        // Audiobook playback takes over the single audio output: stop podcasts.
+        com.shelf.reader.core.playback.PlaybackArbiter.stopOthers(
+            com.shelf.reader.core.playback.PlaybackArbiter.ID_AUDIOBOOK
+        )
         serviceScope.launch {
             val db = db ?: return@launch
             val book = db.bookDao().getById(bookId) ?: return@launch
@@ -615,6 +640,9 @@ class AudiobookPlaybackService : MediaLibraryService() {
 
     override fun onDestroy() {
         cancelSleepTimer()
+        com.shelf.reader.core.playback.PlaybackArbiter.unregister(
+            com.shelf.reader.core.playback.PlaybackArbiter.ID_AUDIOBOOK
+        )
         serviceScope.launch(Dispatchers.Main) {
             maybePersistProgress()
             session?.run {

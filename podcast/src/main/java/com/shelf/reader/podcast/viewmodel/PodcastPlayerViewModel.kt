@@ -1,0 +1,166 @@
+package com.shelf.reader.podcast.viewmodel
+
+import android.app.Application
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.os.IBinder
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.shelf.reader.data.local.ShelfDatabase
+import com.shelf.reader.podcast.data.remote.NetworkStatus
+import com.shelf.reader.podcast.data.repository.PodcastRepository
+import com.shelf.reader.podcast.playback.PodcastPlaybackLauncher
+import com.shelf.reader.podcast.playback.PodcastPlaybackService
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+data class PodcastPlayerUiState(
+    val episodeId: Long = 0L,
+    val feedId: Long = 0L,
+    val title: String = "",
+    val podcastTitle: String = "",
+    val artworkUrl: String? = null,
+    val isPlaying: Boolean = false,
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L,
+    val playbackSpeed: Float = 1f,
+    val isLocal: Boolean = false,
+    val serviceBound: Boolean = false,
+    val notFound: Boolean = false,
+    val offlineBlocked: Boolean = false
+)
+
+class PodcastPlayerViewModel(
+    application: Application,
+    private val db: ShelfDatabase,
+    private val initialEpisodeId: Long
+) : AndroidViewModel(application) {
+
+    private val repository = PodcastRepository(
+        feedDao = db.podcastFeedDao(),
+        episodeDao = db.podcastEpisodeDao(),
+        playbackDao = db.podcastPlaybackDao(),
+        downloadDao = db.podcastDownloadDao()
+    )
+
+    private val _state = MutableStateFlow(PodcastPlayerUiState(episodeId = initialEpisodeId))
+    val state: StateFlow<PodcastPlayerUiState> = _state.asStateFlow()
+
+    private var service: PodcastPlaybackService? = null
+    private var tickerJob: Job? = null
+
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            val local = binder as? PodcastPlaybackService.LocalBinder
+            service = local?.getService()
+            _state.value = _state.value.copy(serviceBound = service != null)
+            startTicker()
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            service = null
+            _state.value = _state.value.copy(serviceBound = false)
+            stopTicker()
+        }
+    }
+
+    init {
+        viewModelScope.launch {
+            val episode = repository.getEpisode(initialEpisodeId)
+            if (episode == null) {
+                _state.value = _state.value.copy(notFound = true)
+                return@launch
+            }
+            val feed = repository.getFeed(episode.feedId)
+            val source = repository.resolvePlaybackSource(initialEpisodeId)
+            val local = source?.isLocal == true
+            _state.value = _state.value.copy(
+                feedId = episode.feedId,
+                title = episode.title,
+                podcastTitle = feed?.title.orEmpty(),
+                artworkUrl = episode.artworkUrl ?: feed?.artworkUrl,
+                isLocal = local
+            )
+            if (source == null) {
+                _state.value = _state.value.copy(notFound = true)
+                return@launch
+            }
+            // Offline and nothing downloaded: never attempt a stream that cannot work.
+            if (!local && !NetworkStatus.isOnline(getApplication())) {
+                _state.value = _state.value.copy(offlineBlocked = true)
+                return@launch
+            }
+            startPlaybackAndBind()
+        }
+    }
+
+    private fun startPlaybackAndBind() {
+        PodcastPlaybackLauncher.play(getApplication(), initialEpisodeId)
+        bind()
+    }
+
+    private fun bind() {
+        runCatching {
+            getApplication<Application>().bindService(
+                Intent(getApplication(), PodcastPlaybackService::class.java),
+                connection,
+                Context.BIND_AUTO_CREATE
+            )
+        }
+    }
+
+    private fun startTicker() {
+        stopTicker()
+        tickerJob = viewModelScope.launch {
+            while (true) {
+                val svc = service ?: break
+                _state.value = _state.value.copy(
+                    isPlaying = svc.isPlaying(),
+                    positionMs = svc.currentPositionMs(),
+                    durationMs = svc.durationMs(),
+                    playbackSpeed = svc.playbackSpeed(),
+                    serviceBound = true
+                )
+                delay(500L)
+            }
+        }
+    }
+
+    private fun stopTicker() {
+        tickerJob?.cancel()
+        tickerJob = null
+    }
+
+    fun playPause() {
+        service?.playPause()
+    }
+
+    fun seekTo(ms: Long) {
+        service?.seekTo(ms)
+    }
+
+    fun skipBack() {
+        service?.skipBack()
+    }
+
+    fun skipForward() {
+        service?.skipForward()
+    }
+
+    fun setSpeed(speed: Float) {
+        service?.setSpeed(speed)
+    }
+
+    override fun onCleared() {
+        stopTicker()
+        runCatching { getApplication<Application>().unbindService(connection) }
+        service = null
+        super.onCleared()
+    }
+}

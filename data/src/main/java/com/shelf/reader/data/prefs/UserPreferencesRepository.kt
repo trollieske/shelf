@@ -86,6 +86,10 @@ class UserPreferencesRepository(private val context: Context) {
     val onlineCoverLookup: Flow<Boolean> = store.map { it[Keys.ONLINE_COVER_LOOKUP] ?: false }
     val hasSeenOnboarding: Flow<Boolean> = store.map { it[Keys.SEEN_ONBOARDING] ?: false }
 
+    // ---- Podcasts ----
+    /** Podcast discovery storefront. Empty string means "never chosen by the user". */
+    val podcastCountry: Flow<String> = store.map { it[Keys.PODCAST_COUNTRY] ?: "" }
+
     // ---- Sort rail (persisted per media tab; default HYLLE / mode-default direction) ----
     val booksSortMode: Flow<LibrarySortMode> = store.map { LibrarySortMode.from(it[Keys.SORT_MODE_BOOKS]) }
     val audioSortMode: Flow<LibrarySortMode> = store.map { LibrarySortMode.from(it[Keys.SORT_MODE_AUDIO]) }
@@ -139,6 +143,8 @@ class UserPreferencesRepository(private val context: Context) {
     suspend fun setHandoffToast(enabled: Boolean) = edit(Keys.HANDOFF_TOAST, enabled)
     suspend fun setOnlineCoverLookup(enabled: Boolean) = edit(Keys.ONLINE_COVER_LOOKUP, enabled)
     suspend fun markOnboardingSeen() = edit(Keys.SEEN_ONBOARDING, true)
+
+    suspend fun setPodcastCountry(code: String) = edit(Keys.PODCAST_COUNTRY, code)
 
     suspend fun setBooksSortMode(mode: LibrarySortMode) = edit(Keys.SORT_MODE_BOOKS, mode.storage)
     suspend fun setAudioSortMode(mode: LibrarySortMode) = edit(Keys.SORT_MODE_AUDIO, mode.storage)
@@ -197,6 +203,7 @@ class UserPreferencesRepository(private val context: Context) {
 
         val ONLINE_COVER_LOOKUP = booleanPreferencesKey("online_cover_lookup")
         val SEEN_ONBOARDING = booleanPreferencesKey("seen_onboarding_v1")
+        val PODCAST_COUNTRY = stringPreferencesKey("podcast_country")
         val USER_NAME = stringPreferencesKey("user_name")
 
         val SORT_MODE_BOOKS = stringPreferencesKey("sort_mode_books")

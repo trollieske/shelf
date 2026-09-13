@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pod_nav_title">Подкасты</string>
+
+    <string name="pod_root_header">ПОДКАСТЫ</string>
+    <string name="pod_root_empty_body">Подписывайтесь на открытые подкасты. Слушайте когда хотите. Скачивайте когда нужно.</string>
+    <string name="pod_add_rss">Добавить RSS-канал</string>
+    <string name="pod_search_podcasts">Поиск подкастов</string>
+    <string name="pod_what_is_rss">Что такое RSS-канал?</string>
+    <string name="pod_help_title">Что такое RSS-канал?</string>
+    <string name="pod_help_body">RSS-канал — это открытый адрес, по которому Shelf получает новые выпуски напрямую из подкаста, на который вы подписаны.</string>
+    <string name="pod_following_new">ПОДПИСКИ \u00b7 %1$d НОВЫХ</string>
+    <string name="pod_following">ПОДПИСКИ</string>
+    <string name="pod_refresh">Обновить</string>
+    <string name="pod_resume_title">Продолжить прослушивание</string>
+    <string name="pod_resume_more">+%1$d</string>
+    <string name="pod_episodes_count">Выпусков: %1$d</string>
+    <string name="pod_new_count">Новых: %1$d</string>
+    <string name="pod_synced_now">Обновлено сейчас</string>
+    <string name="pod_sync_failed">Не удалось обновить</string>
+
+    <string name="pod_add_feed_title">Добавить RSS-канал</string>
+    <string name="pod_feed_url_hint">https://example.com/feed.xml</string>
+    <string name="pod_preview_episodes">Выпусков: %1$d</string>
+    <string name="pod_follow_podcast">Подписаться</string>
+    <string name="pod_following_state">Вы подписаны</string>
+    <string name="pod_feed_error_title">Не удалось прочитать RSS-канал подкаста</string>
+    <string name="pod_feed_error_hint">Проверьте, что это публичный RSS-канал.</string>
+    <string name="pod_retry">Повторить</string>
+    <string name="pod_cancel">Отмена</string>
+    <string name="pod_invalid_url">Введите корректный адрес http или https.</string>
+    <string name="pod_close">Закрыть</string>
+    <string name="pod_add_feed_url_label">Адрес канала</string>
+
+    <string name="pod_discover_title">Обзор</string>
+    <string name="pod_search_hint">Поиск подкастов</string>
+    <string name="pod_explore_in">Искать в: %1$s</string>
+    <string name="pod_start_here">НАЧНИТЕ ЗДЕСЬ</string>
+    <string name="pod_searching">Поиск\u2026</string>
+    <string name="pod_no_results">Подкасты не найдены.</string>
+    <string name="pod_offline_search">Подключитесь к интернету, чтобы искать подкасты.</string>
+    <string name="pod_search_failed">Не удалось выполнить поиск. Попробуйте снова.</string>
+    <string name="pod_no_open_feed">У этого подкаста нет открытого RSS-канала.</string>
+    <string name="pod_follow">Подписаться</string>
+    <string name="pod_search_a11y">Поиск</string>
+    <string name="pod_clear_search">Очистить поиск</string>
+
+    <string name="pod_shortcut_crime_docs">Криминал и документалистика</string>
+    <string name="pod_shortcut_history">История</string>
+    <string name="pod_shortcut_technology">Технологии</string>
+    <string name="pod_shortcut_ai">Искусственный интеллект</string>
+    <string name="pod_shortcut_football">Футбол</string>
+    <string name="pod_shortcut_society_news">Общество и новости</string>
+    <string name="pod_shortcut_business">Бизнес</string>
+    <string name="pod_shortcut_comedy">Комедия</string>
+    <string name="pod_shortcut_science">Наука</string>
+    <string name="pod_shortcut_longform">Длинные документальные</string>
+    <string name="pod_shortcut_norwegian_crime">Норвежский криминал</string>
+    <string name="pod_shortcut_norwegian_docs">Норвежская документалистика</string>
+    <string name="pod_shortcut_norwegian_history">Норвежская история</string>
+    <string name="pod_shortcut_swedish_docs">Шведская документалистика</string>
+    <string name="pod_shortcut_swedish_history">Шведская история</string>
+    <string name="pod_shortcut_danish_history">Датская история</string>
+    <string name="pod_shortcut_danish_docs">Датская документалистика</string>
+    <string name="pod_shortcut_true_crime">Настоящие преступления</string>
+    <string name="pod_shortcut_history_podcast">Подкаст об истории</string>
+    <string name="pod_shortcut_ai_podcast">Подкаст об ИИ</string>
+    <string name="pod_shortcut_technology_podcast">Подкаст о технологиях</string>
+    <string name="pod_shortcut_longform_doc">Длинный документальный</string>
+
+    <string name="pod_country_no">Норвегия</string>
+    <string name="pod_country_se">Швеция</string>
+    <string name="pod_country_dk">Дания</string>
+    <string name="pod_country_us">США</string>
+    <string name="pod_country_gb">Великобритания</string>
+    <string name="pod_country_de">Германия</string>
+    <string name="pod_country_fr">Франция</string>
+    <string name="pod_country_es">Испания</string>
+
+    <string name="pod_detail_language">Язык</string>
+    <string name="pod_detail_category">Категория</string>
+    <string name="pod_detail_explicit">Ненормативная лексика</string>
+    <string name="pod_detail_refresh">Обновить</string>
+    <string name="pod_detail_unfollow">Отписаться</string>
+    <string name="pod_detail_follow">Подписаться</string>
+    <string name="pod_detail_no_episodes">Выпусков пока нет.</string>
+    <string name="pod_detail_play">Воспроизвести</string>
+    <string name="pod_detail_download">Скачать</string>
+    <string name="pod_detail_queued">В очереди</string>
+    <string name="pod_detail_downloading">Загрузка\u2026</string>
+    <string name="pod_detail_downloaded">Скачано</string>
+    <string name="pod_detail_download_failed">Ошибка загрузки</string>
+    <string name="pod_detail_remove_download">Удалить загрузку</string>
+    <string name="pod_detail_remove_confirm_title">Удалить загрузку?</string>
+    <string name="pod_detail_remove_confirm_body">Локальный файл будет удалён. Выпуск, прогресс и подписка сохранятся.</string>
+    <string name="pod_detail_not_downloaded_offline">Этот выпуск не скачан.</string>
+    <string name="pod_detail_episode_play_a11y">Воспроизвести выпуск</string>
+    <string name="pod_detail_episode_download_a11y">Скачать выпуск</string>
+    <string name="pod_detail_back_a11y">Назад</string>
+    <string name="pod_detail_feed_a11y">Обложка подкаста</string>
+    <string name="pod_detail_episode_duration">%1$s</string>
+    <string name="pod_detail_offline_marker">Офлайн</string>
+
+    <string name="pod_player_upper">ПОДКАСТ</string>
+    <string name="pod_player_skip_back">Назад на 30 с</string>
+    <string name="pod_player_skip_forward">Вперёд на 30 с</string>
+    <string name="pod_player_play">Воспроизвести</string>
+    <string name="pod_player_pause">Пауза</string>
+    <string name="pod_player_speed">Скорость воспроизведения</string>
+    <string name="pod_player_speed_value">%1$s\u00d7</string>
+    <string name="pod_player_not_found">Выпуск не найден</string>
+    <string name="pod_player_local">Офлайн</string>
+    <string name="pod_player_streaming">Поток</string>
+    <string name="pod_player_back_a11y">Назад</string>
+    <string name="pod_player_artwork_a11y">Обложка выпуска</string>
+    <string name="pod_player_seek_a11y">Перемотка</string>
+
+    <string name="pod_notif_title">Подкаст</string>
+    <string name="pod_notif_loading">Загрузка подкаста\u2026</string>
+    <string name="pod_notif_play">Воспроизвести</string>
+    <string name="pod_notif_skip_back">Назад на 30 с</string>
+    <string name="pod_notif_skip_forward">Вперёд на 30 с</string>
+    <string name="pod_notif_channel">Воспроизведение</string>
+    <string name="pod_notif_channel_desc">Уведомления о воспроизведении подкастов</string>
+
+    <string name="pod_download_remove_success">Загрузка удалена</string>
+    <string name="pod_download_started">Загрузка начата</string>
+    <string name="pod_error_generic">Что-то пошло не так. Попробуйте снова.</string>
+
+    <string name="pod_time_hm">%1$d ч %2$d мин</string>
+    <string name="pod_time_ms">%1$d мин %2$d с</string>
+    <string name="pod_time_s">%1$d с</string>
+    <string name="pod_remaining">осталось %1$s</string>
+</resources>

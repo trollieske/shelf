@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pod_nav_title">Podcasts</string>
+
+    <!-- Root -->
+    <string name="pod_root_header">PODCASTS</string>
+    <string name="pod_root_empty_body">Follow open podcasts. Play whenever you want. Download when you need it.</string>
+    <string name="pod_add_rss">Add RSS Feed</string>
+    <string name="pod_search_podcasts">Search Podcasts</string>
+    <string name="pod_what_is_rss">What is an RSS feed?</string>
+    <string name="pod_help_title">What is an RSS feed?</string>
+    <string name="pod_help_body">An RSS feed is an open address that lets Shelf fetch new episodes directly from a podcast you follow.</string>
+    <string name="pod_following_new">FOLLOWING \u00b7 %1$d NEW</string>
+    <string name="pod_following">FOLLOWING</string>
+    <string name="pod_refresh">Refresh</string>
+    <string name="pod_resume_title">Continue listening</string>
+    <string name="pod_resume_more">+%1$d</string>
+    <string name="pod_episodes_count">%1$d episodes</string>
+    <string name="pod_new_count">%1$d new</string>
+    <string name="pod_synced_now">Updated now</string>
+    <string name="pod_sync_failed">Could not update</string>
+
+    <!-- Add feed -->
+    <string name="pod_add_feed_title">Add RSS feed</string>
+    <string name="pod_feed_url_hint">https://example.com/feed.xml</string>
+    <string name="pod_preview_episodes">%1$d episodes</string>
+    <string name="pod_follow_podcast">Follow Podcast</string>
+    <string name="pod_following_state">Following</string>
+    <string name="pod_feed_error_title">Unable to read podcast feed</string>
+    <string name="pod_feed_error_hint">Check that this is a public RSS feed.</string>
+    <string name="pod_retry">Retry</string>
+    <string name="pod_cancel">Cancel</string>
+    <string name="pod_invalid_url">Enter a valid http or https feed address.</string>
+    <string name="pod_close">Close</string>
+    <string name="pod_add_feed_url_label">Feed URL</string>
+
+    <!-- Discover -->
+    <string name="pod_discover_title">Discover</string>
+    <string name="pod_search_hint">Search podcasts</string>
+    <string name="pod_explore_in">Explore in: %1$s</string>
+    <string name="pod_start_here">START HERE</string>
+    <string name="pod_searching">Searching\u2026</string>
+    <string name="pod_no_results">No podcasts found.</string>
+    <string name="pod_offline_search">Connect to the internet to search for podcasts.</string>
+    <string name="pod_search_failed">Could not search. Try again.</string>
+    <string name="pod_no_open_feed">This podcast does not provide an open RSS feed.</string>
+    <string name="pod_follow">Follow</string>
+    <string name="pod_search_a11y">Search</string>
+    <string name="pod_clear_search">Clear search</string>
+
+    <!-- Start Here shortcuts (labels; queries are stored in code) -->
+    <string name="pod_shortcut_crime_docs">Crime &amp; Documentaries</string>
+    <string name="pod_shortcut_history">History</string>
+    <string name="pod_shortcut_technology">Technology</string>
+    <string name="pod_shortcut_ai">Artificial Intelligence</string>
+    <string name="pod_shortcut_football">Football</string>
+    <string name="pod_shortcut_society_news">Society &amp; News</string>
+    <string name="pod_shortcut_business">Business</string>
+    <string name="pod_shortcut_comedy">Comedy</string>
+    <string name="pod_shortcut_science">Science</string>
+    <string name="pod_shortcut_longform">Long-form Documentaries</string>
+    <string name="pod_shortcut_norwegian_crime">Norwegian Crime</string>
+    <string name="pod_shortcut_norwegian_docs">Norwegian Documentaries</string>
+    <string name="pod_shortcut_norwegian_history">Norwegian History</string>
+    <string name="pod_shortcut_swedish_docs">Swedish Documentaries</string>
+    <string name="pod_shortcut_swedish_history">Swedish History</string>
+    <string name="pod_shortcut_danish_history">Danish History</string>
+    <string name="pod_shortcut_danish_docs">Danish Documentaries</string>
+    <string name="pod_shortcut_true_crime">True Crime</string>
+    <string name="pod_shortcut_history_podcast">History Podcast</string>
+    <string name="pod_shortcut_ai_podcast">AI Podcast</string>
+    <string name="pod_shortcut_technology_podcast">Technology Podcast</string>
+    <string name="pod_shortcut_longform_doc">Long-form Documentary</string>
+
+    <!-- Countries -->
+    <string name="pod_country_no">Norway</string>
+    <string name="pod_country_se">Sweden</string>
+    <string name="pod_country_dk">Denmark</string>
+    <string name="pod_country_us">United States</string>
+    <string name="pod_country_gb">United Kingdom</string>
+    <string name="pod_country_de">Germany</string>
+    <string name="pod_country_fr">France</string>
+    <string name="pod_country_es">Spain</string>
+
+    <!-- Detail -->
+    <string name="pod_detail_language">Language</string>
+    <string name="pod_detail_category">Category</string>
+    <string name="pod_detail_explicit">Explicit</string>
+    <string name="pod_detail_refresh">Refresh</string>
+    <string name="pod_detail_unfollow">Unfollow</string>
+    <string name="pod_detail_follow">Follow</string>
+    <string name="pod_detail_no_episodes">No episodes yet.</string>
+    <string name="pod_detail_play">Play</string>
+    <string name="pod_detail_download">Download</string>
+    <string name="pod_detail_queued">Queued</string>
+    <string name="pod_detail_downloading">Downloading\u2026</string>
+    <string name="pod_detail_downloaded">Downloaded</string>
+    <string name="pod_detail_download_failed">Download failed</string>
+    <string name="pod_detail_remove_download">Remove Download</string>
+    <string name="pod_detail_remove_confirm_title">Remove download?</string>
+    <string name="pod_detail_remove_confirm_body">The local file will be removed. Your episode, playback progress and follow state are kept.</string>
+    <string name="pod_detail_not_downloaded_offline">This episode has not been downloaded.</string>
+    <string name="pod_detail_episode_play_a11y">Play episode</string>
+    <string name="pod_detail_episode_download_a11y">Download episode</string>
+    <string name="pod_detail_back_a11y">Back</string>
+    <string name="pod_detail_feed_a11y">Podcast artwork</string>
+    <string name="pod_detail_episode_duration">%1$s</string>
+    <string name="pod_detail_offline_marker">Offline</string>
+
+    <!-- Player -->
+    <string name="pod_player_upper">PODCAST</string>
+    <string name="pod_player_skip_back">Back 30 s</string>
+    <string name="pod_player_skip_forward">Forward 30 s</string>
+    <string name="pod_player_play">Play</string>
+    <string name="pod_player_pause">Pause</string>
+    <string name="pod_player_speed">Playback speed</string>
+    <string name="pod_player_speed_value">%1$s\u00d7</string>
+    <string name="pod_player_not_found">Episode not found</string>
+    <string name="pod_player_local">Offline</string>
+    <string name="pod_player_streaming">Streaming</string>
+    <string name="pod_player_back_a11y">Back</string>
+    <string name="pod_player_artwork_a11y">Episode artwork</string>
+    <string name="pod_player_seek_a11y">Seek position</string>
+
+    <!-- Notification -->
+    <string name="pod_notif_title">Podcast</string>
+    <string name="pod_notif_loading">Loading podcast\u2026</string>
+    <string name="pod_notif_play">Play</string>
+    <string name="pod_notif_skip_back">Back 30 s</string>
+    <string name="pod_notif_skip_forward">Forward 30 s</string>
+    <string name="pod_notif_channel">Playback</string>
+    <string name="pod_notif_channel_desc">Podcast playback notifications</string>
+
+    <!-- Downloads -->
+    <string name="pod_download_remove_success">Download removed</string>
+    <string name="pod_download_started">Download started</string>
+    <string name="pod_error_generic">Something went wrong. Try again.</string>
+
+    <!-- Time formatting -->
+    <string name="pod_time_hm">%1$dh %2$dm</string>
+    <string name="pod_time_ms">%1$dm %2$ds</string>
+    <string name="pod_time_s">%1$ds</string>
+    <string name="pod_remaining">%1$s left</string>
+</resources>

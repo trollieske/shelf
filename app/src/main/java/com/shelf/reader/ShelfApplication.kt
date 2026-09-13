@@ -77,6 +77,7 @@ class ShelfApplication : Application(), ImageLoaderFactory, AppDependenciesProvi
         FtpSyncWorker.schedule(this)
         runCatching { com.shelf.reader.torrent.worker.TorrentDownloadWorker.schedule(this) }
         runCatching { com.shelf.reader.torrent.worker.TorrentDownloadWorker.runNow(this) }
+        runCatching { com.shelf.reader.podcast.worker.PodcastFeedSyncWorker.schedulePeriodic(this) }
     }
 
     override fun newImageLoader(): ImageLoader {

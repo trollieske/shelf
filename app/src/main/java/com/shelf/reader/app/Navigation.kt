@@ -36,6 +36,14 @@ sealed class ShelfDestinations(val route: String) {
         fun routeFor(serverId: Long) = "webdav/server/$serverId"
     }
     object Torrent : ShelfDestinations("torrent")
+    object Podcasts : ShelfDestinations("podcasts")
+    object PodcastDiscover : ShelfDestinations("podcasts/discover")
+    object PodcastDetail : ShelfDestinations("podcasts/feed/{feedId}") {
+        fun routeFor(feedId: Long) = "podcasts/feed/$feedId"
+    }
+    object PodcastPlayer : ShelfDestinations("podcasts/player/{episodeId}") {
+        fun routeFor(episodeId: Long) = "podcasts/player/$episodeId"
+    }
     object ImportProgress : ShelfDestinations("import-progress")
     object Settings : ShelfDestinations("settings")
     object Onboarding : ShelfDestinations("onboarding")

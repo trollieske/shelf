@@ -87,6 +87,22 @@
             </intent-filter>
         </service>
 
+        <!--
+            Podcast playback is a separate service with its own MediaSession id
+            (shelf_podcast). It is not a MediaLibraryService: Android Auto browsing
+            of podcasts is explicitly out of scope for this MVP.
+        -->
+        <service
+            android:name="com.shelf.reader.podcast.playback.PodcastPlaybackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+                <action android:name="android.media.session.MediaSession" />
+                <category android:name="androidx.media3.session.SERVICE_CATEGORY_AUDIO" />
+            </intent-filter>
+        </service>
+
         <meta-data
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />

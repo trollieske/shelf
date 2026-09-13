@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pod_nav_title">Poddar</string>
+
+    <string name="pod_root_header">PODDAR</string>
+    <string name="pod_root_empty_body">F\u00f6lj \u00f6ppna poddar. Lyssna n\u00e4r du vill. Ladda ner n\u00e4r du beh\u00f6ver det.</string>
+    <string name="pod_add_rss">L\u00e4gg till RSS-fl\u00f6de</string>
+    <string name="pod_search_podcasts">S\u00f6k poddar</string>
+    <string name="pod_what_is_rss">Vad \u00e4r ett RSS-fl\u00f6de?</string>
+    <string name="pod_help_title">Vad \u00e4r ett RSS-fl\u00f6de?</string>
+    <string name="pod_help_body">Ett RSS-fl\u00f6de \u00e4r en \u00f6ppen adress som l\u00e5ter Shelf h\u00e4mta nya avsnitt direkt fr\u00e5n en podd du f\u00f6ljer.</string>
+    <string name="pod_following_new">F\u00d6LJER \u00b7 %1$d NYA</string>
+    <string name="pod_following">F\u00d6LJER</string>
+    <string name="pod_refresh">Uppdatera</string>
+    <string name="pod_resume_title">Forts\u00e4tt lyssna</string>
+    <string name="pod_resume_more">+%1$d</string>
+    <string name="pod_episodes_count">%1$d avsnitt</string>
+    <string name="pod_new_count">%1$d nya</string>
+    <string name="pod_synced_now">Uppdaterad nu</string>
+    <string name="pod_sync_failed">Kunde inte uppdatera</string>
+
+    <string name="pod_add_feed_title">L\u00e4gg till RSS-fl\u00f6de</string>
+    <string name="pod_feed_url_hint">https://exempel.se/feed.xml</string>
+    <string name="pod_preview_episodes">%1$d avsnitt</string>
+    <string name="pod_follow_podcast">F\u00f6lj podden</string>
+    <string name="pod_following_state">F\u00f6ljer</string>
+    <string name="pod_feed_error_title">Kunde inte l\u00e4sa poddfl\u00f6det</string>
+    <string name="pod_feed_error_hint">Kontrollera att det \u00e4r ett \u00f6ppet RSS-fl\u00f6de.</string>
+    <string name="pod_retry">F\u00f6rs\u00f6k igen</string>
+    <string name="pod_cancel">Avbryt</string>
+    <string name="pod_invalid_url">Ange en giltig http- eller https-adress.</string>
+    <string name="pod_close">St\u00e4ng</string>
+    <string name="pod_add_feed_url_label">Fl\u00f6desadress</string>
+
+    <string name="pod_discover_title">Uppt\u00e4ck</string>
+    <string name="pod_search_hint">S\u00f6k poddar</string>
+    <string name="pod_explore_in">Utforska i: %1$s</string>
+    <string name="pod_start_here">B\u00d6RJA H\u00c4R</string>
+    <string name="pod_searching">S\u00f6ker\u2026</string>
+    <string name="pod_no_results">Inga poddar hittades.</string>
+    <string name="pod_offline_search">Anslut till internet f\u00f6r att s\u00f6ka efter poddar.</string>
+    <string name="pod_search_failed">Kunde inte s\u00f6ka. F\u00f6rs\u00f6k igen.</string>
+    <string name="pod_no_open_feed">Den h\u00e4r podden har inget \u00f6ppet RSS-fl\u00f6de.</string>
+    <string name="pod_follow">F\u00f6lj</string>
+    <string name="pod_search_a11y">S\u00f6k</string>
+    <string name="pod_clear_search">Rensa s\u00f6kning</string>
+
+    <string name="pod_shortcut_crime_docs">Brott och dokument\u00e4r</string>
+    <string name="pod_shortcut_history">Historia</string>
+    <string name="pod_shortcut_technology">Teknik</string>
+    <string name="pod_shortcut_ai">Artificiell intelligens</string>
+    <string name="pod_shortcut_football">Fotboll</string>
+    <string name="pod_shortcut_society_news">Samh\u00e4lle och nyheter</string>
+    <string name="pod_shortcut_business">N\u00e4ringsliv</string>
+    <string name="pod_shortcut_comedy">Komedi</string>
+    <string name="pod_shortcut_science">Vetenskap</string>
+    <string name="pod_shortcut_longform">L\u00e5ng dokument\u00e4r</string>
+    <string name="pod_shortcut_norwegian_crime">Norsk krim</string>
+    <string name="pod_shortcut_norwegian_docs">Norsk dokument\u00e4r</string>
+    <string name="pod_shortcut_norwegian_history">Norsk historia</string>
+    <string name="pod_shortcut_swedish_docs">Svensk dokument\u00e4r</string>
+    <string name="pod_shortcut_swedish_history">Svensk historia</string>
+    <string name="pod_shortcut_danish_history">Dansk historia</string>
+    <string name="pod_shortcut_danish_docs">Dansk dokument\u00e4r</string>
+    <string name="pod_shortcut_true_crime">True crime</string>
+    <string name="pod_shortcut_history_podcast">Historiepodd</string>
+    <string name="pod_shortcut_ai_podcast">AI-podd</string>
+    <string name="pod_shortcut_technology_podcast">Teknikpodd</string>
+    <string name="pod_shortcut_longform_doc">L\u00e5ng dokument\u00e4r</string>
+
+    <string name="pod_country_no">Norge</string>
+    <string name="pod_country_se">Sverige</string>
+    <string name="pod_country_dk">Danmark</string>
+    <string name="pod_country_us">USA</string>
+    <string name="pod_country_gb">Storbritannien</string>
+    <string name="pod_country_de">Tyskland</string>
+    <string name="pod_country_fr">Frankrike</string>
+    <string name="pod_country_es">Spanien</string>
+
+    <string name="pod_detail_language">Spr\u00e5k</string>
+    <string name="pod_detail_category">Kategori</string>
+    <string name="pod_detail_explicit">Explicit</string>
+    <string name="pod_detail_refresh">Uppdatera</string>
+    <string name="pod_detail_unfollow">Sluta f\u00f6lja</string>
+    <string name="pod_detail_follow">F\u00f6lj</string>
+    <string name="pod_detail_no_episodes">Inga avsnitt \u00e4nnu.</string>
+    <string name="pod_detail_play">Spela</string>
+    <string name="pod_detail_download">Ladda ner</string>
+    <string name="pod_detail_queued">I k\u00f6</string>
+    <string name="pod_detail_downloading">Laddar ner\u2026</string>
+    <string name="pod_detail_downloaded">Nedladdad</string>
+    <string name="pod_detail_download_failed">Nedladdning misslyckades</string>
+    <string name="pod_detail_remove_download">Ta bort nedladdning</string>
+    <string name="pod_detail_remove_confirm_title">Ta bort nedladdning?</string>
+    <string name="pod_detail_remove_confirm_body">Den lokala filen tas bort. Avsnittet, lyssningspositionen och f\u00f6ljningen beh\u00e5lls.</string>
+    <string name="pod_detail_not_downloaded_offline">Det h\u00e4r avsnittet \u00e4r inte nedladdat.</string>
+    <string name="pod_detail_episode_play_a11y">Spela avsnitt</string>
+    <string name="pod_detail_episode_download_a11y">Ladda ner avsnitt</string>
+    <string name="pod_detail_back_a11y">Tillbaka</string>
+    <string name="pod_detail_feed_a11y">Poddbild</string>
+    <string name="pod_detail_episode_duration">%1$s</string>
+    <string name="pod_detail_offline_marker">Offline</string>
+
+    <string name="pod_player_upper">PODD</string>
+    <string name="pod_player_skip_back">30 s tillbaka</string>
+    <string name="pod_player_skip_forward">30 s fram\u00e5t</string>
+    <string name="pod_player_play">Spela</string>
+    <string name="pod_player_pause">Pausa</string>
+    <string name="pod_player_speed">Uppspelningshastighet</string>
+    <string name="pod_player_speed_value">%1$s\u00d7</string>
+    <string name="pod_player_not_found">Avsnittet hittades inte</string>
+    <string name="pod_player_local">Offline</string>
+    <string name="pod_player_streaming">Str\u00f6mmar</string>
+    <string name="pod_player_back_a11y">Tillbaka</string>
+    <string name="pod_player_artwork_a11y">Avsnittsbild</string>
+    <string name="pod_player_seek_a11y">S\u00f6k position</string>
+
+    <string name="pod_notif_title">Podd</string>
+    <string name="pod_notif_loading">Laddar podd\u2026</string>
+    <string name="pod_notif_play">Spela</string>
+    <string name="pod_notif_skip_back">30 s tillbaka</string>
+    <string name="pod_notif_skip_forward">30 s fram\u00e5t</string>
+    <string name="pod_notif_channel">Uppspelning</string>
+    <string name="pod_notif_channel_desc">Aviseringar f\u00f6r podduppspelning</string>
+
+    <string name="pod_download_remove_success">Nedladdning borttagen</string>
+    <string name="pod_download_started">Nedladdning startad</string>
+    <string name="pod_error_generic">N\u00e5got gick fel. F\u00f6rs\u00f6k igen.</string>
+
+    <string name="pod_time_hm">%1$dt %2$dm</string>
+    <string name="pod_time_ms">%1$dm %2$ds</string>
+    <string name="pod_time_s">%1$ds</string>
+    <string name="pod_remaining">%1$s kvar</string>
+</resources>

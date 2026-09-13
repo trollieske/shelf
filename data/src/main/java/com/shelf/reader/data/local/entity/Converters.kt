@@ -130,4 +130,11 @@ class Converters {
 
     @TypeConverter
     fun stringToSessionSource(value: String?): SessionSource? = value?.let { SessionSource.valueOf(it) }
+
+    @TypeConverter
+    fun podcastDownloadStatusToString(value: PodcastDownloadStatus?): String? = value?.name
+
+    @TypeConverter
+    fun stringToPodcastDownloadStatus(value: String?): PodcastDownloadStatus? =
+        value?.let { runCatching { PodcastDownloadStatus.valueOf(it) }.getOrNull() }
 }

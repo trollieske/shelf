@@ -31,6 +31,8 @@ object ActivePlaybackState {
             _state.value = null
             return
         }
+        // Showing audiobook playback always retires the podcast mini-player.
+        PodcastPlaybackState.clear()
         _state.value = ActiveAudioState(
             bookId = bookId,
             title = title,

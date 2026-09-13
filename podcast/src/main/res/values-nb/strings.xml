@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pod_nav_title">Podkaster</string>
+
+    <string name="pod_root_header">PODKASTER</string>
+    <string name="pod_root_empty_body">F\u00f8lg \u00e5pne podkaster. Lytt n\u00e5r du vil. Last ned n\u00e5r du trenger det.</string>
+    <string name="pod_add_rss">Legg til RSS-feed</string>
+    <string name="pod_search_podcasts">S\u00f8k etter podkaster</string>
+    <string name="pod_what_is_rss">Hva er en RSS-feed?</string>
+    <string name="pod_help_title">Hva er en RSS-feed?</string>
+    <string name="pod_help_body">En RSS-feed er en \u00e5pen adresse som lar Shelf hente nye episoder direkte fra en podkast du f\u00f8lger.</string>
+    <string name="pod_following_new">F\u00d8LGER \u00b7 %1$d NYE</string>
+    <string name="pod_following">F\u00d8LGER</string>
+    <string name="pod_refresh">Oppdater</string>
+    <string name="pod_resume_title">Fortsett \u00e5 lytte</string>
+    <string name="pod_resume_more">+%1$d</string>
+    <string name="pod_episodes_count">%1$d episoder</string>
+    <string name="pod_new_count">%1$d nye</string>
+    <string name="pod_synced_now">Oppdatert n\u00e5</string>
+    <string name="pod_sync_failed">Kunne ikke oppdatere</string>
+
+    <string name="pod_add_feed_title">Legg til RSS-feed</string>
+    <string name="pod_feed_url_hint">https://eksempel.no/feed.xml</string>
+    <string name="pod_preview_episodes">%1$d episoder</string>
+    <string name="pod_follow_podcast">F\u00f8lg podkasten</string>
+    <string name="pod_following_state">F\u00f8lger</string>
+    <string name="pod_feed_error_title">Kunne ikke lese podkastfeeden</string>
+    <string name="pod_feed_error_hint">Sjekk at dette er en offentlig RSS-feed.</string>
+    <string name="pod_retry">Pr\u00f8v igjen</string>
+    <string name="pod_cancel">Avbryt</string>
+    <string name="pod_invalid_url">Skriv inn en gyldig http- eller https-adresse.</string>
+    <string name="pod_close">Lukk</string>
+    <string name="pod_add_feed_url_label">Feed-adresse</string>
+
+    <string name="pod_discover_title">Oppdag</string>
+    <string name="pod_search_hint">S\u00f8k etter podkaster</string>
+    <string name="pod_explore_in">Utforsk i: %1$s</string>
+    <string name="pod_start_here">START HER</string>
+    <string name="pod_searching">S\u00f8ker\u2026</string>
+    <string name="pod_no_results">Fant ingen podkaster.</string>
+    <string name="pod_offline_search">Koble til internett for \u00e5 s\u00f8ke etter podkaster.</string>
+    <string name="pod_search_failed">Kunne ikke s\u00f8ke. Pr\u00f8v igjen.</string>
+    <string name="pod_no_open_feed">Denne podkasten har ingen \u00e5pen RSS-feed.</string>
+    <string name="pod_follow">F\u00f8lg</string>
+    <string name="pod_search_a11y">S\u00f8k</string>
+    <string name="pod_clear_search">T\u00f8m s\u00f8ket</string>
+
+    <string name="pod_shortcut_crime_docs">Krim og dokumentar</string>
+    <string name="pod_shortcut_history">Historie</string>
+    <string name="pod_shortcut_technology">Teknologi</string>
+    <string name="pod_shortcut_ai">Kunstig intelligens</string>
+    <string name="pod_shortcut_football">Fotball</string>
+    <string name="pod_shortcut_society_news">Samfunn og nyheter</string>
+    <string name="pod_shortcut_business">Business</string>
+    <string name="pod_shortcut_comedy">Komedie</string>
+    <string name="pod_shortcut_science">Vitenskap</string>
+    <string name="pod_shortcut_longform">Langformat dokumentar</string>
+    <string name="pod_shortcut_norwegian_crime">Norsk krim</string>
+    <string name="pod_shortcut_norwegian_docs">Norsk dokumentar</string>
+    <string name="pod_shortcut_norwegian_history">Norsk historie</string>
+    <string name="pod_shortcut_swedish_docs">Svensk dokumentar</string>
+    <string name="pod_shortcut_swedish_history">Svensk historie</string>
+    <string name="pod_shortcut_danish_history">Dansk historie</string>
+    <string name="pod_shortcut_danish_docs">Dansk dokumentar</string>
+    <string name="pod_shortcut_true_crime">True crime</string>
+    <string name="pod_shortcut_history_podcast">Historie-podkast</string>
+    <string name="pod_shortcut_ai_podcast">AI-podkast</string>
+    <string name="pod_shortcut_technology_podcast">Teknologi-podkast</string>
+    <string name="pod_shortcut_longform_doc">Langformat dokumentar</string>
+
+    <string name="pod_country_no">Norge</string>
+    <string name="pod_country_se">Sverige</string>
+    <string name="pod_country_dk">Danmark</string>
+    <string name="pod_country_us">USA</string>
+    <string name="pod_country_gb">Storbritannia</string>
+    <string name="pod_country_de">Tyskland</string>
+    <string name="pod_country_fr">Frankrike</string>
+    <string name="pod_country_es">Spania</string>
+
+    <string name="pod_detail_language">Spr\u00e5k</string>
+    <string name="pod_detail_category">Kategori</string>
+    <string name="pod_detail_explicit">Eksplisitt</string>
+    <string name="pod_detail_refresh">Oppdater</string>
+    <string name="pod_detail_unfollow">Slutt \u00e5 f\u00f8lge</string>
+    <string name="pod_detail_follow">F\u00f8lg</string>
+    <string name="pod_detail_no_episodes">Ingen episoder enn\u00e5.</string>
+    <string name="pod_detail_play">Spill av</string>
+    <string name="pod_detail_download">Last ned</string>
+    <string name="pod_detail_queued">I k\u00f8</string>
+    <string name="pod_detail_downloading">Laster ned\u2026</string>
+    <string name="pod_detail_downloaded">Lastet ned</string>
+    <string name="pod_detail_download_failed">Nedlasting feilet</string>
+    <string name="pod_detail_remove_download">Fjern nedlasting</string>
+    <string name="pod_detail_remove_confirm_title">Fjerne nedlasting?</string>
+    <string name="pod_detail_remove_confirm_body">Den lokale filen fjernes. Episoden, lytteposisjonen og f\u00f8lgingen beholdes.</string>
+    <string name="pod_detail_not_downloaded_offline">Denne episoden er ikke lastet ned.</string>
+    <string name="pod_detail_episode_play_a11y">Spill av episode</string>
+    <string name="pod_detail_episode_download_a11y">Last ned episode</string>
+    <string name="pod_detail_back_a11y">Tilbake</string>
+    <string name="pod_detail_feed_a11y">Podkastbilde</string>
+    <string name="pod_detail_episode_duration">%1$s</string>
+    <string name="pod_detail_offline_marker">Offline</string>
+
+    <string name="pod_player_upper">PODKAST</string>
+    <string name="pod_player_skip_back">30 s tilbake</string>
+    <string name="pod_player_skip_forward">30 s frem</string>
+    <string name="pod_player_play">Spill av</string>
+    <string name="pod_player_pause">Pause</string>
+    <string name="pod_player_speed">Avspillingshastighet</string>
+    <string name="pod_player_speed_value">%1$s\u00d7</string>
+    <string name="pod_player_not_found">Fant ikke episoden</string>
+    <string name="pod_player_local">Offline</string>
+    <string name="pod_player_streaming">Str\u00f8mmer</string>
+    <string name="pod_player_back_a11y">Tilbake</string>
+    <string name="pod_player_artwork_a11y">Episodebilde</string>
+    <string name="pod_player_seek_a11y">S\u00f8k i posisjon</string>
+
+    <string name="pod_notif_title">Podkast</string>
+    <string name="pod_notif_loading">Laster podkast\u2026</string>
+    <string name="pod_notif_play">Spill av</string>
+    <string name="pod_notif_skip_back">30 s tilbake</string>
+    <string name="pod_notif_skip_forward">30 s frem</string>
+    <string name="pod_notif_channel">Avspilling</string>
+    <string name="pod_notif_channel_desc">Varsler for podkastavspilling</string>
+
+    <string name="pod_download_remove_success">Nedlasting fjernet</string>
+    <string name="pod_download_started">Nedlasting startet</string>
+    <string name="pod_error_generic">Noe gikk galt. Pr\u00f8v igjen.</string>
+
+    <string name="pod_time_hm">%1$dt %2$dm</string>
+    <string name="pod_time_ms">%1$dm %2$ds</string>
+    <string name="pod_time_s">%1$ds</string>
+    <string name="pod_remaining">%1$s igjen</string>
+</resources>

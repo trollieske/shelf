@@ -102,6 +102,7 @@ dependencies {
     implementation(project(":smb"))
     implementation(project(":webdav"))
     implementation(project(":torrent"))
+    implementation(project(":podcast"))
 
     implementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(platform(libs.androidx.compose.bom))

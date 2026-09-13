@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pod_nav_title">Pódcast</string>
+
+    <string name="pod_root_header">PÓDCAST</string>
+    <string name="pod_root_empty_body">Sigue pódcast abiertos. Escucha cuando quieras. Descarga cuando lo necesites.</string>
+    <string name="pod_add_rss">Añadir feed RSS</string>
+    <string name="pod_search_podcasts">Buscar pódcast</string>
+    <string name="pod_what_is_rss">¿Qué es un feed RSS?</string>
+    <string name="pod_help_title">¿Qué es un feed RSS?</string>
+    <string name="pod_help_body">Un feed RSS es una dirección abierta que permite a Shelf obtener episodios nuevos directamente de un pódcast que sigues.</string>
+    <string name="pod_following_new">SIGUIENDO · %1$d NUEVOS</string>
+    <string name="pod_following">SIGUIENDO</string>
+    <string name="pod_refresh">Actualizar</string>
+    <string name="pod_resume_title">Seguir escuchando</string>
+    <string name="pod_resume_more">+%1$d</string>
+    <string name="pod_episodes_count">%1$d episodios</string>
+    <string name="pod_new_count">%1$d nuevos</string>
+    <string name="pod_synced_now">Actualizado ahora</string>
+    <string name="pod_sync_failed">No se pudo actualizar</string>
+
+    <string name="pod_add_feed_title">Añadir feed RSS</string>
+    <string name="pod_feed_url_hint">https://ejemplo.es/feed.xml</string>
+    <string name="pod_preview_episodes">%1$d episodios</string>
+    <string name="pod_follow_podcast">Seguir pódcast</string>
+    <string name="pod_following_state">Siguiendo</string>
+    <string name="pod_feed_error_title">No se pudo leer el feed del pódcast</string>
+    <string name="pod_feed_error_hint">Comprueba que sea un feed RSS público.</string>
+    <string name="pod_retry">Reintentar</string>
+    <string name="pod_cancel">Cancelar</string>
+    <string name="pod_invalid_url">Introduce una dirección http o https válida.</string>
+    <string name="pod_close">Cerrar</string>
+    <string name="pod_add_feed_url_label">Dirección del feed</string>
+
+    <string name="pod_discover_title">Descubrir</string>
+    <string name="pod_search_hint">Buscar pódcast</string>
+    <string name="pod_explore_in">Explorar en: %1$s</string>
+    <string name="pod_start_here">EMPIEZA AQUÍ</string>
+    <string name="pod_searching">Buscando…</string>
+    <string name="pod_no_results">No se encontraron pódcast.</string>
+    <string name="pod_offline_search">Conéctate a internet para buscar pódcast.</string>
+    <string name="pod_search_failed">No se pudo buscar. Inténtalo de nuevo.</string>
+    <string name="pod_no_open_feed">Este pódcast no ofrece un feed RSS abierto.</string>
+    <string name="pod_follow">Seguir</string>
+    <string name="pod_search_a11y">Buscar</string>
+    <string name="pod_clear_search">Borrar búsqueda</string>
+
+    <string name="pod_shortcut_crime_docs">Crimen y documentales</string>
+    <string name="pod_shortcut_history">Historia</string>
+    <string name="pod_shortcut_technology">Tecnología</string>
+    <string name="pod_shortcut_ai">Inteligencia artificial</string>
+    <string name="pod_shortcut_football">Fútbol</string>
+    <string name="pod_shortcut_society_news">Sociedad y noticias</string>
+    <string name="pod_shortcut_business">Negocios</string>
+    <string name="pod_shortcut_comedy">Comedia</string>
+    <string name="pod_shortcut_science">Ciencia</string>
+    <string name="pod_shortcut_longform">Documentales largos</string>
+    <string name="pod_shortcut_norwegian_crime">Crimen noruego</string>
+    <string name="pod_shortcut_norwegian_docs">Documentales noruegos</string>
+    <string name="pod_shortcut_norwegian_history">Historia noruega</string>
+    <string name="pod_shortcut_swedish_docs">Documentales suecos</string>
+    <string name="pod_shortcut_swedish_history">Historia sueca</string>
+    <string name="pod_shortcut_danish_history">Historia danesa</string>
+    <string name="pod_shortcut_danish_docs">Documentales daneses</string>
+    <string name="pod_shortcut_true_crime">True crime</string>
+    <string name="pod_shortcut_history_podcast">Pódcast de historia</string>
+    <string name="pod_shortcut_ai_podcast">Pódcast de IA</string>
+    <string name="pod_shortcut_technology_podcast">Pódcast de tecnología</string>
+    <string name="pod_shortcut_longform_doc">Documental largo</string>
+
+    <string name="pod_country_no">Noruega</string>
+    <string name="pod_country_se">Suecia</string>
+    <string name="pod_country_dk">Dinamarca</string>
+    <string name="pod_country_us">Estados Unidos</string>
+    <string name="pod_country_gb">Reino Unido</string>
+    <string name="pod_country_de">Alemania</string>
+    <string name="pod_country_fr">Francia</string>
+    <string name="pod_country_es">España</string>
+
+    <string name="pod_detail_language">Idioma</string>
+    <string name="pod_detail_category">Categoría</string>
+    <string name="pod_detail_explicit">Explícito</string>
+    <string name="pod_detail_refresh">Actualizar</string>
+    <string name="pod_detail_unfollow">Dejar de seguir</string>
+    <string name="pod_detail_follow">Seguir</string>
+    <string name="pod_detail_no_episodes">Aún no hay episodios.</string>
+    <string name="pod_detail_play">Reproducir</string>
+    <string name="pod_detail_download">Descargar</string>
+    <string name="pod_detail_queued">En cola</string>
+    <string name="pod_detail_downloading">Descargando…</string>
+    <string name="pod_detail_downloaded">Descargado</string>
+    <string name="pod_detail_download_failed">Fallo en la descarga</string>
+    <string name="pod_detail_remove_download">Eliminar descarga</string>
+    <string name="pod_detail_remove_confirm_title">¿Eliminar la descarga?</string>
+    <string name="pod_detail_remove_confirm_body">Se eliminará el archivo local. El episodio, el progreso y la suscripción se conservan.</string>
+    <string name="pod_detail_not_downloaded_offline">Este episodio no se ha descargado.</string>
+    <string name="pod_detail_episode_play_a11y">Reproducir episodio</string>
+    <string name="pod_detail_episode_download_a11y">Descargar episodio</string>
+    <string name="pod_detail_back_a11y">Atrás</string>
+    <string name="pod_detail_feed_a11y">Portada del pódcast</string>
+    <string name="pod_detail_episode_duration">%1$s</string>
+    <string name="pod_detail_offline_marker">Sin conexión</string>
+
+    <string name="pod_player_upper">PÓDCAST</string>
+    <string name="pod_player_skip_back">Retroceder 30 s</string>
+    <string name="pod_player_skip_forward">Avanzar 30 s</string>
+    <string name="pod_player_play">Reproducir</string>
+    <string name="pod_player_pause">Pausar</string>
+    <string name="pod_player_speed">Velocidad de reproducción</string>
+    <string name="pod_player_speed_value">%1$s×</string>
+    <string name="pod_player_not_found">Episodio no encontrado</string>
+    <string name="pod_player_local">Sin conexión</string>
+    <string name="pod_player_streaming">En streaming</string>
+    <string name="pod_player_back_a11y">Atrás</string>
+    <string name="pod_player_artwork_a11y">Portada del episodio</string>
+    <string name="pod_player_seek_a11y">Buscar posición</string>
+
+    <string name="pod_notif_title">Pódcast</string>
+    <string name="pod_notif_loading">Cargando pódcast…</string>
+    <string name="pod_notif_play">Reproducir</string>
+    <string name="pod_notif_skip_back">Retroceder 30 s</string>
+    <string name="pod_notif_skip_forward">Avanzar 30 s</string>
+    <string name="pod_notif_channel">Reproducción</string>
+    <string name="pod_notif_channel_desc">Notificaciones de reproducción de pódcast</string>
+
+    <string name="pod_download_remove_success">Descarga eliminada</string>
+    <string name="pod_download_started">Descarga iniciada</string>
+    <string name="pod_error_generic">Algo salió mal. Inténtalo de nuevo.</string>
+
+    <string name="pod_time_hm">%1$dh %2$dm</string>
+    <string name="pod_time_ms">%1$dm %2$ds</string>
+    <string name="pod_time_s">%1$ds</string>
+    <string name="pod_remaining">Quedan %1$s</string>
+</resources>

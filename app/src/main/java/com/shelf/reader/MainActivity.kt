@@ -54,6 +54,14 @@ import com.shelf.reader.library.viewmodel.LibraryMode
 import com.shelf.reader.library.ui.SampleBooks
 import com.shelf.reader.reader.ui.ReaderScreen
 import com.shelf.reader.player.ui.PlayerScreen
+import com.shelf.reader.podcast.ui.PodcastDetailScreen
+import com.shelf.reader.podcast.ui.PodcastDiscoverScreen
+import com.shelf.reader.podcast.ui.PodcastPlayerScreen
+import com.shelf.reader.podcast.ui.PodcastRootScreen
+import com.shelf.reader.podcast.ui.podcastDetailVmFactory
+import com.shelf.reader.podcast.ui.podcastDiscoverVmFactory
+import com.shelf.reader.podcast.ui.podcastPlayerVmFactory
+import com.shelf.reader.podcast.ui.podcastRootVmFactory
 import com.shelf.reader.ftp.ui.FtpScreen
 import com.shelf.reader.smb.ui.SmbScreen
 import com.shelf.reader.webdav.ui.WebdavScreen
@@ -91,6 +99,7 @@ private sealed class BottomNavItem(
 ) {
     object Books : BottomNavItem(ShelfDestinations.Books.route, R.string.nav_books, Icons.Default.AutoStories)
     object Audiobooks : BottomNavItem(ShelfDestinations.Audiobooks.route, R.string.shelf_audiobooks, Icons.Default.Headphones)
+    object Podcasts : BottomNavItem(ShelfDestinations.Podcasts.route, com.shelf.reader.podcast.R.string.pod_nav_title, Icons.Default.Podcasts)
     object Settings : BottomNavItem(ShelfDestinations.Settings.route, R.string.nav_settings, Icons.Filled.Settings)
 }
 
@@ -107,10 +116,11 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
 
     val defaultStart = if (hasSeenOnboardingState == true) ShelfDestinations.Books.route else ShelfDestinations.Onboarding.route
     val startDest = initialRoute ?: defaultStart
-    val items = listOf(BottomNavItem.Books, BottomNavItem.Audiobooks, BottomNavItem.Settings)
+    val items = listOf(BottomNavItem.Books, BottomNavItem.Audiobooks, BottomNavItem.Podcasts, BottomNavItem.Settings)
     val showBottomRoutes = setOf(
         ShelfDestinations.Books.route,
         ShelfDestinations.Audiobooks.route,
+        ShelfDestinations.Podcasts.route,
         ShelfDestinations.Settings.route
     )
 
@@ -122,9 +132,11 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             val activeAudio by com.shelf.reader.data.repository.ActivePlaybackState.state.collectAsStateWithLifecycle()
+            val activePodcast by com.shelf.reader.data.repository.PodcastPlaybackState.state.collectAsStateWithLifecycle()
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentDestination = navBackStackEntry?.destination
             val isPlayerScreen = currentDestination?.route?.startsWith("player") == true
+            val isPodcastPlayerScreen = currentDestination?.route?.startsWith("podcasts/player") == true
 
             Column {
                 if (activeAudio != null && !isPlayerScreen) {
@@ -186,6 +198,67 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
                                 }
                                 IconButton(onClick = {
                                     com.shelf.reader.data.repository.ActivePlaybackState.clear()
+                                }) {
+                                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close), tint = com.shelf.reader.designsystem.theme.OmarchyColors.Dim)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (activePodcast != null && !isPodcastPlayerScreen) {
+                    val active = activePodcast!!
+                    Surface(
+                        tonalElevation = 8.dp,
+                        shadowElevation = 12.dp,
+                        color = com.shelf.reader.designsystem.theme.OmarchyColors.Panel,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                navController.navigate(ShelfDestinations.PodcastPlayer.routeFor(active.episodeId))
+                            }
+                    ) {
+                        Column {
+                            LinearProgressIndicator(
+                                progress = { active.progressPercent },
+                                modifier = Modifier.fillMaxWidth().height(3.dp),
+                                color = com.shelf.reader.designsystem.theme.OmarchyColors.Accent,
+                                trackColor = Color(0x33FFFFFF)
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = com.shelf.reader.designsystem.theme.OmarchyColors.Hairline,
+                                    modifier = Modifier.size(38.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Podcasts, contentDescription = null, tint = com.shelf.reader.designsystem.theme.OmarchyColors.Accent, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        active.title.ifBlank { stringResource(com.shelf.reader.podcast.R.string.pod_nav_title) },
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        active.podcastTitle.ifBlank { stringResource(com.shelf.reader.podcast.R.string.pod_nav_title) },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = com.shelf.reader.designsystem.theme.OmarchyColors.Dim,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                IconButton(onClick = {
+                                    com.shelf.reader.data.repository.PodcastPlaybackState.clear()
                                 }) {
                                     Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close), tint = com.shelf.reader.designsystem.theme.OmarchyColors.Dim)
                                 }
@@ -272,6 +345,48 @@ private fun ShelfRoot(prefs: UserPreferencesRepository, initialRoute: String? = 
                     onFtpClick = { navController.navigate(ShelfDestinations.Sources.route) },
                     onSettingsClick = { navController.navigate(ShelfDestinations.Settings.route) },
                     onNavVisibilityChange = { libraryNavVisible = it }
+                )
+            }
+            composable(ShelfDestinations.Podcasts.route) {
+                PodcastRootScreen(
+                    onOpenDetail = { feedId -> navController.navigate(ShelfDestinations.PodcastDetail.routeFor(feedId)) },
+                    onOpenDiscover = { navController.navigate(ShelfDestinations.PodcastDiscover.route) },
+                    onOpenPlayer = { episodeId -> navController.navigate(ShelfDestinations.PodcastPlayer.routeFor(episodeId)) },
+                    vmFactory = podcastRootVmFactory()
+                )
+            }
+            composable(ShelfDestinations.PodcastDiscover.route) {
+                PodcastDiscoverScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenDetail = { feedId -> navController.navigate(ShelfDestinations.PodcastDetail.routeFor(feedId)) },
+                    vmFactory = podcastDiscoverVmFactory()
+                )
+            }
+            composable(
+                route = ShelfDestinations.PodcastDetail.route,
+                arguments = listOf(
+                    androidx.navigation.navArgument("feedId") { type = androidx.navigation.NavType.LongType }
+                )
+            ) { backStack ->
+                val feedId = backStack.arguments?.getLong("feedId") ?: 0L
+                PodcastDetailScreen(
+                    feedId = feedId,
+                    onBack = { navController.popBackStack() },
+                    onOpenPlayer = { episodeId -> navController.navigate(ShelfDestinations.PodcastPlayer.routeFor(episodeId)) },
+                    vmFactory = podcastDetailVmFactory(feedId)
+                )
+            }
+            composable(
+                route = ShelfDestinations.PodcastPlayer.route,
+                arguments = listOf(
+                    androidx.navigation.navArgument("episodeId") { type = androidx.navigation.NavType.LongType }
+                )
+            ) { backStack ->
+                val episodeId = backStack.arguments?.getLong("episodeId") ?: 0L
+                PodcastPlayerScreen(
+                    episodeId = episodeId,
+                    onBack = { navController.popBackStack() },
+                    vmFactory = podcastPlayerVmFactory(episodeId)
                 )
             }
             composable(ShelfDestinations.Sources.route) {
