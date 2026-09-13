@@ -22,7 +22,7 @@ coil = "2.7.0"
 guava = "33.4.0-android"
 bouncycastle = "1.80"
 junit = "4.13.2"
-testExtJunit = "1.2.3"
+testExtJunit = "1.2.1"
 espresso = "3.6.1"
 pagecurl = "1.5.1"
 

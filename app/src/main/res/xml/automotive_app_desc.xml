@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<automotiveApp xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-    <uses name="template" />
-    <uses name="mediaPlayback" />
-    <uses name="notification" />
-    <uses name="clusterNavigationState" tools:targetApi="31" />
+<!--
+  Android Auto capability descriptor.
+  Shelf is a media app (Media3 MediaLibraryService), so the documented and
+  lint-valid capability is "media". (foregroundServiceType="mediaPlayback" in the
+  manifest is a separate concept and not a valid value here.)
+-->
+<automotiveApp xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses name="media" />
 </automotiveApp>

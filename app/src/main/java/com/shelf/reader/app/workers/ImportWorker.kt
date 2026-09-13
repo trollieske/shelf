@@ -2,8 +2,11 @@ package com.shelf.reader.app.workers
 
 import com.shelf.reader.R
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.net.Uri
 import android.os.Build
@@ -11,6 +14,7 @@ import android.provider.DocumentsContract
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.ForegroundInfo
@@ -62,8 +66,7 @@ class ImportWorker(
             if (!treeUri.isNullOrBlank()) {
                 val u = Uri.parse(treeUri)
                 val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
-                        Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 val resolver = appContext.contentResolver
                 runCatching {
                     resolver.takePersistableUriPermission(u, takeFlags)
@@ -134,10 +137,8 @@ class ImportWorker(
             .setAutoCancel(true)
             .build()
 
-        if (cnt > 0) {
-            runCatching {
-                NotificationManagerCompat.from(appContext).notify(SCAN_DONE_NOTIF_ID, notification)
-            }
+        if (cnt > 0 && canPostNotifications()) {
+            postNotification(SCAN_DONE_NOTIF_ID, notification)
         }
 
         val fg = NotificationCompat.Builder(appContext, CHANNEL_ID)
@@ -163,6 +164,20 @@ class ImportWorker(
         // #endregion
 
         return Result.success(data)
+    }
+
+    /** POST_NOTIFICATIONS is a runtime permission on API 33+; only post when granted. */
+    private fun canPostNotifications(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                appContext,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+    /** Guarded by [canPostNotifications]; suppression documents that the runtime check exists. */
+    @SuppressLint("MissingPermission")
+    private fun postNotification(id: Int, notification: android.app.Notification) {
+        runCatching { NotificationManagerCompat.from(appContext).notify(id, notification) }
     }
 
     private fun ensureChannel() {

@@ -35,7 +35,7 @@
 
     <string name="empty_shelf">Tom hylle</string>
     <string name="empty_shelf_hint">Legg til bøker via import eller en av kildene</string>
-    <string name="empty_library">Biblitoeket ditt er tomt</string>
+    <string name="empty_library">Biblioteket ditt er tomt</string>
     <string name="empty_library_hint">Importer bøker for å komme i gang</string>
     <string name="empty_no_books_filter">Ingen bøker matcher filteret</string>
     <string name="empty_no_downloads">Ingen nedlastinger ennå</string>
@@ -141,7 +141,7 @@
 
     <string name="reader_title">Leser</string>
     <string name="reader_theme_light">Lys</string>
-    <string name="reader_theme_sepia">Seppia</string>
+    <string name="reader_theme_sepia">Sepia</string>
     <string name="reader_theme_dark">Mørk</string>
     <string name="reader_theme_amoled">AMOLED</string>
     <string name="reader_font_size">Skriftstørrelse</string>
@@ -238,7 +238,7 @@
     <string name="settings_auto_sync_ftp_sub">Laster ned nye bøker i bakgrunnen</string>
     <string name="settings_ftp_wifi_only_sub">Unngår bruk av mobildata for store filer</string>
     <string name="settings_online_cover">Online cover-oppslag</string>
-    <string name="settings_online_cover_sub">Søk etter omslag på internett</string>
+    <string name="settings_online_cover_sub">Søk etter omslag på Internett</string>
     <string name="settings_appearance_subtitle">Hvor skal bøker stå?</string>
     <string name="settings_audio_subtitle">Avspillingsinnstillinger for lydbøker</string>
     <string name="settings_backup_subtitle">Importer og eksporter bibliotek</string>
@@ -414,7 +414,7 @@
     <string name="wkc_standard_ebooks_sub">Høykvalitet, fritt og offentlig</string>
     <string name="wkc_feedbooks_sub">Ny og klassisk litteratur</string>
     <string name="wkc_gutenberg_sub">Offentlig eiendom, 70 000+ bøker</string>
-    <string name="wkc_librivox_sub">Fritt lydbøker, frivillige</string>
+    <string name="wkc_librivox_sub">Frie lydbøker, frivillige</string>
     <string name="wkc_toast">OPDS: %1$s – %2$s\n(Funksjonalitet for blaing i katalog implementeres når kjernefunksjonene bekreftet fungerer)</string>
 
     <!-- Import progress / sync history (MainActivity) -->
