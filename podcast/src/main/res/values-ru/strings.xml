@@ -131,4 +131,16 @@
     <string name="pod_time_ms">%1$d мин %2$d с</string>
     <string name="pod_time_s">%1$d с</string>
     <string name="pod_remaining">осталось %1$s</string>
+
+    <!-- Sleep timer -->
+    <string name="pod_sleep_a11y">Таймер сна</string>
+    <string name="pod_sleep_title">Таймер сна</string>
+    <string name="pod_sleep_active">⏱ Активный отсчёт: %1$d мин %2$d с</string>
+    <string name="pod_sleep_off">Выключить</string>
+    <string name="pod_sleep_custom_min">Своё время (минуты)</string>
+    <string name="pod_sleep_hint">Напр. 25</string>
+    <string name="pod_sleep_set">Задать таймер</string>
+    <string name="pod_sleep_presets">Быстрый выбор</string>
+    <string name="pod_sleep_turn_off_timer">Выключить таймер сна</string>
+    <string name="pod_sleep_minutes">%1$d мин</string>
 </resources>

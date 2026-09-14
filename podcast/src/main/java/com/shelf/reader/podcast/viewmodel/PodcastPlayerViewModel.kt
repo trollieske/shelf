@@ -33,7 +33,9 @@ data class PodcastPlayerUiState(
     val isLocal: Boolean = false,
     val serviceBound: Boolean = false,
     val notFound: Boolean = false,
-    val offlineBlocked: Boolean = false
+    val offlineBlocked: Boolean = false,
+    val sleepTimerMinutes: Int? = null,
+    val sleepTimerRemainingMs: Long = 0L
 )
 
 class PodcastPlayerViewModel(
@@ -120,12 +122,16 @@ class PodcastPlayerViewModel(
         tickerJob = viewModelScope.launch {
             while (true) {
                 val svc = service ?: break
+                val remMs = svc.sleepTimerRemainingMs()
+                val sleepMinutes = if (remMs > 0L) (remMs / 60_000L).toInt().coerceAtLeast(1) else null
                 _state.value = _state.value.copy(
                     isPlaying = svc.isPlaying(),
                     positionMs = svc.currentPositionMs(),
                     durationMs = svc.durationMs(),
                     playbackSpeed = svc.playbackSpeed(),
-                    serviceBound = true
+                    serviceBound = true,
+                    sleepTimerMinutes = sleepMinutes,
+                    sleepTimerRemainingMs = remMs
                 )
                 delay(500L)
             }
@@ -155,6 +161,19 @@ class PodcastPlayerViewModel(
 
     fun setSpeed(speed: Float) {
         service?.setSpeed(speed)
+    }
+
+    fun setSleepTimer(minutes: Int?) {
+        val svc = service ?: return
+        if (minutes != null) {
+            svc.startSleepTimer(minutes)
+        } else {
+            svc.cancelSleepTimer()
+        }
+        _state.value = _state.value.copy(
+            sleepTimerMinutes = minutes,
+            sleepTimerRemainingMs = if (minutes != null) minutes * 60_000L else 0L
+        )
     }
 
     override fun onCleared() {

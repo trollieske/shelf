@@ -131,4 +131,16 @@
     <string name="pod_time_ms">%1$dm %2$ds</string>
     <string name="pod_time_s">%1$ds</string>
     <string name="pod_remaining">noch %1$s</string>
+
+    <!-- Sleep timer -->
+    <string name="pod_sleep_a11y">Sleep-Timer</string>
+    <string name="pod_sleep_title">Sleep-Timer</string>
+    <string name="pod_sleep_active">⏱ Aktiver Countdown: %1$d Min. %2$d Sek.</string>
+    <string name="pod_sleep_off">Ausschalten</string>
+    <string name="pod_sleep_custom_min">Eigene Zeit (Minuten)</string>
+    <string name="pod_sleep_hint">Z. B. 25</string>
+    <string name="pod_sleep_set">Timer setzen</string>
+    <string name="pod_sleep_presets">Schnellauswahl</string>
+    <string name="pod_sleep_turn_off_timer">Sleep-Timer ausschalten</string>
+    <string name="pod_sleep_minutes">%1$d Minuten</string>
 </resources>

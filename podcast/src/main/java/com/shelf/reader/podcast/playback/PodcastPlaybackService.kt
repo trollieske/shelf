@@ -62,6 +62,7 @@ class PodcastPlaybackService : MediaSessionService() {
         const val SEEK_FORWARD_MS = 30_000L
         const val CMD_SKIP_BACK = "CMD_PODCAST_SKIP_BACK"
         const val CMD_SKIP_FORWARD = "CMD_PODCAST_SKIP_FORWARD"
+        const val CMD_SET_SLEEP = "CMD_PODCAST_SET_SLEEP"
         const val ACTION_SKIP_BACK = "com.shelf.reader.podcast.SKIP_BACK"
         const val ACTION_SKIP_FORWARD = "com.shelf.reader.podcast.SKIP_FORWARD"
 
@@ -81,6 +82,8 @@ class PodcastPlaybackService : MediaSessionService() {
     private var currentEpisodeId: Long = -1L
     private var currentFeedId: Long = -1L
     private var tickerJob: Job? = null
+    private var sleepTimer: android.os.CountDownTimer? = null
+    private var sleepTimerEndTimeMs: Long = 0L
     private val binder = LocalBinder()
 
     inner class LocalBinder : Binder() {
@@ -143,6 +146,7 @@ class PodcastPlaybackService : MediaSessionService() {
                 val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
                     .add(SessionCommand(CMD_SKIP_BACK, Bundle()))
                     .add(SessionCommand(CMD_SKIP_FORWARD, Bundle()))
+                    .add(SessionCommand(CMD_SET_SLEEP, Bundle()))
                     .build()
                 return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                     .setAvailableSessionCommands(commands)
@@ -164,6 +168,11 @@ class PodcastPlaybackService : MediaSessionService() {
                     CMD_SKIP_FORWARD -> {
                         val max = p.duration.takeIf { it > 0 } ?: Long.MAX_VALUE
                         p.seekTo((p.currentPosition + SEEK_FORWARD_MS).coerceAtMost(max))
+                        Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+                    }
+                    CMD_SET_SLEEP -> {
+                        val minutes = args.getInt("minutes", -1)
+                        if (minutes >= 0) startSleepTimer(minutes) else cancelSleepTimer()
                         Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
                     }
                     else -> Futures.immediateFuture(SessionResult(SessionError.ERROR_BAD_VALUE))
@@ -428,6 +437,7 @@ class PodcastPlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         tickerJob?.cancel()
+        cancelSleepTimer()
         PlaybackArbiter.unregister(PlaybackArbiter.ID_PODCAST)
         serviceScope.launch(Dispatchers.Main) {
             persistProgress()
@@ -451,6 +461,49 @@ class PodcastPlaybackService : MediaSessionService() {
     fun durationMs(): Long = player?.duration?.takeIf { it > 0L } ?: 0L
     fun playbackSpeed(): Float = player?.playbackParameters?.speed ?: 1f
     fun episodeId(): Long = currentEpisodeId
+
+    // ---- Sleep timer ----
+
+    fun startSleepTimer(minutes: Int) {
+        cancelSleepTimer()
+        if (minutes <= 0) return
+        val totalMs = minutes * 60L * 1000L
+        sleepTimerEndTimeMs = System.currentTimeMillis() + totalMs
+        sleepTimer = object : android.os.CountDownTimer(totalMs, 1000L) {
+            override fun onTick(millisUntilFinished: Long) {
+                val p = player ?: return
+                // Fade out over the final 30 seconds.
+                if (millisUntilFinished in 1L until 30_000L) {
+                    p.volume = (millisUntilFinished.toFloat() / 30_000f).coerceIn(0.05f, 1.0f)
+                } else if (p.volume < 1.0f && millisUntilFinished >= 30_000L) {
+                    p.volume = 1.0f
+                }
+            }
+
+            override fun onFinish() {
+                val p = player
+                if (p != null) {
+                    p.volume = 1.0f
+                    if (p.isPlaying) p.playWhenReady = false
+                }
+                persistProgress()
+                sleepTimer = null
+                sleepTimerEndTimeMs = 0L
+            }
+        }.start()
+    }
+
+    fun cancelSleepTimer() {
+        sleepTimer?.cancel()
+        sleepTimer = null
+        sleepTimerEndTimeMs = 0L
+        player?.volume = 1.0f
+    }
+
+    fun sleepTimerRemainingMs(): Long {
+        if (sleepTimer == null || sleepTimerEndTimeMs <= 0L) return 0L
+        return (sleepTimerEndTimeMs - System.currentTimeMillis()).coerceAtLeast(0L)
+    }
 
     fun playPause() {
         onMain {

@@ -17,17 +17,27 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay30
 import androidx.compose.material.icons.filled.Forward30
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -58,6 +69,7 @@ fun PodcastPlayerScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     var sliderValue by remember { mutableStateOf<Float?>(null) }
+    var showSleep by remember { mutableStateOf(false) }
 
     Column(
         Modifier
@@ -86,6 +98,32 @@ fun PodcastPlayerScreen(
                 maxLines = 1
             )
             Spacer(Modifier.weight(1f))
+            if (state.sleepTimerRemainingMs > 0L) {
+                Surface(
+                    onClick = { showSleep = true },
+                    shape = RoundedCornerShape(2.dp),
+                    color = Color(0x1AC8F542)
+                ) {
+                    Text(
+                        "\u263e ${formatSleepCountdown(state.sleepTimerRemainingMs / 1000L)}",
+                        style = ShelfTypography.LabelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = OmarchyColors.Accent,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                    )
+                }
+            } else {
+                IconButton(onClick = { showSleep = true }) {
+                    Icon(
+                        Icons.Default.Bedtime,
+                        stringResource(R.string.pod_sleep_a11y),
+                        tint = OmarchyColors.Fg
+                    )
+                }
+            }
             Text(
                 if (state.isLocal) stringResource(R.string.pod_player_local) else stringResource(R.string.pod_player_streaming),
                 style = ShelfTypography.LabelSmall,
@@ -260,6 +298,143 @@ fun PodcastPlayerScreen(
 
         Spacer(Modifier.height(24.dp))
     }
+
+    if (showSleep) {
+        PodcastSleepTimerSheet(
+            current = state.sleepTimerMinutes,
+            remainingMs = state.sleepTimerRemainingMs,
+            onDismiss = { showSleep = false },
+            onPick = { mins ->
+                vm.setSleepTimer(mins)
+                showSleep = false
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PodcastSleepTimerSheet(
+    current: Int?,
+    remainingMs: Long,
+    onDismiss: () -> Unit,
+    onPick: (Int?) -> Unit
+) {
+    var customText by remember { mutableStateOf("") }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = OmarchyColors.Panel
+    ) {
+        Column(
+            Modifier
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(
+                stringResource(R.string.pod_sleep_title),
+                style = ShelfTypography.TitleLarge,
+                fontWeight = FontWeight.Bold,
+                color = OmarchyColors.FgBright
+            )
+
+            if (remainingMs > 0L) {
+                val sec = remainingMs / 1000L
+                val m = sec / 60L
+                val s = sec % 60L
+                Surface(
+                    shape = RoundedCornerShape(2.dp),
+                    color = Color(0x1AC8F542),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            stringResource(R.string.pod_sleep_active, m, s),
+                            style = ShelfTypography.BodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = OmarchyColors.Accent
+                        )
+                        TextButton(onClick = { onPick(null) }) {
+                            Text(stringResource(R.string.pod_sleep_off), color = OmarchyColors.Fg)
+                        }
+                    }
+                }
+            }
+
+            Text(
+                stringResource(R.string.pod_sleep_custom_min),
+                style = ShelfTypography.LabelMedium,
+                color = OmarchyColors.Dim
+            )
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = customText,
+                    onValueChange = { customText = it.filter { c -> c.isDigit() }.take(3) },
+                    placeholder = { Text(stringResource(R.string.pod_sleep_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                Button(
+                    onClick = {
+                        val mins = customText.toIntOrNull()
+                        if (mins != null && mins > 0) onPick(mins)
+                    },
+                    enabled = customText.toIntOrNull()?.let { it > 0 } == true,
+                    colors = ButtonDefaults.buttonColors(containerColor = OmarchyColors.Accent, contentColor = Color.Black)
+                ) {
+                    Text(stringResource(R.string.pod_sleep_set))
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.pod_sleep_presets),
+                style = ShelfTypography.LabelMedium,
+                color = OmarchyColors.Dim
+            )
+
+            val options = listOf(null, 5, 10, 15, 30, 45, 60, 90)
+            options.forEach { mins ->
+                val label = if (mins == null) {
+                    stringResource(R.string.pod_sleep_turn_off_timer)
+                } else {
+                    stringResource(R.string.pod_sleep_minutes, mins)
+                }
+                val selected = current == mins
+                OutlinedButton(
+                    onClick = { onPick(mins) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (selected) Color(0x1AC8F542) else Color.Transparent,
+                        contentColor = if (selected) OmarchyColors.Accent else OmarchyColors.Fg
+                    )
+                ) {
+                    Text(
+                        label,
+                        style = ShelfTypography.BodyMedium,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+            Spacer(Modifier.height(32.dp))
+        }
+    }
+}
+
+private fun formatSleepCountdown(totalSeconds: Long): String {
+    val h = totalSeconds / 3600L
+    val m = (totalSeconds % 3600L) / 60L
+    val s = totalSeconds % 60L
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
 }
 
 private val SPEEDS = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f, 3.0f)
