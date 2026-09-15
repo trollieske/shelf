@@ -48,6 +48,7 @@ import com.shelf.reader.data.local.entity.HandoffPrecisionEntity
 import com.shelf.reader.data.repository.HandoffRepository
 import com.shelf.reader.data.repository.ResolvedHandoff
 import com.shelf.reader.designsystem.theme.ShelfColors
+import com.shelf.reader.designsystem.theme.ShelfFonts
 import com.shelf.reader.designsystem.theme.ShelfTypography
 import com.shelf.reader.player.R
 import com.shelf.reader.player.engine.AudiobookState
@@ -688,7 +689,7 @@ private fun SeekProgressSection(
             )
             Text(
                 "${formatDuration(bookShownMs / 1_000L)} / ${formatDuration(bookDuration / 1_000L)}",
-                style = ShelfTypography.LabelSmall,
+                style = ShelfTypography.LabelSmall.copy(fontFamily = ShelfFonts.Mono),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -768,12 +769,12 @@ private fun SeekProgressSection(
             ) {
                 Text(
                     stringResource(R.string.ply_in_chapter, formatDuration(chShownMs / 1_000L)),
-                    style = ShelfTypography.LabelSmall,
+                    style = ShelfTypography.LabelSmall.copy(fontFamily = ShelfFonts.Mono),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     "- " + stringResource(R.string.ply_left, formatDuration(max(0L, (chLen - chShownMs) / 1_000L))),
-                    style = ShelfTypography.LabelSmall,
+                    style = ShelfTypography.LabelSmall.copy(fontFamily = ShelfFonts.Mono),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

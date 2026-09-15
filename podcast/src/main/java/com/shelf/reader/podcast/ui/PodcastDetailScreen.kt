@@ -219,16 +219,20 @@ private fun FeedHeader(
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    if (feed?.lastSyncStatus == "FAILED") {
-                        stringResource(R.string.pod_sync_failed)
-                    } else {
-                        stringResource(R.string.pod_synced_now)
-                    },
-                    style = ShelfTypography.LabelSmall,
-                    color = if (feed?.lastSyncStatus == "FAILED") themeErrorColor() else OmarchyColors.Dim,
-                    maxLines = 1
-                )
+                val syncFailed = feed?.lastSyncStatus == "FAILED"
+                val syncStatusText = when {
+                    syncFailed -> stringResource(R.string.pod_sync_failed)
+                    feed?.lastSyncedAt != null -> stringResource(R.string.pod_synced_now)
+                    else -> ""
+                }
+                if (syncStatusText.isNotEmpty()) {
+                    Text(
+                        syncStatusText,
+                        style = ShelfTypography.LabelSmall,
+                        color = if (syncFailed) themeErrorColor() else OmarchyColors.Dim,
+                        maxLines = 1
+                    )
+                }
                 TextButton(onClick = onToggleFollow, contentPadding = PaddingValues(0.dp)) {
                     Text(
                         if (feed?.isFollowed == true) {
@@ -313,6 +317,8 @@ private fun EpisodeRow(
             Spacer(Modifier.width(8.dp))
             DownloadAction(
                 status = status,
+                downloadedBytes = row.download?.downloadedBytes,
+                totalBytes = row.download?.totalBytes,
                 onDownload = onDownload,
                 onRetry = onRetry,
                 onRemove = onRemove
@@ -345,6 +351,8 @@ private fun EpisodeRow(
 @Composable
 private fun DownloadAction(
     status: PodcastDownloadStatus,
+    downloadedBytes: Long?,
+    totalBytes: Long?,
     onDownload: () -> Unit,
     onRetry: () -> Unit,
     onRemove: () -> Unit
@@ -366,11 +374,23 @@ private fun DownloadAction(
             Modifier.size(48.dp),
             contentAlignment = Alignment.Center
         ) {
-            CircularProgressIndicator(
-                color = OmarchyColors.Accent,
-                strokeWidth = 2.dp,
-                modifier = Modifier.size(18.dp)
-            )
+            val total = totalBytes ?: 0L
+            val done = downloadedBytes ?: 0L
+            if (total > 0L) {
+                CircularProgressIndicator(
+                    progress = { (done.toFloat() / total.toFloat()).coerceIn(0f, 1f) },
+                    color = OmarchyColors.Accent,
+                    trackColor = OmarchyColors.Hairline,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(20.dp)
+                )
+            } else {
+                CircularProgressIndicator(
+                    color = OmarchyColors.Accent,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
         PodcastDownloadStatus.REMOVING -> Icon(
             Icons.Default.Schedule,

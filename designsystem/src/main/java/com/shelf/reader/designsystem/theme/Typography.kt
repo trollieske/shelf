@@ -137,6 +137,15 @@ object ShelfTypography {
     )
 }
 
+/**
+ * HUD/terminal typefaces. [Mono] is used for live numeric readouts (timers,
+ * counters) so digits keep a fixed width and the text does not jitter while
+ * the value changes — and to reinforce the terminal look.
+ */
+object ShelfFonts {
+    val Mono: FontFamily = FontFamily.Monospace
+}
+
 val ShelfMaterialTypography = Typography(
     displayLarge = ShelfTypography.DisplayLarge,
     displayMedium = ShelfTypography.DisplayMedium,

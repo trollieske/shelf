@@ -15,8 +15,6 @@
     <string name="pod_refresh">Refresh</string>
     <string name="pod_resume_title">Continue listening</string>
     <string name="pod_resume_more">+%1$d</string>
-    <string name="pod_episodes_count">%1$d episodes</string>
-    <string name="pod_new_count">%1$d new</string>
     <string name="pod_synced_now">Updated now</string>
     <string name="pod_sync_failed">Could not update</string>
 
@@ -83,17 +81,13 @@
     <string name="pod_country_es">Spain</string>
 
     <!-- Detail -->
-    <string name="pod_detail_language">Language</string>
-    <string name="pod_detail_category">Category</string>
     <string name="pod_detail_explicit">Explicit</string>
     <string name="pod_detail_refresh">Refresh</string>
     <string name="pod_detail_unfollow">Unfollow</string>
     <string name="pod_detail_follow">Follow</string>
     <string name="pod_detail_no_episodes">No episodes yet.</string>
-    <string name="pod_detail_play">Play</string>
     <string name="pod_detail_download">Download</string>
     <string name="pod_detail_queued">Queued</string>
-    <string name="pod_detail_downloading">Downloading\u2026</string>
     <string name="pod_detail_downloaded">Downloaded</string>
     <string name="pod_detail_download_failed">Download failed</string>
     <string name="pod_detail_remove_download">Remove Download</string>
@@ -104,7 +98,6 @@
     <string name="pod_detail_episode_download_a11y">Download episode</string>
     <string name="pod_detail_back_a11y">Back</string>
     <string name="pod_detail_feed_a11y">Podcast artwork</string>
-    <string name="pod_detail_episode_duration">%1$s</string>
     <string name="pod_detail_offline_marker">Offline</string>
 
     <!-- Player -->
@@ -120,7 +113,6 @@
     <string name="pod_player_streaming">Streaming</string>
     <string name="pod_player_back_a11y">Back</string>
     <string name="pod_player_artwork_a11y">Episode artwork</string>
-    <string name="pod_player_seek_a11y">Seek position</string>
 
     <!-- Notification -->
     <string name="pod_notif_title">Podcast</string>
@@ -132,8 +124,6 @@
     <string name="pod_notif_channel_desc">Podcast playback notifications</string>
 
     <!-- Downloads -->
-    <string name="pod_download_remove_success">Download removed</string>
-    <string name="pod_download_started">Download started</string>
     <string name="pod_error_generic">Something went wrong. Try again.</string>
 
     <!-- Time formatting -->

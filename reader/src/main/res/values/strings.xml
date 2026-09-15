@@ -14,7 +14,6 @@
     <string name="rdr_search_label">Word or phrase</string>
     <string name="rdr_search_body">Search looks through the current chapter text and lists hits as a compact HUD.</string>
     <string name="rdr_search_unavailable">Search for "%1$s" is not available in bitmap view yet.</string>
-    <string name="rdr_search_hits">Chapter: %1$s · Hit %2$d of %3$d</string>
     <string name="rdr_back">Back</string>
     <string name="rdr_share">Share</string>
     <string name="rdr_share_progress">Share reading progress</string>

@@ -14,7 +14,6 @@
     <string name="rdr_search_label">Ord eller fras</string>
     <string name="rdr_search_body">Sökningen genomsöker den aktuella kapiteltexten och visar träffarna som en kompakt HUD.</string>
     <string name="rdr_search_unavailable">Sök efter "%1$s" är inte tillgänglig i bitmap-vyn ännu.</string>
-    <string name="rdr_search_hits">Kapitel: %1$s · Träff %2$d av %3$d</string>
     <string name="rdr_back">Tillbaka</string>
     <string name="rdr_share">Dela</string>
     <string name="rdr_share_progress">Dela läsframsteg</string>

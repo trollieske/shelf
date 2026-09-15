@@ -105,13 +105,14 @@ class PodcastDownloads(
                         )
                     )
                 }
-                DownloadManager.STATUS_RUNNING, DownloadManager.STATUS_PENDING -> {
-                    if (row.status != PodcastDownloadStatus.DOWNLOADING) {
-                        downloadDao.upsert(row.copy(status = PodcastDownloadStatus.DOWNLOADING))
-                    }
-                }
-                DownloadManager.STATUS_PAUSED -> {
-                    downloadDao.upsert(row.copy(status = PodcastDownloadStatus.DOWNLOADING))
+                DownloadManager.STATUS_RUNNING, DownloadManager.STATUS_PENDING, DownloadManager.STATUS_PAUSED -> {
+                    downloadDao.upsert(
+                        row.copy(
+                            status = PodcastDownloadStatus.DOWNLOADING,
+                            downloadedBytes = info.bytesDownloaded.takeIf { it > 0L } ?: row.downloadedBytes,
+                            totalBytes = info.totalBytes.takeIf { it > 0L } ?: row.totalBytes
+                        )
+                    )
                 }
             }
         }
@@ -151,7 +152,13 @@ class PodcastDownloads(
         return enqueue(episode)
     }
 
-    private data class Info(val status: Int, val localUri: String?, val totalBytes: Long, val reason: Int?)
+    private data class Info(
+        val status: Int,
+        val localUri: String?,
+        val totalBytes: Long,
+        val bytesDownloaded: Long,
+        val reason: Int?
+    )
 
     private fun query(dm: DownloadManager, id: Long): Info? {
         return runCatching {
@@ -161,9 +168,11 @@ class PodcastDownloads(
                 val localUri = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI))
                 val totalCol = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
                 val total = if (totalCol >= 0) cursor.getLong(totalCol) else -1L
+                val doneCol = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+                val done = if (doneCol >= 0) cursor.getLong(doneCol) else -1L
                 val reasonCol = cursor.getColumnIndex(DownloadManager.COLUMN_REASON)
                 val reason = if (reasonCol >= 0) cursor.getInt(reasonCol) else null
-                Info(status, localUri, total, reason)
+                Info(status, localUri, total, done, reason)
             }
         }.getOrNull()
     }

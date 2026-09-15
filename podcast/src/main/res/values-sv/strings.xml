@@ -14,8 +14,6 @@
     <string name="pod_refresh">Uppdatera</string>
     <string name="pod_resume_title">Forts\u00e4tt lyssna</string>
     <string name="pod_resume_more">+%1$d</string>
-    <string name="pod_episodes_count">%1$d avsnitt</string>
-    <string name="pod_new_count">%1$d nya</string>
     <string name="pod_synced_now">Uppdaterad nu</string>
     <string name="pod_sync_failed">Kunde inte uppdatera</string>
 
@@ -77,17 +75,13 @@
     <string name="pod_country_fr">Frankrike</string>
     <string name="pod_country_es">Spanien</string>
 
-    <string name="pod_detail_language">Spr\u00e5k</string>
-    <string name="pod_detail_category">Kategori</string>
     <string name="pod_detail_explicit">Explicit</string>
     <string name="pod_detail_refresh">Uppdatera</string>
     <string name="pod_detail_unfollow">Sluta f\u00f6lja</string>
     <string name="pod_detail_follow">F\u00f6lj</string>
     <string name="pod_detail_no_episodes">Inga avsnitt \u00e4nnu.</string>
-    <string name="pod_detail_play">Spela</string>
     <string name="pod_detail_download">Ladda ner</string>
     <string name="pod_detail_queued">I k\u00f6</string>
-    <string name="pod_detail_downloading">Laddar ner\u2026</string>
     <string name="pod_detail_downloaded">Nedladdad</string>
     <string name="pod_detail_download_failed">Nedladdning misslyckades</string>
     <string name="pod_detail_remove_download">Ta bort nedladdning</string>
@@ -98,7 +92,6 @@
     <string name="pod_detail_episode_download_a11y">Ladda ner avsnitt</string>
     <string name="pod_detail_back_a11y">Tillbaka</string>
     <string name="pod_detail_feed_a11y">Poddbild</string>
-    <string name="pod_detail_episode_duration">%1$s</string>
     <string name="pod_detail_offline_marker">Offline</string>
 
     <string name="pod_player_upper">PODD</string>
@@ -113,7 +106,6 @@
     <string name="pod_player_streaming">Str\u00f6mmar</string>
     <string name="pod_player_back_a11y">Tillbaka</string>
     <string name="pod_player_artwork_a11y">Avsnittsbild</string>
-    <string name="pod_player_seek_a11y">S\u00f6k position</string>
 
     <string name="pod_notif_title">Podd</string>
     <string name="pod_notif_loading">Laddar podd\u2026</string>
@@ -123,8 +115,6 @@
     <string name="pod_notif_channel">Uppspelning</string>
     <string name="pod_notif_channel_desc">Aviseringar f\u00f6r podduppspelning</string>
 
-    <string name="pod_download_remove_success">Nedladdning borttagen</string>
-    <string name="pod_download_started">Nedladdning startad</string>
     <string name="pod_error_generic">N\u00e5got gick fel. F\u00f6rs\u00f6k igen.</string>
 
     <string name="pod_time_hm">%1$dt %2$dm</string>

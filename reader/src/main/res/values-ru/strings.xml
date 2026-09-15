@@ -14,7 +14,6 @@
     <string name="rdr_search_label">Слово или фраза</string>
     <string name="rdr_search_body">Поиск просматривает текст текущей главы и показывает результаты в виде компактного HUD.</string>
     <string name="rdr_search_unavailable">Поиск «%1$s» в режиме растрового просмотра пока недоступен.</string>
-    <string name="rdr_search_hits">Глава: %1$s · Результат %2$d из %3$d</string>
     <string name="rdr_back">Назад</string>
     <string name="rdr_share">Поделиться</string>
     <string name="rdr_share_progress">Поделиться прогрессом чтения</string>

@@ -14,7 +14,6 @@
     <string name="rdr_search_label">Слово або фраза</string>
     <string name="rdr_search_body">Пошук переглядає текст поточного розділу й показує результати як компактний HUD.</string>
     <string name="rdr_search_unavailable">Пошук «%1$s» у режимі растрового перегляду поки недоступний.</string>
-    <string name="rdr_search_hits">Розділ: %1$s · Результат %2$d із %3$d</string>
     <string name="rdr_back">Назад</string>
     <string name="rdr_share">Поділитися</string>
     <string name="rdr_share_progress">Поділитися прогресом читання</string>

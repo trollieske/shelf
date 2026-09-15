@@ -14,8 +14,6 @@
     <string name="pod_refresh">Oppdater</string>
     <string name="pod_resume_title">Fortsett \u00e5 lytte</string>
     <string name="pod_resume_more">+%1$d</string>
-    <string name="pod_episodes_count">%1$d episoder</string>
-    <string name="pod_new_count">%1$d nye</string>
     <string name="pod_synced_now">Oppdatert n\u00e5</string>
     <string name="pod_sync_failed">Kunne ikke oppdatere</string>
 
@@ -77,17 +75,13 @@
     <string name="pod_country_fr">Frankrike</string>
     <string name="pod_country_es">Spania</string>
 
-    <string name="pod_detail_language">Spr\u00e5k</string>
-    <string name="pod_detail_category">Kategori</string>
     <string name="pod_detail_explicit">Eksplisitt</string>
     <string name="pod_detail_refresh">Oppdater</string>
     <string name="pod_detail_unfollow">Slutt \u00e5 f\u00f8lge</string>
     <string name="pod_detail_follow">F\u00f8lg</string>
     <string name="pod_detail_no_episodes">Ingen episoder enn\u00e5.</string>
-    <string name="pod_detail_play">Spill av</string>
     <string name="pod_detail_download">Last ned</string>
     <string name="pod_detail_queued">I k\u00f8</string>
-    <string name="pod_detail_downloading">Laster ned\u2026</string>
     <string name="pod_detail_downloaded">Lastet ned</string>
     <string name="pod_detail_download_failed">Nedlasting feilet</string>
     <string name="pod_detail_remove_download">Fjern nedlasting</string>
@@ -98,7 +92,6 @@
     <string name="pod_detail_episode_download_a11y">Last ned episode</string>
     <string name="pod_detail_back_a11y">Tilbake</string>
     <string name="pod_detail_feed_a11y">Podkastbilde</string>
-    <string name="pod_detail_episode_duration">%1$s</string>
     <string name="pod_detail_offline_marker">Offline</string>
 
     <string name="pod_player_upper">PODKAST</string>
@@ -113,7 +106,6 @@
     <string name="pod_player_streaming">Str\u00f8mmer</string>
     <string name="pod_player_back_a11y">Tilbake</string>
     <string name="pod_player_artwork_a11y">Episodebilde</string>
-    <string name="pod_player_seek_a11y">S\u00f8k i posisjon</string>
 
     <string name="pod_notif_title">Podkast</string>
     <string name="pod_notif_loading">Laster podkast\u2026</string>
@@ -123,8 +115,6 @@
     <string name="pod_notif_channel">Avspilling</string>
     <string name="pod_notif_channel_desc">Varsler for podkastavspilling</string>
 
-    <string name="pod_download_remove_success">Nedlasting fjernet</string>
-    <string name="pod_download_started">Nedlasting startet</string>
     <string name="pod_error_generic">Noe gikk galt. Pr\u00f8v igjen.</string>
 
     <string name="pod_time_hm">%1$dt %2$dm</string>

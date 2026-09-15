@@ -14,8 +14,6 @@
     <string name="pod_refresh">Aktualisieren</string>
     <string name="pod_resume_title">Weiterh\u00f6ren</string>
     <string name="pod_resume_more">+%1$d</string>
-    <string name="pod_episodes_count">%1$d Folgen</string>
-    <string name="pod_new_count">%1$d neu</string>
     <string name="pod_synced_now">Gerade aktualisiert</string>
     <string name="pod_sync_failed">Aktualisierung fehlgeschlagen</string>
 
@@ -77,17 +75,13 @@
     <string name="pod_country_fr">Frankreich</string>
     <string name="pod_country_es">Spanien</string>
 
-    <string name="pod_detail_language">Sprache</string>
-    <string name="pod_detail_category">Kategorie</string>
     <string name="pod_detail_explicit">Explizit</string>
     <string name="pod_detail_refresh">Aktualisieren</string>
     <string name="pod_detail_unfollow">Nicht mehr folgen</string>
     <string name="pod_detail_follow">Folgen</string>
     <string name="pod_detail_no_episodes">Noch keine Folgen.</string>
-    <string name="pod_detail_play">Abspielen</string>
     <string name="pod_detail_download">Herunterladen</string>
     <string name="pod_detail_queued">In Warteschlange</string>
-    <string name="pod_detail_downloading">Wird geladen\u2026</string>
     <string name="pod_detail_downloaded">Heruntergeladen</string>
     <string name="pod_detail_download_failed">Download fehlgeschlagen</string>
     <string name="pod_detail_remove_download">Download entfernen</string>
@@ -98,7 +92,6 @@
     <string name="pod_detail_episode_download_a11y">Folge herunterladen</string>
     <string name="pod_detail_back_a11y">Zur\u00fcck</string>
     <string name="pod_detail_feed_a11y">Podcast-Cover</string>
-    <string name="pod_detail_episode_duration">%1$s</string>
     <string name="pod_detail_offline_marker">Offline</string>
 
     <string name="pod_player_upper">PODCAST</string>
@@ -113,7 +106,6 @@
     <string name="pod_player_streaming">Streaming</string>
     <string name="pod_player_back_a11y">Zur\u00fcck</string>
     <string name="pod_player_artwork_a11y">Folgen-Cover</string>
-    <string name="pod_player_seek_a11y">Position suchen</string>
 
     <string name="pod_notif_title">Podcast</string>
     <string name="pod_notif_loading">Podcast wird geladen\u2026</string>
@@ -123,8 +115,6 @@
     <string name="pod_notif_channel">Wiedergabe</string>
     <string name="pod_notif_channel_desc">Benachrichtigungen zur Podcast-Wiedergabe</string>
 
-    <string name="pod_download_remove_success">Download entfernt</string>
-    <string name="pod_download_started">Download gestartet</string>
     <string name="pod_error_generic">Etwas ist schiefgelaufen. Versuche es erneut.</string>
 
     <string name="pod_time_hm">%1$dh %2$dm</string>

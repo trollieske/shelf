@@ -28,6 +28,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.shelf.reader.core.playback.PlaybackArbiter
 import com.shelf.reader.data.local.ShelfDatabase
+import com.shelf.reader.data.prefs.UserPreferencesRepository
 import com.shelf.reader.data.repository.PodcastPlaybackState
 import com.shelf.reader.podcast.R
 import com.shelf.reader.podcast.data.repository.PodcastRepository
@@ -37,6 +38,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -79,6 +81,7 @@ class PodcastPlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private var db: ShelfDatabase? = null
     private var repository: PodcastRepository? = null
+    private var prefs: UserPreferencesRepository? = null
     private var currentEpisodeId: Long = -1L
     private var currentFeedId: Long = -1L
     private var tickerJob: Job? = null
@@ -100,6 +103,7 @@ class PodcastPlaybackService : MediaSessionService() {
         ensureChannel()
         val database = ShelfDatabase.getInstance(applicationContext)
         db = database
+        prefs = UserPreferencesRepository(applicationContext)
         repository = PodcastRepository(
             feedDao = database.podcastFeedDao(),
             episodeDao = database.podcastEpisodeDao(),
@@ -333,11 +337,10 @@ class PodcastPlaybackService : MediaSessionService() {
                 .setMediaMetadata(metadata)
                 .build()
 
+            val globalSpeed = runCatching { prefs?.podcastSpeed?.first() }.getOrNull() ?: 1f
             withContext(Dispatchers.Main) {
                 p.setMediaItem(item)
-                playback?.playbackSpeed?.let { speed ->
-                    p.setPlaybackSpeed(speed.coerceIn(0.5f, 3f))
-                }
+                p.setPlaybackSpeed(globalSpeed.coerceIn(0.5f, 3f))
                 val start = if (playback?.isCompleted == true) 0L else playback?.positionMs ?: 0L
                 if (start > 0L) p.seekTo(start)
                 p.prepare()
@@ -525,8 +528,9 @@ class PodcastPlaybackService : MediaSessionService() {
         val clamped = speed.coerceIn(0.5f, 3f)
         onMain { player?.setPlaybackSpeed(clamped) }
         val id = currentEpisodeId
-        if (id > 0L) {
-            serviceScope.launch { repository?.savePlaybackSpeed(id, clamped) }
+        serviceScope.launch {
+            if (id > 0L) repository?.savePlaybackSpeed(id, clamped)
+            runCatching { prefs?.setPodcastSpeed(clamped) }
         }
     }
 

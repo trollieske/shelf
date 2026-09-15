@@ -14,8 +14,6 @@
     <string name="pod_refresh">Actualiser</string>
     <string name="pod_resume_title">Continuer l\u2019\u00e9coute</string>
     <string name="pod_resume_more">+%1$d</string>
-    <string name="pod_episodes_count">%1$d \u00e9pisodes</string>
-    <string name="pod_new_count">%1$d nouveaux</string>
     <string name="pod_synced_now">Mis \u00e0 jour</string>
     <string name="pod_sync_failed">Mise \u00e0 jour impossible</string>
 
@@ -77,17 +75,13 @@
     <string name="pod_country_fr">France</string>
     <string name="pod_country_es">Espagne</string>
 
-    <string name="pod_detail_language">Langue</string>
-    <string name="pod_detail_category">Cat\u00e9gorie</string>
     <string name="pod_detail_explicit">Explicite</string>
     <string name="pod_detail_refresh">Actualiser</string>
     <string name="pod_detail_unfollow">Ne plus suivre</string>
     <string name="pod_detail_follow">Suivre</string>
     <string name="pod_detail_no_episodes">Aucun \u00e9pisode pour l\u2019instant.</string>
-    <string name="pod_detail_play">Lire</string>
     <string name="pod_detail_download">T\u00e9l\u00e9charger</string>
     <string name="pod_detail_queued">En attente</string>
-    <string name="pod_detail_downloading">T\u00e9l\u00e9chargement\u2026</string>
     <string name="pod_detail_downloaded">T\u00e9l\u00e9charg\u00e9</string>
     <string name="pod_detail_download_failed">\u00c9chec du t\u00e9l\u00e9chargement</string>
     <string name="pod_detail_remove_download">Supprimer le t\u00e9l\u00e9chargement</string>
@@ -98,7 +92,6 @@
     <string name="pod_detail_episode_download_a11y">T\u00e9l\u00e9charger l\u2019\u00e9pisode</string>
     <string name="pod_detail_back_a11y">Retour</string>
     <string name="pod_detail_feed_a11y">Illustration du podcast</string>
-    <string name="pod_detail_episode_duration">%1$s</string>
     <string name="pod_detail_offline_marker">Hors ligne</string>
 
     <string name="pod_player_upper">PODCAST</string>
@@ -113,7 +106,6 @@
     <string name="pod_player_streaming">En streaming</string>
     <string name="pod_player_back_a11y">Retour</string>
     <string name="pod_player_artwork_a11y">Illustration de l\u2019\u00e9pisode</string>
-    <string name="pod_player_seek_a11y">Position de lecture</string>
 
     <string name="pod_notif_title">Podcast</string>
     <string name="pod_notif_loading">Chargement du podcast\u2026</string>
@@ -123,8 +115,6 @@
     <string name="pod_notif_channel">Lecture</string>
     <string name="pod_notif_channel_desc">Notifications de lecture des podcasts</string>
 
-    <string name="pod_download_remove_success">T\u00e9l\u00e9chargement supprim\u00e9</string>
-    <string name="pod_download_started">T\u00e9l\u00e9chargement d\u00e9marr\u00e9</string>
     <string name="pod_error_generic">Une erreur est survenue. R\u00e9essayez.</string>
 
     <string name="pod_time_hm">%1$dh %2$dm</string>

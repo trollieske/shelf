@@ -14,7 +14,6 @@
     <string name="rdr_search_label">Mot ou phrase</string>
     <string name="rdr_search_body">La recherche parcourt le texte du chapitre actuel et affiche les résultats sous forme de HUD compact.</string>
     <string name="rdr_search_unavailable">La recherche de « %1$s » n\'est pas encore disponible dans la vue bitmap.</string>
-    <string name="rdr_search_hits">Chapitre : %1$s · Résultat %2$d sur %3$d</string>
     <string name="rdr_back">Retour</string>
     <string name="rdr_share">Partager</string>
     <string name="rdr_share_progress">Partager la progression</string>

@@ -14,8 +14,6 @@
     <string name="pod_refresh">Actualizar</string>
     <string name="pod_resume_title">Seguir escuchando</string>
     <string name="pod_resume_more">+%1$d</string>
-    <string name="pod_episodes_count">%1$d episodios</string>
-    <string name="pod_new_count">%1$d nuevos</string>
     <string name="pod_synced_now">Actualizado ahora</string>
     <string name="pod_sync_failed">No se pudo actualizar</string>
 
@@ -77,17 +75,13 @@
     <string name="pod_country_fr">Francia</string>
     <string name="pod_country_es">España</string>
 
-    <string name="pod_detail_language">Idioma</string>
-    <string name="pod_detail_category">Categoría</string>
     <string name="pod_detail_explicit">Explícito</string>
     <string name="pod_detail_refresh">Actualizar</string>
     <string name="pod_detail_unfollow">Dejar de seguir</string>
     <string name="pod_detail_follow">Seguir</string>
     <string name="pod_detail_no_episodes">Aún no hay episodios.</string>
-    <string name="pod_detail_play">Reproducir</string>
     <string name="pod_detail_download">Descargar</string>
     <string name="pod_detail_queued">En cola</string>
-    <string name="pod_detail_downloading">Descargando…</string>
     <string name="pod_detail_downloaded">Descargado</string>
     <string name="pod_detail_download_failed">Fallo en la descarga</string>
     <string name="pod_detail_remove_download">Eliminar descarga</string>
@@ -98,7 +92,6 @@
     <string name="pod_detail_episode_download_a11y">Descargar episodio</string>
     <string name="pod_detail_back_a11y">Atrás</string>
     <string name="pod_detail_feed_a11y">Portada del pódcast</string>
-    <string name="pod_detail_episode_duration">%1$s</string>
     <string name="pod_detail_offline_marker">Sin conexión</string>
 
     <string name="pod_player_upper">PÓDCAST</string>
@@ -113,7 +106,6 @@
     <string name="pod_player_streaming">En streaming</string>
     <string name="pod_player_back_a11y">Atrás</string>
     <string name="pod_player_artwork_a11y">Portada del episodio</string>
-    <string name="pod_player_seek_a11y">Buscar posición</string>
 
     <string name="pod_notif_title">Pódcast</string>
     <string name="pod_notif_loading">Cargando pódcast…</string>
@@ -123,8 +115,6 @@
     <string name="pod_notif_channel">Reproducción</string>
     <string name="pod_notif_channel_desc">Notificaciones de reproducción de pódcast</string>
 
-    <string name="pod_download_remove_success">Descarga eliminada</string>
-    <string name="pod_download_started">Descarga iniciada</string>
     <string name="pod_error_generic">Algo salió mal. Inténtalo de nuevo.</string>
 
     <string name="pod_time_hm">%1$dh %2$dm</string>

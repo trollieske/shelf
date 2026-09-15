@@ -31,7 +31,6 @@
     <string name="ply_notif_skip_forward">Вперед 30 с</string>
     <string name="ply_notif_next">Наступна</string>
     <string name="ply_library_root">Бібліотека Shelf</string>
-    <string name="ply_notif_title">Аудіокнига</string>
     <string name="ply_notif_channel">Відтворення</string>
     <string name="ply_notif_channel_desc">Сповіщення про відтворення аудіокниг</string>
     <string name="ply_prepare_error">Не вдалося підготувати аудіокнигу</string>
