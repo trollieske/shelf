@@ -39,6 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,7 +70,15 @@ fun PodcastPlayerScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     var sliderValue by remember { mutableStateOf<Float?>(null) }
+    var pendingSeekMs by remember { mutableStateOf<Long?>(null) }
     var showSleep by remember { mutableStateOf(false) }
+
+    // Hold the scrubbed position until playback actually reaches it, so the counter
+    // does not snap back while the service catches up after a seek.
+    LaunchedEffect(state.positionMs, pendingSeekMs) {
+        val target = pendingSeekMs ?: return@LaunchedEffect
+        if (kotlin.math.abs(state.positionMs - target) < 1_500L) pendingSeekMs = null
+    }
 
     Column(
         Modifier
@@ -196,13 +205,19 @@ fun PodcastPlayerScreen(
 
         val duration = state.durationMs.coerceAtLeast(0L)
         val max = if (duration > 0L) duration.toFloat() else 1f
-        val position = (sliderValue ?: state.positionMs.toFloat()).coerceIn(0f, max)
+        val baseMs = (pendingSeekMs ?: state.positionMs).toFloat()
+        val position = (sliderValue ?: baseMs).coerceIn(0f, max)
         Slider(
             value = position,
-            onValueChange = { sliderValue = it },
+            onValueChange = {
+                pendingSeekMs = null
+                sliderValue = it
+            },
             onValueChangeFinished = {
-                sliderValue?.let { vm.seekTo(it.toLong()) }
+                val target = (sliderValue ?: position).toLong()
                 sliderValue = null
+                pendingSeekMs = target
+                vm.seekTo(target)
             },
             valueRange = 0f..max,
             enabled = duration > 0L,

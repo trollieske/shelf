@@ -656,8 +656,25 @@ private fun SeekProgressSection(
     val bookDuration = AudiobookTimeline.globalDurationMs(chapters, state.durationMs)
     val hasChapters = chapters.size > 1
 
+    // While scrubbing we show the drag position (not the 500 ms stale playback
+    // position) so the counters move live under the finger. After release we hold
+    // the target until playback catches up, so the display does not snap back.
+    var globalScrub by remember { mutableStateOf<Float?>(null) }
+    var globalPendingMs by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(state.currentMs, globalPendingMs) {
+        val p = globalPendingMs ?: return@LaunchedEffect
+        if (kotlin.math.abs(state.currentMs - p) < 1_000L) globalPendingMs = null
+    }
+
     Column(Modifier.fillMaxWidth()) {
         // ── 1. GLOBAL BOKTIDSLINJE — kompakt scratch-linje øverst ──
+        val bookLen = bookDuration.coerceAtLeast(1L)
+        val bookShownMs = when {
+            globalScrub != null -> (globalScrub!! * bookLen).toLong()
+            globalPendingMs != null -> globalPendingMs!!.coerceIn(0L, bookDuration.coerceAtLeast(0L))
+            else -> state.currentMs
+        }
+        val bookPct = (bookShownMs.toFloat() / bookLen.toFloat()).coerceIn(0f, 1f)
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -670,15 +687,24 @@ private fun SeekProgressSection(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "${formatDuration(state.currentMs / 1_000L)} / ${formatDuration(bookDuration / 1_000L)}",
+                "${formatDuration(bookShownMs / 1_000L)} / ${formatDuration(bookDuration / 1_000L)}",
                 style = ShelfTypography.LabelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        val bookPct = AudiobookTimeline.globalFraction(state.currentMs, bookDuration)
         CompactTimeline(
             fraction = bookPct,
-            onSeekFraction = { f -> onSeek((f * bookDuration.coerceAtLeast(1L)).toLong()) },
+            onScrub = { f ->
+                globalPendingMs = null
+                globalScrub = f
+            },
+            onScrubEnd = { f ->
+                globalScrub = null
+                val target = (f * bookLen).toLong()
+                globalPendingMs = target
+                onSeek(target)
+            },
+            onTap = { f -> onSeek((f * bookLen).toLong()) },
             modifier = Modifier.padding(top = 2.dp, bottom = 6.dp)
         )
 
@@ -708,15 +734,31 @@ private fun SeekProgressSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            var chSlider by remember(state.currentMs, chStart, chEnd) {
-                mutableFloatStateOf(chElapsed.toFloat() / chLen.toFloat())
+            var chapterScrub by remember { mutableStateOf<Float?>(null) }
+            var chapterPendingMs by remember { mutableStateOf<Long?>(null) }
+            LaunchedEffect(state.currentMs, chapterPendingMs) {
+                val p = chapterPendingMs ?: return@LaunchedEffect
+                if (kotlin.math.abs(state.currentMs - p) < 1_000L) chapterPendingMs = null
             }
+            val chShownMs = when {
+                chapterScrub != null -> (chapterScrub!! * chLen).toLong().coerceIn(0L, chLen)
+                chapterPendingMs != null -> (chapterPendingMs!! - chStart).coerceIn(0L, chLen)
+                else -> chElapsed
+            }
+            val chPct = (chShownMs.toFloat() / chLen.toFloat()).coerceIn(0f, 1f)
             Slider(
-                value = chSlider,
-                onValueChange = { chSlider = it },
+                value = chPct,
+                onValueChange = {
+                    chapterPendingMs = null
+                    chapterScrub = it
+                },
                 onValueChangeFinished = {
                     // Forblir alltid innenfor kapittelets grenser (start + fraksjon av lengde).
-                    onSeek(chStart + (chSlider * chLen).toLong())
+                    val f = chapterScrub ?: chPct
+                    chapterScrub = null
+                    val target = chStart + (f * chLen).toLong()
+                    chapterPendingMs = target
+                    onSeek(target)
                 }
             )
             // Teller for posisjon INNENFOR kapittelet
@@ -725,12 +767,12 @@ private fun SeekProgressSection(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    stringResource(R.string.ply_in_chapter, formatDuration(chElapsed / 1_000L)),
+                    stringResource(R.string.ply_in_chapter, formatDuration(chShownMs / 1_000L)),
                     style = ShelfTypography.LabelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "- " + stringResource(R.string.ply_left, formatDuration(max(0L, (chEnd - state.currentMs) / 1_000L))),
+                    "- " + stringResource(R.string.ply_left, formatDuration(max(0L, (chLen - chShownMs) / 1_000L))),
                     style = ShelfTypography.LabelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -754,13 +796,17 @@ private fun SeekProgressSection(
 @Composable
 private fun CompactTimeline(
     fraction: Float,
-    onSeekFraction: (Float) -> Unit,
+    onScrub: (Float) -> Unit,
+    onScrubEnd: (Float) -> Unit,
+    onTap: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var trackWidthPx by remember { mutableFloatStateOf(1f) }
-    var dragging by remember { mutableStateOf(false) }
-    var dragFraction by remember { mutableFloatStateOf(0f) }
-    val shown = (if (dragging) dragFraction else fraction).coerceIn(0f, 1f)
+    val shown = fraction.coerceIn(0f, 1f)
+    val shownState = rememberUpdatedState(shown)
+    val onScrubState = rememberUpdatedState(onScrub)
+    val onScrubEndState = rememberUpdatedState(onScrubEnd)
+    val onTapState = rememberUpdatedState(onTap)
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
     val activeColor = MaterialTheme.colorScheme.primary
     val thumbColor = MaterialTheme.colorScheme.primary
@@ -772,23 +818,22 @@ private fun CompactTimeline(
             .onSizeChanged { if (it.width > 0) trackWidthPx = it.width.toFloat() }
             .pointerInput(Unit) {
                 detectTapGestures { offset ->
-                    onSeekFraction((offset.x / trackWidthPx).coerceIn(0f, 1f))
+                    onTapState.value((offset.x / trackWidthPx).coerceIn(0f, 1f))
                 }
             }
             .pointerInput(Unit) {
+                var last = shownState.value
                 detectHorizontalDragGestures(
                     onDragStart = { offset ->
-                        dragging = true
-                        dragFraction = (offset.x / trackWidthPx).coerceIn(0f, 1f)
+                        last = (offset.x / trackWidthPx).coerceIn(0f, 1f)
+                        onScrubState.value(last)
                     },
-                    onDragEnd = {
-                        dragging = false
-                        onSeekFraction(dragFraction)
-                    },
-                    onDragCancel = { dragging = false },
+                    onDragEnd = { onScrubEndState.value(last) },
+                    onDragCancel = { onScrubEndState.value(last) },
                 ) { change, _ ->
                     change.consume()
-                    dragFraction = (change.position.x / trackWidthPx).coerceIn(0f, 1f)
+                    last = (change.position.x / trackWidthPx).coerceIn(0f, 1f)
+                    onScrubState.value(last)
                 }
             }
     ) {
